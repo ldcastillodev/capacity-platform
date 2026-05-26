@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TempoConnector } from "@/lib/integrations/tempo";
 import { JiraNAConnector } from "@/lib/integrations/jira-na";
+import prisma from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret");
-  if (!secret || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = await req.json().catch(() => ({})) as {
     source?: "tempo" | "jira_na" | "all";
     date_from?: string;
@@ -15,24 +11,48 @@ export async function POST(req: NextRequest) {
   };
 
   const source = body.source ?? "all";
-  const dateFrom = body.date_from ? new Date(body.date_from) : (() => {
+  const dateFrom = body.date_from ?? (() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
-    return d;
+    return d.toISOString().split("T")[0];
   })();
-  const dateTo = body.date_to ? new Date(body.date_to) : new Date();
+  const dateTo = body.date_to ?? new Date().toISOString().split("T")[0];
 
   const results: Record<string, unknown> = {};
 
   if (source === "tempo" || source === "all") {
     const connector = new TempoConnector();
-    results.tempo = await connector.sync(dateFrom, dateTo);
+    results.tempo = await connector.sync(dateFrom, dateTo, "full");
   }
 
   if (source === "jira_na" || source === "all") {
     const connector = new JiraNAConnector();
-    results.jira_na = await connector.sync(dateFrom, dateTo);
+    results.jira_na = await connector.sync(dateFrom, dateTo, "full");
   }
 
   return NextResponse.json({ ok: true, results });
+}
+
+export async function GET() {
+  const rows = await prisma.syncLog.findMany({
+    orderBy: { startedAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      source: true,
+      syncType: true,
+      startedAt: true,
+      completedAt: true,
+      dateFrom: true,
+      dateTo: true,
+      errorMessage: true,
+    },
+  });
+
+  const latest: Record<string, typeof rows[0]> = {};
+  for (const row of rows) {
+    if (!latest[row.source]) latest[row.source] = row;
+  }
+
+  return NextResponse.json({ logs: Object.values(latest) });
 }

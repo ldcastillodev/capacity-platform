@@ -2,15 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { runAnalyticsRefresh } from "@/lib/analytics/refresh";
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret");
-  if (!secret || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json().catch(() => ({})) as { months?: number };
+  const body = await req.json().catch(() => ({})) as { months?: string[] };
   const started = Date.now();
 
-  await runAnalyticsRefresh(body.months);
+  const months = body.months?.map((s) => new Date(s));
+  await runAnalyticsRefresh(months);
 
   return NextResponse.json({
     ok: true,

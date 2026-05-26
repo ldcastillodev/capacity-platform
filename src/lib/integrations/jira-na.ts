@@ -45,7 +45,13 @@ export class JiraNAConnector {
   ): Promise<SyncResult> {
     const result: SyncResult = { created: 0, skipped: 0, errors: [] };
     const log = await prisma.syncLog.create({
-      data: { source: "jira_na", syncType: mode, startedAt: new Date() },
+      data: {
+        source: "jira_na",
+        syncType: mode,
+        startedAt: new Date(),
+        dateFrom: new Date(dateFrom),
+        dateTo: new Date(dateTo),
+      },
     });
 
     try {

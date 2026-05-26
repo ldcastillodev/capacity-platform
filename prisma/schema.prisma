@@ -654,6 +654,8 @@ model SyncLog {
   syncType           String     @map("sync_type") @db.VarChar(20)
   startedAt          DateTime   @map("started_at")
   completedAt        DateTime?  @map("completed_at")
+  dateFrom           DateTime?  @map("date_from")
+  dateTo             DateTime?  @map("date_to")
   recordsFetched     Int        @default(0) @map("records_fetched")
   recordsCreated     Int        @default(0) @map("records_created")
   recordsSkipped     Int        @default(0) @map("records_skipped")

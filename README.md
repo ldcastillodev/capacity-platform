@@ -27,6 +27,7 @@ Squad capacity planning and delivery tracking. Tracks staffing gaps, retainer bu
 | `/simulator` | Model staffing changes and forecast impact |
 | `/reports` | Configurable hour-consumption reports for clients, persons, and squads |
 | `/management` | CRUD for squads, persons, clients, and Jira component mappings |
+| `/sync` | Manually trigger Jira/Tempo data sync and analytics refresh |
 
 ## Reports tab
 
@@ -109,6 +110,33 @@ All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squ
 All entities support a **Show Archived** toggle. Archive is soft-only — no hard deletes anywhere.
 
 API routes live under `/api/management/{squads,persons,clients,components}/[id]/{archive,unarchive}`.
+
+---
+
+## Sync tab
+
+`/sync` lets you manually trigger data sync from Jira/Tempo and analytics refresh without needing a cron secret or curl command.
+
+### Controls
+
+**Date Range** — shared `from` / `to` date picker. Defaults to last 30 days. Used by both operations below.
+
+**Data Sync** — independent checkboxes for Tempo and Jira NA. Triggers `POST /api/admin/jobs/sync` with `source`, `date_from`, and `date_to`. Always runs in `full` mode.
+
+**Analytics Refresh** — derives the month list from the selected date range (one entry per calendar month between `from` and `to`). Triggers `POST /api/admin/jobs/analytics-refresh`.
+
+Both buttons disable while the job runs and show an inline success/error banner on completion. Jobs can take several minutes depending on the date range and data volume.
+
+### Last Sync Status
+
+A status card at the top of the page shows the most recent sync log per source (Tempo, Jira NA). Each entry displays:
+
+- Date and time the sync started
+- Sync type (`full` / `delta`)
+- Date range that was synced
+- Error message if the sync failed
+
+Status refreshes automatically after each triggered sync. `SyncLog` rows now persist `date_from` and `date_to` — older rows will show `—` for the date range.
 
 ---
 
@@ -204,16 +232,18 @@ npx prisma db seed
 
 ## Cron / scheduled jobs
 
-Cron routes live under `/api/admin/jobs/` and require the `X-Cron-Secret` header matching `CRON_SECRET` in `.env`.
+Cron routes live under `/api/admin/jobs/`. No auth header is required — use the `/sync` page for manual triggering or restrict network access at the infrastructure level.
 
-| Route | Purpose |
-|---|---|
-| `POST /api/admin/jobs/analytics-refresh` | Recomputes all analytics for current + prior month |
-| `POST /api/admin/jobs/sync` | Pulls latest data from Jira / Tempo |
+| Route | Method | Body | Purpose |
+|---|---|---|---|
+| `/api/admin/jobs/sync` | `POST` | `{ source?: "tempo"\|"jira_na"\|"all", date_from?: string, date_to?: string }` | Pulls data from Jira / Tempo. Defaults: source=`all`, last 30 days. Always runs in `full` mode. |
+| `/api/admin/jobs/sync` | `GET` | — | Returns the latest `SyncLog` entry per source. |
+| `/api/admin/jobs/analytics-refresh` | `POST` | `{ months?: string[] }` | Recomputes analytics for the given months (ISO date strings, first of month). Defaults to current + prior month. |
 
 Example:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/jobs/analytics-refresh \
-  -H "X-Cron-Secret: dev-secret-change-in-prod"
+curl -X POST http://localhost:3000/api/admin/jobs/sync \
+  -H "Content-Type: application/json" \
+  -d '{"source":"all","date_from":"2025-04-01","date_to":"2025-04-30"}'
 ```

@@ -46,6 +46,8 @@ export class TempoConnector {
         source: "tempo",
         syncType: mode,
         startedAt: new Date(),
+        dateFrom: new Date(dateFrom),
+        dateTo: new Date(dateTo),
       },
     });
 
