@@ -25,7 +25,74 @@ Squad capacity planning and delivery tracking. Tracks staffing gaps, retainer bu
 | `/declarations` | Monthly role declarations — review, edit hours, confirm derived entries |
 | `/flags` | Anomaly flags — review and resolve open alerts |
 | `/simulator` | Model staffing changes and forecast impact |
+| `/reports` | Configurable hour-consumption reports for clients, persons, and squads |
 | `/management` | CRUD for squads, persons, clients, and Jira component mappings |
+
+## Reports tab
+
+`/reports` generates on-demand hour-consumption reports across three dimensions. **Reports do not run on page load** — select a date range in the filter panel and click Apply first.
+
+### Tabs
+
+**Clients** — powered by `MonthlyConsumptionSummary`. One row per client × month × role type (or "All roles" when no role filter is active).
+
+| Column | Source |
+|---|---|
+| Declared h | `declaredHours` |
+| Consumed h | `consumedHours` (billable) |
+| Retainer / T&E / CO / SME h | budget-source breakdown |
+| Remaining h | `remainingHours` |
+| NB (Ceremony) h | `CeremonyAttribution.attributedHours` summed per client × month |
+| Utilization % | `utilizationPct` |
+| Billed Rev / Direct Cost / Gross Margin | financial fields (may be null if not computed) |
+
+**Persons** — aggregated from `HourRecord` (billable) and `MonthlyNonBillableSummary` (NB + capacity). One row per person × squad × month. A person in two squads appears twice.
+
+| Column | Source |
+|---|---|
+| Capacity h | `MonthlyNonBillableSummary.capacityHours` (null-category row) |
+| Billable h | `SUM(HourRecord.hours)` for that person × month |
+| NB h | `MonthlyNonBillableSummary.totalHours` |
+| NB % | `MonthlyNonBillableSummary.nonbillablePct` |
+| Utilization | Billable h / Capacity h |
+
+**Squads** — aggregated from `HourRecord` and `NonBillableEntry` via `SquadMembership`. One row per squad × month. Capacity is computed as `SUM(weeklyCapacityHours × workingDaysInMonth / 5)` for active members. Filtering by role type affects billable hours only (NB entries have no role).
+
+### Filters (slide-over panel)
+
+Open with **Filters & Columns**. Changes are local to the panel until Apply is clicked — the report does not re-run on every keystroke.
+
+| Filter | Available on |
+|---|---|
+| Date range (from / to, month precision, inclusive) | All tabs |
+| Client | Clients tab |
+| Role type | Clients tab, Squads tab |
+| Squad | Persons tab, Squads tab |
+| Employment type | Persons tab |
+
+### Column visibility
+
+Uncheck any column in the panel to hide it from the table. Columns are in-session only — they reset on page reload.
+
+### XLSX export
+
+Click **Export XLSX** to download the currently filtered rows (all pages, not just the visible page) with only the visible columns. The file is generated client-side via SheetJS (`xlsx` package) — no server round-trip.
+
+Filename format: `report-{clients|persons|squads}-{from}-{to}.xlsx`
+
+### API routes
+
+| Route | Params |
+|---|---|
+| `GET /api/reports/clients` | `from`, `to`, `clientId`, `roleType`, `page`, `pageSize` |
+| `GET /api/reports/persons` | `from`, `to`, `squadId`, `employmentType`, `page`, `pageSize` |
+| `GET /api/reports/squads` | `from`, `to`, `squadId`, `roleType`, `page`, `pageSize` |
+
+All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squads use raw SQL (`prisma.$queryRaw`) for the aggregation; clients use the Prisma ORM.
+
+> **Note:** `HourRecord` and `NonBillableEntry` are populated by the Tempo/Jira sync jobs. If no sync has run, person and squad reports will return rows with zero hours. Client reports rely on `MonthlyConsumptionSummary`, which is populated by the analytics-refresh cron job.
+
+---
 
 ## Management tab
 

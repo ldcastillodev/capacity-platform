@@ -356,3 +356,75 @@ export const updateDeclaration = (id: number, declared_hours: number) =>
 
 export const confirmDeclaration = (id: number) =>
   api.post<Declaration>(`/declarations/${id}/confirm`).then((r) => norm(r.data));
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+export type ReportPage<T> = {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type ClientReportRow = {
+  id: number;
+  clientId: number;
+  month: string;
+  roleType: string | null;
+  declaredHours: string;
+  consumedHours: string;
+  retainerHours: string;
+  teHours: string;
+  coHours: string;
+  smeHours: string;
+  remainingHours: string;
+  utilizationPct: string;
+  billedRevenue: string | null;
+  directCost: string | null;
+  grossMargin: string | null;
+  grossMarginPct: string | null;
+  ceremonyHours: number;
+  client: { id: number; name: string; region: string; currency: string };
+};
+
+export type PersonReportRow = {
+  person_id: number;
+  person_name: string;
+  employment_type: string;
+  squad_id: number;
+  squad_name: string;
+  month: string;
+  billable_hours: string;
+  nb_hours: string;
+  capacity_hours: string;
+  nb_pct: string;
+};
+
+export type SquadReportRow = {
+  squad_id: number;
+  squad_name: string;
+  month: string;
+  billable_hours: string;
+  nb_hours: string;
+  capacity_hours: string;
+  role_type: string | null;
+};
+
+export const fetchReportClients = (params: {
+  from?: string; to?: string; clientId?: number; roleType?: string;
+  page?: number; pageSize?: number;
+}) =>
+  api.get<ReportPage<ClientReportRow>>("/reports/clients", { params }).then((r) => r.data);
+
+export const fetchReportPersons = (params: {
+  from?: string; to?: string; squadId?: number; employmentType?: string;
+  page?: number; pageSize?: number;
+}) =>
+  api.get<ReportPage<PersonReportRow>>("/reports/persons", { params }).then((r) => r.data);
+
+export const fetchReportSquads = (params: {
+  from?: string; to?: string; squadId?: number; roleType?: string;
+  page?: number; pageSize?: number;
+}) =>
+  api.get<ReportPage<SquadReportRow>>("/reports/squads", { params }).then((r) => r.data);
