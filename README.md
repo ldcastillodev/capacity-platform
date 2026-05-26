@@ -25,6 +25,25 @@ Squad capacity planning and delivery tracking. Tracks staffing gaps, retainer bu
 | `/declarations` | Monthly role declarations — review, edit hours, confirm derived entries |
 | `/flags` | Anomaly flags — review and resolve open alerts |
 | `/simulator` | Model staffing changes and forecast impact |
+| `/management` | CRUD for squads, persons, clients, and Jira component mappings |
+
+## Management tab
+
+`/management` provides create, edit, archive, and unarchive for four entities:
+
+**Squads** — name, lead person, active member count. Archiving ends all open squad memberships.
+
+**Persons** — name, email, employment type, weekly capacity hours, Tempo account ID, cost/hr, squad assignment with allocation %. Archiving ends memberships and removes the person as squad lead on any squad they lead.
+
+**Clients** — name, region (NA/EMEA), currency (USD/GBP/EUR). Archiving closes all active retainer contracts.
+
+**Components** — Jira component → client mappings (`jiraInstance`, `componentKey`, `effectiveFrom`). Archive sets `effectiveTo = today`; unarchive clears it. Component key and effective date are immutable after creation.
+
+All entities support a **Show Archived** toggle. Archive is soft-only — no hard deletes anywhere.
+
+API routes live under `/api/management/{squads,persons,clients,components}/[id]/{archive,unarchive}`.
+
+---
 
 ## Local development
 

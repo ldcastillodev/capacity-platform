@@ -1,0 +1,2 @@
+ALTER TABLE "client_simulations" ADD COLUMN IF NOT EXISTS "client_id" INTEGER REFERENCES clients(id);
+ALTER TABLE "client_simulations" ADD COLUMN IF NOT EXISTS "name" VARCHAR(200) NOT NULL DEFAULT '';
