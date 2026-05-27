@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, AlertTriangle, BarChart2, ClipboardList, Clock, FileText, LayoutDashboard, PieChart, RefreshCw, Settings, Zap } from "lucide-react";
+import { Activity, AlertTriangle, BarChart2, BookOpen, ClipboardList, Clock, FileText, LayoutDashboard, PieChart, RefreshCw, Settings, Zap } from "lucide-react";
 import "./globals.css";
 
 const nav = [
@@ -19,6 +19,7 @@ const nav = [
   { href: "/reports",      icon: FileText,         label: "Reports" },
   { href: "/sync",         icon: RefreshCw,        label: "Sync" },
   { href: "/management",   icon: Settings,         label: "Management" },
+  { href: "/help",         icon: BookOpen,         label: "How to Use" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
