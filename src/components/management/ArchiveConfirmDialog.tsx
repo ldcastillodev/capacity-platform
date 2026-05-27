@@ -75,7 +75,7 @@ export function ArchiveConfirmDialog({
               borderRadius: 6,
               border: "none",
               background: "var(--critical)",
-              color: "#fff",
+              color: "#FDFDFD",
               fontSize: 14,
               fontWeight: 600,
               cursor: isPending ? "not-allowed" : "pointer",

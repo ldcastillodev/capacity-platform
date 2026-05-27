@@ -94,24 +94,31 @@ export class JiraNAConnector {
   ): Promise<JiraIssue[]> {
     const jql = `worklogDate >= "${dateFrom}" AND worklogDate <= "${dateTo}"`;
     const issues: JiraIssue[] = [];
-    let startAt = 0;
+    let nextPageToken: string | undefined;
     const maxResults = 100;
 
     while (true) {
+      const body: Record<string, unknown> = { jql, maxResults, fields: ["key", "components", "issuetype"] };
+      if (nextPageToken) body.nextPageToken = nextPageToken;
+
       const res = await fetch(
-        `${this.baseUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,components,issuetype`,
-        { headers: { Authorization: this.authHeader, Accept: "application/json" } },
+        `${this.baseUrl}/rest/api/3/search/jql`,
+        {
+          method: "POST",
+          headers: { Authorization: this.authHeader, Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
       );
       if (!res.ok) throw new Error(`Jira search error: ${res.status}`);
-      const data = await res.json() as { issues: JiraIssue[]; total: number };
+      const data = await res.json() as { issues: JiraIssue[]; nextPageToken?: string; isLast?: boolean };
 
       for (const issue of data.issues) {
         const worklogs = await this.fetchWorklogs(issue.key, dateFrom, dateTo);
         issues.push({ ...issue, worklogs });
       }
 
-      startAt += maxResults;
-      if (startAt >= data.total) break;
+      if (data.isLast || !data.nextPageToken) break;
+      nextPageToken = data.nextPageToken;
     }
 
     return issues;

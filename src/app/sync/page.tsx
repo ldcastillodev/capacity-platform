@@ -99,7 +99,7 @@ function PrimaryButton({
       disabled={disabled}
       style={{
         background: "var(--primary)",
-        color: "#fff",
+        color: "#FDFDFD",
         border: "none",
         borderRadius: 7,
         padding: "9px 20px",
@@ -118,7 +118,7 @@ function PrimaryButton({
             width: 13,
             height: 13,
             border: "2px solid rgba(255,255,255,0.4)",
-            borderTopColor: "#fff",
+            borderTopColor: "#FDFDFD",
             borderRadius: "50%",
             display: "inline-block",
             animation: "spin 0.7s linear infinite",
@@ -181,7 +181,7 @@ function LastSyncStatus({ logs }: { logs: SyncLogEntry[] }) {
                     padding: "2px 8px",
                     borderRadius: 4,
                     background: hasError ? "var(--critical)" : "var(--safe)",
-                    color: "#fff",
+                    color: "#FDFDFD",
                     textTransform: "uppercase",
                     letterSpacing: "0.04em",
                   }}

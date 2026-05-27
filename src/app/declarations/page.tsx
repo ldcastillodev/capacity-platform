@@ -198,7 +198,7 @@ export default function DeclarationsPage() {
                 <button
                   onClick={() => handleConfirmAll(squadId ?? -1, derivedInSquad)}
                   disabled={isConfirmingAll}
-                  style={{ padding: "6px 14px", background: "var(--safe)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: isConfirmingAll ? "not-allowed" : "pointer", opacity: isConfirmingAll ? 0.7 : 1 }}
+                  style={{ padding: "6px 14px", background: "var(--safe)", color: "#FDFDFD", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: isConfirmingAll ? "not-allowed" : "pointer", opacity: isConfirmingAll ? 0.7 : 1 }}
                 >
                   {isConfirmingAll ? "Confirming…" : "Confirm All Derived"}
                 </button>

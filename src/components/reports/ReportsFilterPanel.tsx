@@ -353,7 +353,7 @@ export default function ReportsFilterPanel(props: Props) {
               borderRadius: 6,
               border: "none",
               background: "var(--primary)",
-              color: "#fff",
+              color: "#FDFDFD",
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",

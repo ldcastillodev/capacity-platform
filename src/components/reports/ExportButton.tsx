@@ -47,7 +47,7 @@ export default function ExportButton({ fetchAll, columnDefs, visibleColumns, fil
         borderRadius: 8,
         border: "1px solid var(--border)",
         background: loading ? "var(--bg)" : "var(--primary)",
-        color: loading ? "var(--text-muted)" : "#fff",
+        color: loading ? "var(--text-muted)" : "#FDFDFD",
         fontSize: 13,
         fontWeight: 500,
         cursor: loading ? "not-allowed" : "pointer",

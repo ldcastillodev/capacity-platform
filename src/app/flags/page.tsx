@@ -114,7 +114,7 @@ export default function FlagsPage() {
                 <button
                   disabled={!note.trim()}
                   onClick={() => resolve({ id: f.id, note })}
-                  style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontSize: 13, fontWeight: 600, opacity: note.trim() ? 1 : 0.5, cursor: "pointer" }}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, opacity: note.trim() ? 1 : 0.5, cursor: "pointer" }}
                 >
                   Confirm
                 </button>

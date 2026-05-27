@@ -48,7 +48,7 @@ function teApprovedHours(extensions: ContractExtension[]): number {
 const thStyle: React.CSSProperties = { padding: "10px 14px", textAlign: "left", fontWeight: 600, fontSize: 13, color: "var(--text-muted)", borderBottom: "1px solid var(--border)", background: "var(--bg)", whiteSpace: "nowrap" };
 const tdStyle: React.CSSProperties = { padding: "11px 14px", borderBottom: "1px solid var(--border)", fontSize: 14 };
 const inputStyle: React.CSSProperties = { padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", fontSize: 13, width: "100%" };
-const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 600, fontSize: 13, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, background: "var(--primary)", color: "#FDFDFD", border: "none", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const btnSecondary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border)", fontWeight: 500, fontSize: 13, cursor: "pointer" };
 
 const ROLE_OPTIONS: RoleType[] = ["frontend_dev","backend_dev","fullstack_dev","qa","devops","ux_designer","data_engineer","tech_lead","product_manager","project_manager","seo","content_author","client_services","scrum_master"];

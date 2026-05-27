@@ -229,7 +229,7 @@ function ReportEmptyState({ onConfigure, panel }: { onConfigure: () => void; pan
             borderRadius: 8,
             border: "none",
             background: "var(--primary)",
-            color: "#fff",
+            color: "#FDFDFD",
             fontSize: 14,
             fontWeight: 600,
             cursor: "pointer",

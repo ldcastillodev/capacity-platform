@@ -75,7 +75,7 @@ export default function SimulatorPage() {
             <PlusCircle size={14} /> Add role
           </button>
 
-          <button disabled={!valid || isPending} onClick={submit} style={{ marginTop: 24, width: "100%", padding: "10px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: 14, opacity: valid && !isPending ? 1 : 0.5, cursor: "pointer" }}>
+          <button disabled={!valid || isPending} onClick={submit} style={{ marginTop: 24, width: "100%", padding: "10px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#FDFDFD", fontWeight: 600, fontSize: 14, opacity: valid && !isPending ? 1 : 0.5, cursor: "pointer" }}>
             {isPending ? "Simulating…" : "Run simulation"}
           </button>
         </div>

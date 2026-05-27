@@ -172,7 +172,7 @@ export default function DashboardPage() {
                   <div style={{ background: bg, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${color}` }}>
                     <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
                     <span style={{ fontWeight: 700, fontSize: 13, color }}>{label}</span>
-                    <span style={{ marginLeft: 4, background: color, color: "#fff", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "1px 7px" }}>{snaps.length}</span>
+                    <span style={{ marginLeft: 4, background: color, color: "#FDFDFD", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "1px 7px" }}>{snaps.length}</span>
                   </div>
                   {snaps.map((snap, i) => {
                     const name = clientMap[snap.client_id] ?? `Client ${snap.client_id}`;
