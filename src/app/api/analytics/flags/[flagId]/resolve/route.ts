@@ -12,7 +12,7 @@ export async function POST(
     where: { id: Number(flagId) },
     data: {
       resolvedAt: new Date(),
-      resolutionNote: body.resolution_note ?? null,
+      resolutionNotes: body.resolution_note ?? null,
     },
   });
   return NextResponse.json(flag);

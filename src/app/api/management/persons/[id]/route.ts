@@ -14,7 +14,6 @@ export async function PATCH(
     employment_type?: string;
     weekly_capacity_hours?: number;
     tempo_account_id?: string | null;
-    cost_per_hour?: number | null;
     squad_id?: number | null;
     allocation_pct?: number;
   };
@@ -28,7 +27,6 @@ export async function PATCH(
         ...(body.employment_type !== undefined && { employmentType: body.employment_type as never }),
         ...(body.weekly_capacity_hours !== undefined && { weeklyCapacityHours: body.weekly_capacity_hours }),
         ...(body.tempo_account_id !== undefined && { tempoAccountId: body.tempo_account_id }),
-        ...(body.cost_per_hour !== undefined && { costPerHour: body.cost_per_hour }),
       },
     });
 
@@ -63,7 +61,6 @@ export async function PATCH(
         employmentType: true,
         weeklyCapacityHours: true,
         tempoAccountId: true,
-        costPerHour: true,
         squadMemberships: {
           where: { effectiveTo: null },
           select: {

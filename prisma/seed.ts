@@ -85,6 +85,13 @@ async function main() {
 
   console.log("Clearing existing data…");
   await prisma.$transaction([
+    // History ledgers first (FK to parents below)
+    prisma.monthlyRoleDeclarationHistory.deleteMany(),
+    prisma.contractExtensionHistory.deleteMany(),
+    prisma.changeOrderLineItemHistory.deleteMany(),
+    prisma.changeOrderHistory.deleteMany(),
+    prisma.sMEEngagementHistory.deleteMany(),
+    // Analytics + leaf tables
     prisma.nonBillableEnhancementSuggestion.deleteMany(),
     prisma.monthlyCeremonyAllocation.deleteMany(),
     prisma.monthlyNonBillableSummary.deleteMany(),
@@ -102,6 +109,7 @@ async function main() {
     prisma.contractExtension.deleteMany(),
     prisma.billingRate.deleteMany(),
     prisma.costRate.deleteMany(),
+    prisma.contractAmendment.deleteMany(),
     prisma.retainerContract.deleteMany(),
     prisma.clientPersonAccess.deleteMany(),
     prisma.sMEEngagement.deleteMany(),
@@ -137,12 +145,12 @@ async function main() {
   console.log("Seeding people…");
   await bulkInsert(
     "persons",
-    ["id", "name", "email", "employment_type", "is_active", "weekly_capacity_hours", "tempo_account_id", "cost_per_hour"],
+    ["id", "name", "email", "employment_type", "is_active", "weekly_capacity_hours", "tempo_account_id"],
     snapshot.persons.map((p) => [
       p.id, p.name, scrubEmail(p.email), p.employmentType, p.isActive,
-      n(p.weeklyCapacityHours), p.tempoAccountId ?? null, n(p.costPerHour),
+      n(p.weeklyCapacityHours), p.tempoAccountId ?? null,
     ]),
-    [null, null, null, "employmenttype", null, null, null, null],
+    [null, null, null, "employmenttype", null, null, null],
   );
   await resetSeq("persons");
 

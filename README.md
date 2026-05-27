@@ -105,9 +105,13 @@ All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squ
 
 **Clients** — name, region (NA/EMEA), currency (USD/GBP/EUR). Archiving closes all active retainer contracts.
 
+> **Guard:** Currency is immutable once any `HourRecord` or `BillingRate` references the client. The API returns `400` if you attempt a currency change on a client with existing billing data.
+
 **Components** — Jira component → client mappings (`jiraInstance`, `componentKey`, `effectiveFrom`). Archive sets `effectiveTo = today`; unarchive clears it. Component key and effective date are immutable after creation.
 
 All entities support a **Show Archived** toggle. Archive is soft-only — no hard deletes anywhere.
+
+> **Guard:** A squad's lead person must have an active `SquadMembership` for that squad. The API returns `400` if you set `leadPersonId` to someone not currently on the squad.
 
 API routes live under `/api/management/{squads,persons,clients,components}/[id]/{archive,unarchive}`.
 
@@ -140,6 +144,54 @@ Status refreshes automatically after each triggered sync. `SyncLog` rows now per
 
 ---
 
+## Schema
+
+### Financial immutability
+
+`HourRecord` carries five denormalized snapshot columns that are written once at insert time and never updated:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `billingRateSnapshot` | `Decimal?` | Billing rate in effect when the record was synced |
+| `costRateSnapshot` | `Decimal?` | Cost rate in effect when the record was synced |
+| `currencySnapshot` | `Currency?` | Currency in effect at sync time |
+| `billedAmountSnapshot` | `Decimal?` | `hours × billingRateSnapshot` |
+| `costAmountSnapshot` | `Decimal?` | `hours × costRateSnapshot` |
+
+`MonthlyConsumptionSummary` refresh reads from these snapshots instead of resolving live rates. This means financial reports remain stable even if billing rates change retroactively.
+
+`Person.costPerHour` has been removed — cost is resolved at sync time and stored in `costRateSnapshot`.
+
+### Historical capacity
+
+`StaffingGapSnapshot` captures three at-calculation-time columns alongside the existing gap figures:
+
+| Column | Purpose |
+|---|---|
+| `capacityHoursAtTime` | Total squad capacity (hours) at the time the snapshot was computed |
+| `hardBufferPctAtTime` | Hard buffer % in effect at computation time |
+| `softBufferPctAtTime` | Soft buffer % in effect at computation time |
+
+### Audit ledgers
+
+Six append-only history models record every state change for their parent entity:
+
+`BillingRateHistory`, `ContractHistory`, `ContractExtensionHistory`, `MonthlyRoleDeclarationHistory`, `SquadMembershipHistory`, `StaffingGapSnapshotHistory`
+
+Each ledger row stores a full copy of the parent's fields at the time of change plus `changedAt` and `changedBy`.
+
+### Enum types
+
+All PostgreSQL enum types follow camelCase naming (e.g., `"ContractStatus"`, `"Currency"`). If you restore from a pre-2026-05-27 dump, the types will be lowercase — apply `prisma/migrations/20260527_fix_enum_type_casing/migration.sql` before starting the app to rename them.
+
+### Key constraints
+
+- `PersonCalendarAssignment`: at most one active (open-ended) row per person — enforced by partial unique index `(personId) WHERE effectiveTo IS NULL`.
+- `NonBillableCategory`: soft-delete via `isActive` / `deactivatedAt` — hard deletes are blocked by FK references.
+- `ContractExtension`: carries `resolvedRate`, `resolvedCurrency`, and `updatedAt` for T&E approval workflows.
+
+---
+
 ## Local development
 
 ### Prerequisites
@@ -167,10 +219,18 @@ Edit `.env` and fill in any required values (the defaults work for local Docker 
 docker compose up -d
 ```
 
-### 4. Run migrations
+### 4. Apply migrations
+
+Do **not** use `prisma migrate dev` — the migration history includes hand-crafted DDL that Prisma cannot shadow-apply safely. Instead apply each pending migration file directly:
 
 ```bash
-npx prisma migrate dev
+npx prisma db execute --file prisma/migrations/<migration_folder>/migration.sql --schema prisma/schema.prisma
+```
+
+After all migrations are applied, generate the Prisma client:
+
+```bash
+npx prisma generate
 ```
 
 ### 5. Seed the database
@@ -184,6 +244,8 @@ Seeds a snapshot of the live database: 5 squads, 39 people, 25 clients, retainer
 Emails are scrubbed to `name@example.com`. All other IDs, dates, and numeric values are preserved exactly as captured.
 
 > **Requires** `prisma/db-snapshot.json` to be present alongside `seed.ts`. The snapshot is committed to the repo. If you need to refresh it from a newer DB state, run `npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/extract-db.ts` (see that file for instructions) and commit the updated JSON.
+
+> **Analytics after seed:** The seed inserts raw `HourRecord` and `NonBillableEntry` rows but does not recompute derived summaries. After seeding, trigger an analytics refresh for the months you need (via the `/sync` page or the cron route) to populate `MonthlyConsumptionSummary`, `MonthlyNonBillableSummary`, and `StaffingGapSnapshot`.
 
 ### 6. Start the dev server
 
@@ -214,7 +276,7 @@ docker compose restart
 ```bash
 docker compose down -v
 docker compose up -d
-npx prisma migrate dev
+# Apply each migration manually (see "Apply migrations" above)
 npx prisma db seed
 ```
 

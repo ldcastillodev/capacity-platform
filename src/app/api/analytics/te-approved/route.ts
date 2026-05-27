@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       extensionId: { not: null },
       month: monthDate,
       ...(clientId
-        ? { extension: { is: { contract: { is: { clientId: Number(clientId) } } } } }
+        ? { extension: { is: { clientId: Number(clientId) } } }
         : {}),
     },
     _sum: { declaredHours: true },
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     .filter((g) => g.squadId !== null)
     .map((g) => ({
       squad_id: g.squadId as number,
-      te_hours: Number(g._sum.declaredHours ?? 0),
+      te_hours: Number(g._sum?.declaredHours ?? 0),
     }));
 
   return NextResponse.json(result);

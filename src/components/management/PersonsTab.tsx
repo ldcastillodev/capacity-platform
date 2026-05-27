@@ -19,7 +19,6 @@ interface PersonRecord {
   employmentType: string;
   weeklyCapacityHours: string;
   tempoAccountId: string | null;
-  costPerHour: string | null;
   squadMemberships: Array<{
     id: number;
     squadId: number;
@@ -34,7 +33,6 @@ interface FormState {
   employment_type: string;
   weekly_capacity_hours: string;
   tempo_account_id: string;
-  cost_per_hour: string;
   squad_id: string;
   allocation_pct: string;
 }
@@ -45,7 +43,6 @@ const defaultForm: FormState = {
   employment_type: "dedicated",
   weekly_capacity_hours: "40",
   tempo_account_id: "",
-  cost_per_hour: "",
   squad_id: "",
   allocation_pct: "100",
 };
@@ -108,7 +105,6 @@ export function PersonsTab() {
           employment_type: f.employment_type,
           weekly_capacity_hours: parseFloat(f.weekly_capacity_hours) || 40,
           tempo_account_id: f.tempo_account_id || null,
-          cost_per_hour: f.cost_per_hour ? parseFloat(f.cost_per_hour) : null,
           squad_id: f.squad_id ? Number(f.squad_id) : null,
           allocation_pct: f.squad_id ? parseFloat(f.allocation_pct) / 100 : undefined,
         })
@@ -128,7 +124,6 @@ export function PersonsTab() {
           employment_type: f.employment_type,
           weekly_capacity_hours: parseFloat(f.weekly_capacity_hours) || 40,
           tempo_account_id: f.tempo_account_id || null,
-          cost_per_hour: f.cost_per_hour ? parseFloat(f.cost_per_hour) : null,
           squad_id: f.squad_id ? Number(f.squad_id) : null,
           allocation_pct: f.squad_id ? parseFloat(f.allocation_pct) / 100 : undefined,
         })
@@ -172,7 +167,6 @@ export function PersonsTab() {
       employment_type: person.employmentType,
       weekly_capacity_hours: parseFloat(person.weeklyCapacityHours).toString(),
       tempo_account_id: person.tempoAccountId ?? "",
-      cost_per_hour: person.costPerHour ? parseFloat(person.costPerHour).toString() : "",
       squad_id: currentSquad?.squadId?.toString() ?? "",
       allocation_pct: currentSquad
         ? (parseFloat(currentSquad.allocationPct) * 100).toString()
@@ -429,18 +423,6 @@ export function PersonsTab() {
                 type="text"
                 value={form.tempo_account_id}
                 onChange={(e) => setForm({ ...form, tempo_account_id: e.target.value })}
-                placeholder="Optional"
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Cost / Hour</label>
-              <input
-                style={inputStyle}
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.cost_per_hour}
-                onChange={(e) => setForm({ ...form, cost_per_hour: e.target.value })}
                 placeholder="Optional"
               />
             </div>

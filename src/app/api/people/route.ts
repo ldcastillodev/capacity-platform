@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   const people = await prisma.person.findMany({
     where: isActive !== null ? { isActive: isActive === "true" } : undefined,
     orderBy: { name: "asc" },
-    select: { id: true, name: true, email: true, isActive: true, weeklyCapacityHours: true, costPerHour: true, tempoAccountId: true },
+    select: { id: true, name: true, email: true, isActive: true, weeklyCapacityHours: true, tempoAccountId: true },
   });
   return NextResponse.json(people);
 }
@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
     employment_type?: string;
     weekly_capacity_hours?: number;
     tempo_account_id?: string;
-    cost_per_hour?: number;
   };
 
   const person = await prisma.person.create({
@@ -30,9 +29,8 @@ export async function POST(req: NextRequest) {
       employmentType: (body.employment_type as never) ?? "dedicated",
       weeklyCapacityHours: body.weekly_capacity_hours ?? 40,
       tempoAccountId: body.tempo_account_id ?? null,
-      costPerHour: body.cost_per_hour ?? null,
     },
-    select: { id: true, name: true, email: true, isActive: true, weeklyCapacityHours: true, costPerHour: true },
+    select: { id: true, name: true, email: true, isActive: true, weeklyCapacityHours: true },
   });
   return NextResponse.json(person, { status: 201 });
 }

@@ -12,7 +12,6 @@ export async function PATCH(
     where: { id: Number(suggestionId) },
     data: {
       status: body.status as never,
-      dismissedReason: body.dismissed_reason ?? null,
     },
   });
   return NextResponse.json(suggestion);

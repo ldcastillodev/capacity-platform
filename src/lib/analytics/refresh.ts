@@ -136,8 +136,9 @@ async function upsertConsumptionRow(
   const remaining = Math.max(declaredHours - retainerH, 0);
   const utilizationPct = declaredHours > 0 ? round4(retainerH / declaredHours) : 0;
 
-  const billedRevenue = await calcRevenue(clientId, month, mEnd, roleType);
-  const directCost = await calcCost(clientId, month, mEnd, roleType);
+  // Aggregate from HourRecord snapshot columns (not live rate resolution)
+  const billedRevenue = await sumSnapshotAmount(clientId, month, mEnd, roleType, "billedAmountSnapshot");
+  const directCost = await sumSnapshotAmount(clientId, month, mEnd, roleType, "costAmountSnapshot");
   let grossMargin: number | null = null;
   let grossMarginPct: number | null = null;
   if (billedRevenue !== null && directCost !== null) {
@@ -182,61 +183,29 @@ async function sumHours(where: Record<string, unknown>): Promise<number> {
   return toNum(agg._sum.hours);
 }
 
-async function calcRevenue(
+/**
+ * Aggregate billedAmountSnapshot or costAmountSnapshot from HourRecord directly.
+ * Returns null only when no rows with a non-null snapshot value exist.
+ */
+async function sumSnapshotAmount(
   clientId: number,
   month: Date,
   mEnd: Date,
   roleType: string | null,
+  field: "billedAmountSnapshot" | "costAmountSnapshot",
 ): Promise<number | null> {
-  const rate = await prisma.billingRate.findFirst({
-    where: {
-      clientId,
-      effectiveFrom: { lte: month },
-      AND: [
-        { OR: roleType ? [{ roleType: roleType as never }, { roleType: null }] : [{ roleType: null }] },
-        { OR: [{ effectiveTo: null }, { effectiveTo: { gte: month } }] as never },
-      ],
-    },
-    orderBy: { roleType: "desc" },
-  });
-  if (!rate) return null;
-
-  const hours = await sumHours({
-    clientId,
-    date: { gte: month, lte: mEnd },
-    ...(roleType ? { roleType } : {}),
-  });
-  return hours * toNum(rate.ratePerHour);
-}
-
-async function calcCost(
-  clientId: number,
-  month: Date,
-  mEnd: Date,
-  roleType: string | null,
-): Promise<number | null> {
-  const entries = await prisma.hourRecord.groupBy({
-    by: ["personId", "roleType"],
+  const agg = await prisma.hourRecord.aggregate({
     where: {
       clientId,
       date: { gte: month, lte: mEnd },
       ...(roleType ? { roleType: roleType as never } : {}),
-    },
-    _sum: { hours: true },
+      [field]: { not: null },
+    } as never,
+    _sum: { [field]: true } as never,
   });
-
-  let total = 0;
-  let hasAnyRate = false;
-
-  for (const entry of entries) {
-    const costRate = await getCostRate(entry.personId, entry.roleType as string, month);
-    if (costRate !== null) {
-      total += toNum(entry._sum.hours) * costRate;
-      hasAnyRate = true;
-    }
-  }
-
-  return hasAnyRate ? round2(total) : null;
+  const sum = (agg._sum as Record<string, unknown>)[field];
+  if (sum === null || sum === undefined) return null;
+  return toNum(sum);
 }
 
 async function getCostRate(
@@ -478,6 +447,8 @@ async function refreshStaffingGaps(month: Date): Promise<void> {
         softBuffer,
         actual,
         actualNb,
+        hardBufferPct: toNum(config.hardBufferPct),
+        softBufferPct: toNum(config.softBufferPct),
       });
 
       covered.add(`${squadId}:${config.roleType}`);
@@ -502,6 +473,8 @@ async function refreshStaffingGaps(month: Date): Promise<void> {
         softBuffer,
         actual,
         actualNb,
+        hardBufferPct: toNum(canonicalConfig.hardBufferPct),
+        softBufferPct: toNum(canonicalConfig.softBufferPct),
       });
 
       DEV_ROLES.forEach((rt) => covered.add(`${squadId}:${rt}`));
@@ -693,13 +666,15 @@ interface GapData {
   softBuffer: number;
   actual: number;
   actualNb: number;
+  hardBufferPct?: number;
+  softBufferPct?: number;
 }
 
 async function upsertGapSnapshot(
   squadId: number,
   roleType: unknown,
   month: Date,
-  { available, committed, hardBuffer, softBuffer, actual, actualNb }: GapData,
+  { available, committed, hardBuffer, softBuffer, actual, actualNb, hardBufferPct, softBufferPct }: GapData,
 ): Promise<void> {
   const netGap = round2(available - hardBuffer - committed);
   const unplanned = round2(Math.max(0, actual - committed));
@@ -708,6 +683,13 @@ async function upsertGapSnapshot(
     available > 0 ? round4((committed + unplanned + effectiveNb) / available) : 0;
   const isUnderstaffed = netGap < 0;
   const isOverstaffed = commitmentRatio < 0.85;
+
+  // Snapshot fields: capture current capacity and buffer policy at calculation time
+  const snapshotFields = {
+    capacityHoursAtTime: round2(available),
+    ...(hardBufferPct !== undefined && { hardBufferPctAtTime: hardBufferPct }),
+    ...(softBufferPct !== undefined && { softBufferPctAtTime: softBufferPct }),
+  };
 
   await prisma.staffingGapSnapshot.upsert({
     where: { squadId_roleType_month: { squadId, roleType: roleType as never, month } },
@@ -726,6 +708,7 @@ async function upsertGapSnapshot(
       commitmentRatio,
       isUnderstaffed,
       isOverstaffed,
+      ...snapshotFields,
     },
     update: {
       totalAvailableHours: round2(available),
@@ -740,6 +723,7 @@ async function upsertGapSnapshot(
       isUnderstaffed,
       isOverstaffed,
       calculatedAt: new Date(),
+      ...snapshotFields,
     },
   });
 }
