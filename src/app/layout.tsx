@@ -30,6 +30,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+      </head>
       <body style={{ minHeight: "100vh" }}>
         <QueryClientProvider client={queryClient}>
           <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -49,11 +52,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               }}
             >
               <div style={{ padding: "0 20px 24px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ fontWeight: 700, fontSize: 16, color: "var(--primary)" }}>
-                  Capacity
-                </div>
-                <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
-                  Managed Services
+                <img src="/favicon.svg" alt="MgS" style={{ height: 36, display: "block" }} />
+                <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 4 }}>
+                  Capacity Platform
                 </div>
               </div>
 
