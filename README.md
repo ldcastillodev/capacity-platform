@@ -179,7 +179,11 @@ npx prisma migrate dev
 npx prisma db seed
 ```
 
-Seeds 2 squads, 6 people, 2 clients, contracts, hour records, NB entries, and runs the full analytics pipeline.
+Seeds a snapshot of the live database: 5 squads, 39 people, 25 clients, retainer contracts, 5 000+ hour records, NB entries, sync logs, and all analytics snapshots (staffing gaps, consumption summaries, burn snapshots, etc.).
+
+Emails are scrubbed to `name@example.com`. All other IDs, dates, and numeric values are preserved exactly as captured.
+
+> **Requires** `prisma/db-snapshot.json` to be present alongside `seed.ts`. The snapshot is committed to the repo. If you need to refresh it from a newer DB state, run `npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/extract-db.ts` (see that file for instructions) and commit the updated JSON.
 
 ### 6. Start the dev server
 
