@@ -716,6 +716,109 @@ export default function HelpPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Management Dashboard */}
+      <div style={sectionStyle}>
+        <div style={h2Style}>Management Dashboard</div>
+        <p style={subtitleStyle}>What each tab can create, edit, and delete. Terminal states are read-only; approval-gated transitions use dedicated action buttons.</p>
+
+        <div style={h3Style}>Workforce</div>
+        <table style={tableStyle}>
+          <thead><tr>
+            <th style={thCell}>Model</th><th style={thCell}>Create</th><th style={thCell}>Edit</th><th style={thCell}>Delete / Archive</th><th style={thCell}>Notes</th>
+          </tr></thead>
+          <tbody>{[
+            ["Squad Membership", "Yes", "Allocation %, effectiveTo", "Hard delete", "P2002 guard: unique person+squad+effectiveFrom"],
+            ["Person Role", "Yes", "Seniority, isPrimary, effectiveTo", "Hard delete", "Role type immutable after creation"],
+            ["Squad Capacity Config", "Yes", "hardBufferPct, softBufferPct", "Hard delete", "P2002 guard: unique squad+roleType"],
+          ].map(([m,c,e,d,n], i) => (
+            <tr key={m} style={{ background: i%2===0 ? "var(--surface)" : "var(--bg)" }}>
+              <td style={{...tdCell,fontWeight:600}}>{m}</td><td style={tdCell}>{c}</td>
+              <td style={tdCell}>{e}</td><td style={tdCell}>{d}</td><td style={{...tdCell,color:"var(--text-muted)"}}>{n}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+
+        <div style={h3Style}>Client &amp; Contract</div>
+        <table style={tableStyle}>
+          <thead><tr>
+            <th style={thCell}>Model</th><th style={thCell}>Create</th><th style={thCell}>Edit</th><th style={thCell}>Terminal States</th><th style={thCell}>Transitions</th>
+          </tr></thead>
+          <tbody>{[
+            ["Retainer Contract", "Yes", "poolHours, validTo", "closed → read-only", "active↔paused, any→closed"],
+            ["Contract Extension", "Yes", "requestedHours, roleType, rateOverride, notes", "rejected/closed → read-only", "pending_approval→approved (needs approvedBy) or rejected; approved→closed"],
+            ["Change Order", "Yes", "notes only", "closed → read-only", "pending_written→pending_docusign (needs ref)→approved (needs envelopeId)→active→closed"],
+            ["CO Line Item", "Yes (pre-approval only)", "hours, rateOverride", "Hard delete (pre-approval only)", "Blocked if CO ≥ approved"],
+            ["SME Engagement", "Yes", "personId, hours, rates", "closed → read-only", "requested→confirmed (needs approvedBy)→active→closed"],
+            ["Monthly Role Declaration", "Yes", "declaredHours, overrideReason", "locked/derived → read-only", "draft→confirmed (needs submittedBy)→locked"],
+          ].map(([m,c,e,t,tr], i) => (
+            <tr key={m} style={{ background: i%2===0 ? "var(--surface)" : "var(--bg)" }}>
+              <td style={{...tdCell,fontWeight:600}}>{m}</td><td style={tdCell}>{c}</td>
+              <td style={tdCell}>{e}</td><td style={tdCell}>{t}</td><td style={{...tdCell,color:"var(--text-muted)"}}>{tr}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+
+        <div style={h3Style}>Billing</div>
+        <table style={tableStyle}>
+          <thead><tr>
+            <th style={thCell}>Model</th><th style={thCell}>Create</th><th style={thCell}>Edit</th><th style={thCell}>Delete</th><th style={thCell}>Guard</th>
+          </tr></thead>
+          <tbody>{[
+            ["Billing Rate", "Yes", "Immutable after creation", "Yes — guarded", "Blocked if ≥1 HourRecord falls within rate period"],
+            ["Cost Rate", "Yes", "Immutable after creation", "Yes — guarded", "Blocked if ≥1 HourRecord falls within rate period"],
+            ["TE Billing Config", "Yes", "type, value, currency", "Yes", "Unique per client"],
+            ["TE Billing Role Rate", "Yes (via config)", "No edit", "Yes", "Unique per config+roleType"],
+            ["Client Person Access", "Yes (Grant)", "No edit", "Revoke only", "revokedAt set; cannot re-revoke"],
+          ].map(([m,c,e,d,g], i) => (
+            <tr key={m} style={{ background: i%2===0 ? "var(--surface)" : "var(--bg)" }}>
+              <td style={{...tdCell,fontWeight:600}}>{m}</td><td style={tdCell}>{c}</td>
+              <td style={tdCell}>{e}</td><td style={tdCell}>{d}</td><td style={{...tdCell,color:"var(--text-muted)"}}>{g}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+
+        <div style={h3Style}>Non-Billable</div>
+        <table style={tableStyle}>
+          <thead><tr>
+            <th style={thCell}>Model</th><th style={thCell}>Create</th><th style={thCell}>Edit</th><th style={thCell}>Delete</th>
+          </tr></thead>
+          <tbody>{[
+            ["NB Category", "Yes", "name, type, description", "Soft-delete (archive) — sets isActive=false"],
+            ["NB Source Mapping", "Yes", "No edit", "Hard delete"],
+            ["NB Entry", "Read-only", "—", "—"],
+          ].map(([m,c,e,d], i) => (
+            <tr key={m} style={{ background: i%2===0 ? "var(--surface)" : "var(--bg)" }}>
+              <td style={{...tdCell,fontWeight:600}}>{m}</td><td style={tdCell}>{c}</td>
+              <td style={tdCell}>{e}</td><td style={{...tdCell,color:"var(--text-muted)"}}>{d}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+
+        <div style={h3Style}>Analytics</div>
+        <p style={pStyle}>Consumption, Burn, Staffing, NB Summaries — all read-only derived data. Anomaly Flags can be resolved (requires resolution notes). Enhancement Suggestions support status transitions: open→acknowledged→applied or dismissed (terminal).</p>
+
+        <div style={h3Style}>Configuration</div>
+        <table style={tableStyle}>
+          <thead><tr>
+            <th style={thCell}>Model</th><th style={thCell}>Write operations</th>
+          </tr></thead>
+          <tbody>{[
+            ["Holiday Calendar", "Full CRUD. Delete cascades entries."],
+            ["Holiday Entry", "Full CRUD via calendar entries panel."],
+            ["Person Calendar Assignment", "Full CRUD. One open-ended row per person enforced."],
+            ["Role Cascade Rule", "Create + delete. P2002 guard: unique client+fromRole+toRole."],
+            ["Tempo Account Mapping", "Create + delete. Jira component mappings are on the Components tab."],
+          ].map(([m,w], i) => (
+            <tr key={m} style={{ background: i%2===0 ? "var(--surface)" : "var(--bg)" }}>
+              <td style={{...tdCell,fontWeight:600}}>{m}</td><td style={{...tdCell,color:"var(--text-muted)"}}>{w}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+
+        <div style={h3Style}>Audit Trail</div>
+        <p style={pStyle}>Seven read-only panels showing append-only history records: Role Declaration History, Contract Amendments, Extension History, Change Order History, Line Item History, SME Engagement History, and Sync Logs. No write controls anywhere in the Audit tab.</p>
+      </div>
     </div>
   );
 }

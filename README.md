@@ -97,11 +97,13 @@ All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squ
 
 ## Management tab
 
-`/management` provides create, edit, archive, and unarchive for four entities:
+`/management` has 11 tabs across six functional areas. All writes are soft-only — no hard deletes anywhere.
+
+### Core entities
 
 **Squads** — name, lead person, active member count. Archiving ends all open squad memberships.
 
-**Persons** — name, email, employment type, weekly capacity hours, Tempo account ID, cost/hr, squad assignment with allocation %. Archiving ends memberships and removes the person as squad lead on any squad they lead.
+**Persons** — name, email, employment type, weekly capacity hours, Tempo account ID, squad assignment with allocation %. Archiving ends memberships and removes the person as squad lead on any squad they lead.
 
 **Clients** — name, region (NA/EMEA), currency (USD/GBP/EUR). Archiving closes all active retainer contracts.
 
@@ -109,11 +111,117 @@ All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squ
 
 **Components** — Jira component → client mappings (`jiraInstance`, `componentKey`, `effectiveFrom`). Archive sets `effectiveTo = today`; unarchive clears it. Component key and effective date are immutable after creation.
 
-All entities support a **Show Archived** toggle. Archive is soft-only — no hard deletes anywhere.
-
 > **Guard:** A squad's lead person must have an active `SquadMembership` for that squad. The API returns `400` if you set `leadPersonId` to someone not currently on the squad.
 
-API routes live under `/api/management/{squads,persons,clients,components}/[id]/{archive,unarchive}`.
+All core entities support a **Show Archived** toggle.
+
+---
+
+### Billing tab
+
+Four sub-tabs, all create/delete only (no edit):
+
+**Billing Rates** — client × role type × effective date range → rate per hour + currency.
+
+**Cost Rates** — person × role type × effective date range → rate per hour + currency.
+
+**T&E Billing Config** — per-client T&E billing type (`same_rate`, `premium_flat`, `premium_pct`, `blended_rate`, `per_role`). A nested modal manages role-specific rates when type is `per_role`.
+
+**Client Person Access** — grant/revoke person access to a client. Shows current status (active or revoked with timestamp).
+
+---
+
+### Contracts tab
+
+Five sub-tabs:
+
+**Retainer Contracts** — client × squad, total pool hours, valid date range, status (`active` / `paused` / `closed` / `pending_approval` / `pending_written` / `pending_docusign` / `approved` / `rejected` / `derived` / `locked`). Supports pause, activate, and close actions. Closed contracts are read-only.
+
+**Contract Extensions** — per-client, per-month T&E or change-order extensions with requested hours, role type, rate override, notes, and approval status. Supports approve, reject, and close actions.
+
+**Change Orders** — multi-line-item change orders. Line items are editable and deletable only while the order is in `pending_written` or `pending_docusign` status.
+
+**SME Engagements** — subject-matter-expert engagement records: client, squad, month, role description, contracted hours, cost/billing rates, currency, approver, status. Read-only once closed.
+
+**Declarations** — read-only view of monthly role declarations; searchable by declaration or contract ID.
+
+---
+
+### Workforce tab
+
+Three sub-tabs:
+
+**Squad Memberships** — person × squad, allocation % (0–100), effective date range. Supports create, edit, and delete.
+
+**Person Roles** — person × role type × seniority (L1–L5), primary flag, effective date range. Supports create, edit, and delete. Only one primary role per person is allowed.
+
+**Capacity Configs** — squad × role type, hard buffer %, soft buffer %. Supports create, edit, and delete.
+
+---
+
+### Config tab
+
+Four sub-tabs:
+
+**Holiday Calendars** — named calendars by region. A nested modal manages individual holiday entries (date + name) with create, edit, and delete.
+
+**Person Calendar Assignments** — assign a person to a holiday calendar with an effective date range. Edit only updates `effectiveTo`; person and calendar are immutable after creation. At most one open-ended assignment per person is enforced by a partial unique index.
+
+**Role Cascade Rules** — define that one role type triggers a dependent role at a given ratio. Optionally scoped to a client; `null` client = global rule. Create and delete only.
+
+**Tempo Mappings** — map a Tempo account key to a client with an effective date range. Create and delete only.
+
+---
+
+### Non-Billable tab
+
+Three sub-tabs:
+
+**Categories** — NB category name, type (`internal_ceremony` / `learning_and_development` / `admin` / `other`), description. Archive deactivates (sets `deactivatedAt`); no delete.
+
+**Source Mappings** — map a Tempo/Jira NA identifier (account key, component, or project key) to an NB category. Create and delete only.
+
+**Entries** — read-only view of NB hour entries by person, category, month, hours, and source. Searchable by person name and month.
+
+---
+
+### Analytics tab
+
+Six read-only sub-tabs showing computed analytics data:
+
+**Consumption** — `MonthlyConsumptionSummary` rows: client × month × role type, declared/consumed/remaining hours, utilization %.
+
+**Burn** — `BurnSnapshot` rows: client × week, cumulative vs expected burn, burn-rate ratio, projected end-of-month hours, alert level.
+
+**Staffing** — `StaffingGapSnapshot` rows: squad × month × role type, available/committed/net-gap hours, under/overstaffed flags.
+
+**Anomaly Flags** — `AnomalyFlag` rows with flag type, severity, explanation, and detected/resolved timestamps. Flags can be resolved inline (resolution notes required).
+
+**Suggestions** — NB enhancement suggestions. Status transitions: `open` → `acknowledged` → `applied` or `dismissed`. Terminal statuses (`applied`, `dismissed`) block further actions.
+
+**NB Summaries** — `MonthlyNonBillableSummary` rows: person × squad × month × category type, total hours, NB %.
+
+---
+
+### Audit tab
+
+Seven read-only sub-tabs showing append-only history ledgers:
+
+| Sub-tab | Ledger | Searchable by |
+|---|---|---|
+| Declarations | `MonthlyRoleDeclarationHistory` | Declaration ID |
+| Contract Amendments | `ContractHistory` | Contract ID |
+| Extensions | `ContractExtensionHistory` | Extension ID |
+| Change Orders | (change-order history) | Change order ID |
+| Line Items | (line-item history) | Line item ID |
+| SME Engagements | (SME history) | Engagement ID |
+| Sync Logs | `SyncLog` | Source |
+
+Each ledger row stores a full snapshot of the parent record at the time of change plus `changedAt` and `changedBy`.
+
+---
+
+API routes live under `/api/management/{squads,persons,clients,components,billing-rates,cost-rates,te-billing-configs,client-person-access,retainer-contracts,contract-extensions,change-orders,sme-engagements,declarations,squad-memberships,person-roles,squad-capacity-configs,holiday-calendars,holiday-entries,person-calendar-assignments,role-cascade-rules,tempo-mappings,nonbillable-categories,nonbillable-source-mappings,nonbillable-entries}/`.
 
 ---
 
