@@ -64,12 +64,23 @@ CREATE TYPE "SuggestionStatus" AS ENUM ('open', 'acknowledged', 'applied', 'dism
 -- CreateEnum
 CREATE TYPE "SimulationAction" AS ENUM ('available', 'hire_needed', 'redistribute');
 
+-- CreateEnum
+CREATE TYPE "SyncType" AS ENUM ('full', 'delta');
+
+-- CreateEnum
+CREATE TYPE "NbMappingSource" AS ENUM ('tempo', 'jira_na');
+
+-- CreateEnum
+CREATE TYPE "NbIdentifierType" AS ENUM ('issue_key', 'account_key', 'component_key');
+
 -- CreateTable
 CREATE TABLE "squads" (
     "id" SERIAL NOT NULL,
     "name" VARCHAR(120) NOT NULL,
     "lead_person_id" INTEGER,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "squads_pkey" PRIMARY KEY ("id")
 );
@@ -83,8 +94,8 @@ CREATE TABLE "persons" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "weekly_capacity_hours" DECIMAL(5,2) NOT NULL DEFAULT 40.00,
     "tempo_account_id" VARCHAR(200),
-    "cost_per_hour" DECIMAL(8,2),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "persons_pkey" PRIMARY KEY ("id")
 );
@@ -122,6 +133,7 @@ CREATE TABLE "clients" (
     "region" "Region" NOT NULL,
     "currency" "Currency" NOT NULL DEFAULT 'USD',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "clients_pkey" PRIMARY KEY ("id")
 );
@@ -185,6 +197,7 @@ CREATE TABLE "person_calendar_assignments" (
     "person_id" INTEGER NOT NULL,
     "calendar_id" INTEGER NOT NULL,
     "effective_from" DATE NOT NULL,
+    "effective_to" DATE,
 
     CONSTRAINT "person_calendar_assignments_pkey" PRIMARY KEY ("id")
 );
@@ -222,6 +235,7 @@ CREATE TABLE "monthly_role_declarations" (
     "late_change_flag" BOOLEAN NOT NULL DEFAULT false,
     "override_reason" TEXT,
     "override_by" INTEGER,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "monthly_role_declarations_pkey" PRIMARY KEY ("id")
 );
@@ -287,7 +301,10 @@ CREATE TABLE "contract_extensions" (
     "approved_by" INTEGER,
     "approved_at" TIMESTAMP(3),
     "notes" TEXT,
+    "resolved_rate" DECIMAL(10,4),
+    "resolved_currency" "Currency",
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "contract_extensions_pkey" PRIMARY KEY ("id")
 );
@@ -338,6 +355,7 @@ CREATE TABLE "sme_engagements" (
     "approved_by" INTEGER,
     "status" "SMEStatus" NOT NULL DEFAULT 'requested',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "sme_engagements_pkey" PRIMARY KEY ("id")
 );
@@ -359,6 +377,11 @@ CREATE TABLE "hour_records" (
     "description" TEXT,
     "issue_key" VARCHAR(50),
     "issue_summary" TEXT,
+    "billing_rate_snapshot" DECIMAL(10,4),
+    "cost_rate_snapshot" DECIMAL(10,4),
+    "currency_snapshot" "Currency",
+    "billed_amount_snapshot" DECIMAL(12,4),
+    "cost_amount_snapshot" DECIMAL(12,4),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -371,6 +394,8 @@ CREATE TABLE "nonbillable_categories" (
     "name" VARCHAR(120) NOT NULL,
     "type" "NonBillableType" NOT NULL,
     "description" TEXT,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "deactivated_at" TIMESTAMP(3),
 
     CONSTRAINT "nonbillable_categories_pkey" PRIMARY KEY ("id")
 );
@@ -393,8 +418,8 @@ CREATE TABLE "nonbillable_entries" (
 -- CreateTable
 CREATE TABLE "nonbillable_source_mappings" (
     "id" SERIAL NOT NULL,
-    "source" VARCHAR(20) NOT NULL,
-    "identifier_type" VARCHAR(50) NOT NULL,
+    "source" "NbMappingSource" NOT NULL,
+    "identifier_type" "NbIdentifierType" NOT NULL,
     "identifier_value" VARCHAR(200) NOT NULL,
     "category_id" INTEGER NOT NULL,
 
@@ -428,9 +453,11 @@ CREATE TABLE "jira_component_client_mappings" (
 CREATE TABLE "sync_logs" (
     "id" SERIAL NOT NULL,
     "source" "SyncSource" NOT NULL,
-    "sync_type" VARCHAR(20) NOT NULL,
+    "sync_type" "SyncType" NOT NULL,
     "started_at" TIMESTAMP(3) NOT NULL,
     "completed_at" TIMESTAMP(3),
+    "date_from" TIMESTAMP(3),
+    "date_to" TIMESTAMP(3),
     "records_fetched" INTEGER NOT NULL DEFAULT 0,
     "records_created" INTEGER NOT NULL DEFAULT 0,
     "records_skipped" INTEGER NOT NULL DEFAULT 0,
@@ -459,6 +486,9 @@ CREATE TABLE "staffing_gap_snapshots" (
     "is_understaffed" BOOLEAN NOT NULL DEFAULT false,
     "is_overstaffed" BOOLEAN NOT NULL DEFAULT false,
     "calculated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "capacity_hours_at_time" DECIMAL(8,2),
+    "hard_buffer_pct_at_time" DECIMAL(5,4),
+    "soft_buffer_pct_at_time" DECIMAL(5,4),
 
     CONSTRAINT "staffing_gap_snapshots_pkey" PRIMARY KEY ("id")
 );
@@ -625,6 +655,94 @@ CREATE TABLE "client_simulation_line_items" (
     CONSTRAINT "client_simulation_line_items_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "monthly_role_declaration_history" (
+    "id" SERIAL NOT NULL,
+    "declaration_id" INTEGER NOT NULL,
+    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "changed_by" INTEGER,
+    "prev_declared_hours" DECIMAL(8,2),
+    "new_declared_hours" DECIMAL(8,2),
+    "prev_status" "DeclarationStatus",
+    "new_status" "DeclarationStatus",
+    "reason" TEXT,
+
+    CONSTRAINT "monthly_role_declaration_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "contract_amendments" (
+    "id" SERIAL NOT NULL,
+    "contract_id" INTEGER NOT NULL,
+    "effective_from" DATE NOT NULL,
+    "prev_pool_hours" DECIMAL(8,2) NOT NULL,
+    "new_pool_hours" DECIMAL(8,2) NOT NULL,
+    "reason" TEXT,
+    "changed_by" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "contract_amendments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "contract_extension_history" (
+    "id" SERIAL NOT NULL,
+    "extension_id" INTEGER NOT NULL,
+    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "changed_by" INTEGER,
+    "prev_status" "ExtensionStatus",
+    "new_status" "ExtensionStatus",
+    "prev_requested_hours" DECIMAL(8,2),
+    "new_requested_hours" DECIMAL(8,2),
+    "prev_rate_override" DECIMAL(10,4),
+    "new_rate_override" DECIMAL(10,4),
+
+    CONSTRAINT "contract_extension_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "change_order_history" (
+    "id" SERIAL NOT NULL,
+    "change_order_id" INTEGER NOT NULL,
+    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "changed_by" INTEGER,
+    "prev_status" "ChangeOrderStatus",
+    "new_status" "ChangeOrderStatus",
+    "prev_notes" TEXT,
+
+    CONSTRAINT "change_order_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "change_order_line_item_history" (
+    "id" SERIAL NOT NULL,
+    "line_item_id" INTEGER NOT NULL,
+    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "changed_by" INTEGER,
+    "prev_hours" DECIMAL(8,2),
+    "new_hours" DECIMAL(8,2),
+    "prev_rate_override" DECIMAL(10,4),
+    "new_rate_override" DECIMAL(10,4),
+
+    CONSTRAINT "change_order_line_item_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sme_engagement_history" (
+    "id" SERIAL NOT NULL,
+    "engagement_id" INTEGER NOT NULL,
+    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "changed_by" INTEGER,
+    "prev_status" "SMEStatus",
+    "new_status" "SMEStatus",
+    "prev_billing_rate" DECIMAL(10,4),
+    "new_billing_rate" DECIMAL(10,4),
+    "prev_cost_rate" DECIMAL(10,4),
+    "new_cost_rate" DECIMAL(10,4),
+
+    CONSTRAINT "sme_engagement_history_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "squads_name_key" ON "squads"("name");
 
@@ -644,19 +762,22 @@ CREATE UNIQUE INDEX "squad_memberships_person_id_squad_id_effective_from_key" ON
 CREATE INDEX "person_roles_person_id_role_type_idx" ON "person_roles"("person_id", "role_type");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "client_person_access_client_id_person_id_key" ON "client_person_access"("client_id", "person_id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "squad_capacity_configs_squad_id_role_type_key" ON "squad_capacity_configs"("squad_id", "role_type");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "role_cascade_rules_client_id_trigger_role_dependent_role_key" ON "role_cascade_rules"("client_id", "trigger_role", "dependent_role");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "holiday_calendars_region_name_key" ON "holiday_calendars"("region", "name");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "holiday_entries_calendar_id_date_key" ON "holiday_entries"("calendar_id", "date");
 
 -- CreateIndex
 CREATE INDEX "person_calendar_assignments_person_id_idx" ON "person_calendar_assignments"("person_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "person_calendar_assignments_person_id_effective_from_key" ON "person_calendar_assignments"("person_id", "effective_from");
 
 -- CreateIndex
 CREATE INDEX "retainer_contracts_client_id_status_idx" ON "retainer_contracts"("client_id", "status");
@@ -672,6 +793,9 @@ CREATE INDEX "monthly_role_declarations_contract_id_month_role_type_idx" ON "mon
 
 -- CreateIndex
 CREATE INDEX "monthly_role_declarations_extension_id_month_role_type_idx" ON "monthly_role_declarations"("extension_id", "month", "role_type");
+
+-- CreateIndex
+CREATE INDEX "monthly_role_declarations_client_id_month_status_idx" ON "monthly_role_declarations"("client_id", "month", "status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "billing_rates_client_id_role_type_effective_from_key" ON "billing_rates"("client_id", "role_type", "effective_from");
@@ -704,6 +828,9 @@ CREATE INDEX "hour_records_person_id_date_idx" ON "hour_records"("person_id", "d
 CREATE INDEX "hour_records_role_type_date_idx" ON "hour_records"("role_type", "date");
 
 -- CreateIndex
+CREATE INDEX "hour_records_client_id_date_budget_source_idx" ON "hour_records"("client_id", "date", "budget_source");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "nonbillable_categories_name_key" ON "nonbillable_categories"("name");
 
 -- CreateIndex
@@ -722,7 +849,10 @@ CREATE UNIQUE INDEX "nonbillable_source_mappings_source_identifier_value_key" ON
 CREATE UNIQUE INDEX "tempo_account_client_mappings_account_key_effective_from_key" ON "tempo_account_client_mappings"("account_key", "effective_from");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "jira_component_client_mappings_component_key_effective_from_key" ON "jira_component_client_mappings"("component_key", "effective_from");
+CREATE UNIQUE INDEX "jira_component_client_mappings_jira_instance_component_key__key" ON "jira_component_client_mappings"("jira_instance", "component_key", "effective_from");
+
+-- CreateIndex
+CREATE INDEX "sync_logs_source_started_at_idx" ON "sync_logs"("source", "started_at");
 
 -- CreateIndex
 CREATE INDEX "staffing_gap_snapshots_month_idx" ON "staffing_gap_snapshots"("month");
@@ -737,6 +867,12 @@ CREATE INDEX "monthly_consumption_summaries_client_id_month_idx" ON "monthly_con
 CREATE UNIQUE INDEX "monthly_consumption_summaries_client_id_month_role_type_key" ON "monthly_consumption_summaries"("client_id", "month", "role_type");
 
 -- CreateIndex
+CREATE INDEX "weekly_burn_snapshots_client_id_week_start_alert_level_idx" ON "weekly_burn_snapshots"("client_id", "week_start", "alert_level");
+
+-- CreateIndex
+CREATE INDEX "weekly_burn_snapshots_week_start_alert_level_idx" ON "weekly_burn_snapshots"("week_start", "alert_level");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "weekly_burn_snapshots_client_id_week_start_role_type_key" ON "weekly_burn_snapshots"("client_id", "week_start", "role_type");
 
 -- CreateIndex
@@ -744,6 +880,9 @@ CREATE UNIQUE INDEX "ceremony_attributions_squad_id_client_id_month_key" ON "cer
 
 -- CreateIndex
 CREATE INDEX "anomaly_flags_client_id_month_idx" ON "anomaly_flags"("client_id", "month");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "anomaly_flags_client_id_month_flag_type_role_type_detector__key" ON "anomaly_flags"("client_id", "month", "flag_type", "role_type", "detector_version");
 
 -- CreateIndex
 CREATE INDEX "monthly_nonbillable_summaries_squad_id_month_idx" ON "monthly_nonbillable_summaries"("squad_id", "month");
@@ -758,7 +897,28 @@ CREATE INDEX "nonbillable_enhancement_suggestions_month_status_idx" ON "nonbilla
 CREATE UNIQUE INDEX "monthly_ceremony_allocations_person_id_client_id_month_key" ON "monthly_ceremony_allocations"("person_id", "client_id", "month");
 
 -- CreateIndex
+CREATE INDEX "client_simulations_client_id_created_at_idx" ON "client_simulations"("client_id", "created_at");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "client_simulation_line_items_simulation_id_role_type_key" ON "client_simulation_line_items"("simulation_id", "role_type");
+
+-- CreateIndex
+CREATE INDEX "monthly_role_declaration_history_declaration_id_changed_at_idx" ON "monthly_role_declaration_history"("declaration_id", "changed_at");
+
+-- CreateIndex
+CREATE INDEX "contract_amendments_contract_id_effective_from_idx" ON "contract_amendments"("contract_id", "effective_from");
+
+-- CreateIndex
+CREATE INDEX "contract_extension_history_extension_id_changed_at_idx" ON "contract_extension_history"("extension_id", "changed_at");
+
+-- CreateIndex
+CREATE INDEX "change_order_history_change_order_id_changed_at_idx" ON "change_order_history"("change_order_id", "changed_at");
+
+-- CreateIndex
+CREATE INDEX "change_order_line_item_history_line_item_id_changed_at_idx" ON "change_order_line_item_history"("line_item_id", "changed_at");
+
+-- CreateIndex
+CREATE INDEX "sme_engagement_history_engagement_id_changed_at_idx" ON "sme_engagement_history"("engagement_id", "changed_at");
 
 -- AddForeignKey
 ALTER TABLE "squads" ADD CONSTRAINT "squads_lead_person_id_fkey" FOREIGN KEY ("lead_person_id") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -813,6 +973,9 @@ ALTER TABLE "monthly_role_declarations" ADD CONSTRAINT "monthly_role_declaration
 
 -- AddForeignKey
 ALTER TABLE "billing_rates" ADD CONSTRAINT "billing_rates_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "cost_rates" ADD CONSTRAINT "cost_rates_person_id_fkey" FOREIGN KEY ("person_id") REFERENCES "persons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "te_billing_configs" ADD CONSTRAINT "te_billing_configs_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -912,3 +1075,59 @@ ALTER TABLE "client_simulations" ADD CONSTRAINT "client_simulations_requested_by
 
 -- AddForeignKey
 ALTER TABLE "client_simulation_line_items" ADD CONSTRAINT "client_simulation_line_items_simulation_id_fkey" FOREIGN KEY ("simulation_id") REFERENCES "client_simulations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "monthly_role_declaration_history" ADD CONSTRAINT "monthly_role_declaration_history_declaration_id_fkey" FOREIGN KEY ("declaration_id") REFERENCES "monthly_role_declarations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "contract_amendments" ADD CONSTRAINT "contract_amendments_contract_id_fkey" FOREIGN KEY ("contract_id") REFERENCES "retainer_contracts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "contract_extension_history" ADD CONSTRAINT "contract_extension_history_extension_id_fkey" FOREIGN KEY ("extension_id") REFERENCES "contract_extensions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "change_order_history" ADD CONSTRAINT "change_order_history_change_order_id_fkey" FOREIGN KEY ("change_order_id") REFERENCES "change_orders"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "change_order_line_item_history" ADD CONSTRAINT "change_order_line_item_history_line_item_id_fkey" FOREIGN KEY ("line_item_id") REFERENCES "change_order_line_items"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sme_engagement_history" ADD CONSTRAINT "sme_engagement_history_engagement_id_fkey" FOREIGN KEY ("engagement_id") REFERENCES "sme_engagements"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- ─── Hand-crafted constraints (not expressible in Prisma schema) ──────────────
+
+-- CHECK: HourRecord budget polymorphism
+ALTER TABLE hour_records ADD CONSTRAINT chk_hour_budget_source CHECK (
+  (budget_source = 'retainer'     AND contract_extension_id IS NULL     AND change_order_id IS NULL     AND sme_engagement_id IS NULL) OR
+  (budget_source = 'te'           AND contract_extension_id IS NOT NULL AND change_order_id IS NULL     AND sme_engagement_id IS NULL) OR
+  (budget_source = 'change_order' AND contract_extension_id IS NULL     AND change_order_id IS NOT NULL AND sme_engagement_id IS NULL) OR
+  (budget_source = 'sme'          AND contract_extension_id IS NULL     AND change_order_id IS NULL     AND sme_engagement_id IS NOT NULL)
+);
+
+-- CHECK: MonthlyRoleDeclaration source exclusivity
+ALTER TABLE monthly_role_declarations ADD CONSTRAINT chk_declaration_source CHECK (
+  (contract_id IS NOT NULL AND extension_id IS NULL)
+  OR (contract_id IS NULL AND extension_id IS NOT NULL)
+);
+
+-- CHECK: CostRate must have at least one identifying dimension
+ALTER TABLE cost_rates ADD CONSTRAINT chk_rate_identity
+  CHECK (person_id IS NOT NULL OR role_type IS NOT NULL);
+
+-- CHECK: SMEEngagement source integrity
+ALTER TABLE sme_engagements ADD CONSTRAINT chk_sme_source_data CHECK (
+  (source = 'internal_other_squad' AND person_id IS NOT NULL)
+  OR (source = 'external_contractor')
+);
+
+-- PARTIAL INDEX: Active client-person access (one active grant per pair)
+CREATE UNIQUE INDEX uq_active_client_person_access
+  ON client_person_access (client_id, person_id) WHERE revoked_at IS NULL;
+
+-- PARTIAL INDEX: One active primary role per person
+CREATE UNIQUE INDEX uq_primary_role_per_person
+  ON person_roles (person_id) WHERE is_primary = true AND effective_to IS NULL;
+
+-- PARTIAL INDEX: Active anomaly flags for alert inbox
+CREATE INDEX idx_anomaly_active
+  ON anomaly_flags (client_id, month, severity) WHERE resolved_at IS NULL;
