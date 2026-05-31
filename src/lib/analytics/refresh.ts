@@ -53,6 +53,7 @@ export async function runAnalyticsRefresh(months?: Date[]): Promise<void> {
 
   for (const m of toRefresh) {
     await refreshConsumptionSummaries(m);
+    await refreshBurnSnapshots(m);
   }
 
   await refreshCeremonyAttribution(prior);
@@ -1153,6 +1154,109 @@ async function refreshCeremonyAllocations(month: Date): Promise<void> {
           allocatedHours: allocated,
         },
       });
+    }
+  }
+}
+
+// ─── Burn Snapshots ───────────────────────────────────────────────────────────
+
+async function refreshBurnSnapshots(month: Date): Promise<void> {
+  const mEnd = monthEnd(month);
+  const daysInMonth =
+    Math.floor((mEnd.getTime() - month.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+
+  const activeClients = await prisma.client.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+
+  for (const { id: clientId } of activeClients) {
+    const contracts = await prisma.retainerContract.findMany({
+      where: {
+        clientId,
+        status: "active",
+        validFrom: { lte: month },
+        OR: [{ validTo: null }, { validTo: { gte: month } }],
+      },
+      select: { totalPoolHours: true },
+    });
+    if (contracts.length === 0) continue;
+
+    const poolHours = round2(
+      contracts.reduce((s, c) => s + toNum(c.totalPoolHours), 0),
+    );
+
+    const weekStarts: Date[] = [];
+    let ws = new Date(month);
+    while (ws <= mEnd) {
+      weekStarts.push(new Date(ws));
+      ws = new Date(ws.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
+
+    for (const weekStart of weekStarts) {
+      const weekEnd = new Date(
+        Math.min(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000, mEnd.getTime()),
+      );
+
+      const cumAgg = await prisma.hourRecord.aggregate({
+        where: {
+          clientId,
+          budgetSource: "retainer",
+          date: { gte: month, lte: weekEnd },
+        },
+        _sum: { hours: true },
+      });
+      const cumulativeHours = round2(toNum(cumAgg._sum.hours));
+
+      const daysElapsed =
+        Math.floor((weekEnd.getTime() - month.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+      const expectedCumulative = round2(poolHours * (daysElapsed / daysInMonth));
+      const burnRateRatio =
+        expectedCumulative > 0 ? round4(cumulativeHours / expectedCumulative) : 0;
+      const projectedEomHours =
+        daysElapsed > 0 && cumulativeHours > 0
+          ? round2((cumulativeHours / daysElapsed) * daysInMonth)
+          : 0;
+
+      let alertLevel: "safe" | "watch" | "warning" | "critical" = "safe";
+      if (burnRateRatio > 1.2) alertLevel = "critical";
+      else if (burnRateRatio > 1.1) alertLevel = "warning";
+      else if (burnRateRatio > 1.05) alertLevel = "watch";
+
+      let projectedExhaustionDate: Date | null = null;
+      if (projectedEomHours > poolHours && cumulativeHours > 0 && daysElapsed > 0) {
+        const dailyRate = cumulativeHours / daysElapsed;
+        const daysToExhaustion = poolHours / dailyRate;
+        projectedExhaustionDate = new Date(
+          month.getTime() + daysToExhaustion * 24 * 60 * 60 * 1000,
+        );
+      }
+
+      const snapshotData = {
+        cumulativeHours,
+        expectedCumulative,
+        burnRateRatio,
+        projectedEomHours,
+        poolHours,
+        alertLevel,
+        projectedExhaustionDate,
+      };
+
+      const existing = await prisma.weeklyBurnSnapshot.findFirst({
+        where: { clientId, weekStart, roleType: null },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await prisma.weeklyBurnSnapshot.update({
+          where: { id: existing.id },
+          data: snapshotData,
+        });
+      } else {
+        await prisma.weeklyBurnSnapshot.create({
+          data: { clientId, weekStart, roleType: null, ...snapshotData },
+        });
+      }
     }
   }
 }
