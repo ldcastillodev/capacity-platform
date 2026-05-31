@@ -176,8 +176,8 @@ export class JiraNAConnector {
           const date = new Date(wl.started);
           const hours = wl.timeSpentSeconds / 3600;
           const components = issue.fields.components ?? [];
-          const isNonBillable = components.length === 0;
-
+          const isNonBillable = ctx.sourceMappingByPrefix.has(issue.key);
+  
           const person = ctx.personByEmail.get(wl.author.emailAddress);
           if (!person) {
             result.skipped++;
@@ -185,7 +185,7 @@ export class JiraNAConnector {
           }
 
           if (isNonBillable) {
-            const sourceMapping = ctx.sourceMappingByPrefix.get(issue.key.split("-")[0]);
+            const sourceMapping = ctx.sourceMappingByPrefix.get(issue.key);
             const squadList = ctx.squadMembershipsByPerson.get(person.id);
             const squadMembership = squadList?.[0]; // already sorted by allocationPct desc
 
