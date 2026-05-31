@@ -1,8 +1,9 @@
 import prisma from "../prisma";
+import type { Prisma, Person, NonBillableSourceMapping, SquadMembership, JiraComponentClientMapping, PersonRole } from "@prisma/client";
 
 interface JiraWorklog {
   id: string;
-  author: { accountId: string };
+  author: { accountId: string, emailAddress: string };
   started: string;
   timeSpentSeconds: number;
   comment?: { content?: Array<{ content?: Array<{ text?: string }> }> };
@@ -21,6 +22,15 @@ interface SyncResult {
   created: number;
   skipped: number;
   errors: string[];
+}
+
+interface WorklogLookupContext {
+  personByEmail: Map<string, Person>;
+  sourceMappingByPrefix: Map<string, NonBillableSourceMapping>;
+  squadMembershipsByPerson: Map<number, SquadMembership[]>;
+  clientMappings: JiraComponentClientMapping[];
+  personRoles: PersonRole[];
+  existingRefs: Set<string | null>;
 }
 
 export class JiraNAConnector {
@@ -57,15 +67,73 @@ export class JiraNAConnector {
     try {
       const issues = await this.fetchIssuesWithWorklogs(dateFrom, dateTo);
 
+      // Collect all externalRefs upfront for batch existence check
+      const allExternalRefs: string[] = [];
       for (const issue of issues) {
         for (const wl of issue.worklogs ?? []) {
-          try {
-            await this.processWorklog(issue, wl, result);
-          } catch (err) {
-            result.errors.push(String(err));
-          }
+          allExternalRefs.push(`jira_na:${wl.id}`);
         }
       }
+
+      // Pre-fetch all lookup data in parallel
+      const now = new Date();
+      const [
+        persons,
+        nonBillableSourceMappings,
+        squadMemberships,
+        clientMappings,
+        personRoles,
+        existingHourRecords,
+        existingNonBillableEntries,
+      ] = await Promise.all([
+        prisma.person.findMany(),
+        prisma.nonBillableSourceMapping.findMany({ where: { source: "jira_na" } }),
+        prisma.squadMembership.findMany({
+          where: {
+            effectiveFrom: { lte: now },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+          },
+          orderBy: { allocationPct: "desc" },
+        }),
+        prisma.jiraComponentClientMapping.findMany(),
+        prisma.personRole.findMany({ where: { isPrimary: true } }),
+        prisma.hourRecord.findMany({
+          where: { externalRef: { in: allExternalRefs } },
+          select: { externalRef: true },
+        }),
+        prisma.nonBillableEntry.findMany({
+          where: { externalRef: { in: allExternalRefs } },
+          select: { externalRef: true },
+        }),
+      ]);
+
+      // Build lookup maps
+      const personByEmail = new Map(persons.map(p => [p.email, p]));
+      const sourceMappingByPrefix = new Map(
+        nonBillableSourceMappings.map(m => [m.identifierValue, m]),
+      );
+      const squadMembershipsByPerson = new Map<number, typeof squadMemberships>();
+      for (const sm of squadMemberships) {
+        if (!squadMembershipsByPerson.has(sm.personId)) {
+          squadMembershipsByPerson.set(sm.personId, []);
+        }
+        squadMembershipsByPerson.get(sm.personId)!.push(sm);
+      }
+      const existingRefs = new Set([
+        ...existingHourRecords.map(r => r.externalRef),
+        ...existingNonBillableEntries.map(r => r.externalRef),
+      ]);
+
+      const ctx: WorklogLookupContext = {
+        personByEmail,
+        sourceMappingByPrefix,
+        squadMembershipsByPerson,
+        clientMappings,
+        personRoles,
+        existingRefs,
+      };
+
+      await this.processWorklogs(issues, ctx, result);
 
       await prisma.syncLog.update({
         where: { id: log.id },
@@ -88,11 +156,132 @@ export class JiraNAConnector {
     return result;
   }
 
+  private async processWorklogs(
+    issues: JiraIssue[],
+    ctx: WorklogLookupContext,
+    result: SyncResult,
+  ): Promise<void> {
+    const hourRecordsToCreate: Prisma.HourRecordCreateManyInput[] = [];
+    const nonBillableEntriesToCreate: Prisma.NonBillableEntryCreateManyInput[] = [];
+
+    for (const issue of issues) {
+      for (const wl of issue.worklogs ?? []) {
+        try {
+          const externalRef = `jira_na:${wl.id}`;
+          if (ctx.existingRefs.has(externalRef)) {
+            result.skipped++;
+            continue;
+          }
+
+          const date = new Date(wl.started);
+          const hours = wl.timeSpentSeconds / 3600;
+          const components = issue.fields.components ?? [];
+          const isNonBillable = components.length === 0;
+
+          const person = ctx.personByEmail.get(wl.author.emailAddress);
+          if (!person) {
+            result.skipped++;
+            continue;
+          }
+
+          if (isNonBillable) {
+            const sourceMapping = ctx.sourceMappingByPrefix.get(issue.key.split("-")[0]);
+            const squadList = ctx.squadMembershipsByPerson.get(person.id);
+            const squadMembership = squadList?.[0]; // already sorted by allocationPct desc
+
+            if (!sourceMapping || !squadMembership) {
+              result.skipped++;
+              continue;
+            }
+
+            nonBillableEntriesToCreate.push({
+              personId: person.id,
+              squadId: squadMembership.squadId,
+              date,
+              hours,
+              categoryId: sourceMapping.categoryId,
+              externalRef,
+            });
+            result.created++;
+            continue;
+          }
+
+          const componentName = components[0]?.name;
+          if (!componentName) {
+            result.skipped++;
+            continue;
+          }
+
+          const clientMapping = ctx.clientMappings.find(
+            m =>
+              m.componentKey === componentName &&
+              m.effectiveFrom <= date &&
+              (m.effectiveTo === null || m.effectiveTo >= date),
+          );
+          if (!clientMapping) {
+            result.skipped++;
+            continue;
+          }
+
+          const role = ctx.personRoles.find(
+            r =>
+              r.personId === person.id &&
+              r.effectiveFrom <= date &&
+              (r.effectiveTo === null || r.effectiveTo >= date),
+          );
+          if (!role) {
+            result.skipped++;
+            continue;
+          }
+
+          hourRecordsToCreate.push({
+            personId: person.id,
+            clientId: clientMapping.clientId,
+            date,
+            hours,
+            roleType: role.roleType,
+            source: "jira_na" as const,
+            budgetSource: "retainer" as const,
+            externalRef,
+            issueKey: issue.key,
+          });
+          result.created++;
+        } catch (err) {
+          result.errors.push(String(err));
+        }
+      }
+    }
+
+    // Batch insert in chunks of 500
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < hourRecordsToCreate.length; i += BATCH_SIZE) {
+      await prisma.hourRecord.createMany({
+        data: hourRecordsToCreate.slice(i, i + BATCH_SIZE),
+        skipDuplicates: true,
+      });
+    }
+    for (let i = 0; i < nonBillableEntriesToCreate.length; i += BATCH_SIZE) {
+      await prisma.nonBillableEntry.createMany({
+        data: nonBillableEntriesToCreate.slice(i, i + BATCH_SIZE),
+        skipDuplicates: true,
+      });
+    }
+  }
+
   private async fetchIssuesWithWorklogs(
     dateFrom: string,
     dateTo: string,
   ): Promise<JiraIssue[]> {
-    const jql = `worklogDate >= "${dateFrom}" AND worklogDate <= "${dateTo}"`;
+    // get non-billable mappings to filter in jql
+    const nonBillableSourceMappings = await prisma.nonBillableSourceMapping.findMany({
+        where: { source: "jira_na" },
+      });
+    const nonBillableTicketkeys = nonBillableSourceMappings.filter(m => m.identifierType === "issue_key").map(m => m.identifierValue);
+    // get components to filter in jql
+    const components = (await prisma.jiraComponentClientMapping.findMany()).map(component => component.componentKey);
+    
+    const jql = this.generateJql(dateFrom, dateTo, nonBillableTicketkeys, components);
+
     const issues: JiraIssue[] = [];
     let nextPageToken: string | undefined;
     const maxResults = 100;
@@ -121,7 +310,7 @@ export class JiraNAConnector {
       nextPageToken = data.nextPageToken;
     }
 
-    return issues;
+    return issues.filter(issue => issue.worklogs && issue.worklogs.length > 0);
   }
 
   private async fetchWorklogs(
@@ -143,122 +332,40 @@ export class JiraNAConnector {
     });
   }
 
-  private async processWorklog(
-    issue: JiraIssue,
-    wl: JiraWorklog,
-    result: SyncResult,
-  ): Promise<void> {
-    const externalRef = `jira_na:${wl.id}`;
-    const date = new Date(wl.started);
-    const hours = wl.timeSpentSeconds / 3600;
+  private generateJql(
+    dateFrom: string,
+    dateTo: string,
+    ticketKeys: string[] = [],
+    components: string[] = []
+  ): string {
+    // Base JQL with mandatory date range
+    let jql = `worklogDate >= "${dateFrom}" AND worklogDate <= "${dateTo}"`;
+    
+    const optionalClauses: string[] = [];
 
-    const components = issue.fields.components ?? [];
-    const isNonBillable = components.length === 0;
-
-    const person = await prisma.person.findFirst({
-      where: { tempoAccountId: wl.author.accountId },
-    });
-    if (!person) {
-      result.skipped++;
-      return;
+    // Validate and format ticketKeys
+    if (ticketKeys.length > 0) {
+      const formattedKeys = ticketKeys.map(key => `'${key}'`).join(', ');
+      optionalClauses.push(`issueKey IN (${formattedKeys})`);
     }
 
-    if (isNonBillable) {
-      const sourceMapping = await prisma.nonBillableSourceMapping.findFirst({
-        where: { identifierValue: issue.key.split("-")[0] },
-      });
-
-      const squadMembership = await prisma.squadMembership.findFirst({
-        where: {
-          personId: person.id,
-          effectiveFrom: { lte: new Date() },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
-        },
-        orderBy: { allocationPct: "desc" },
-      });
-
-      if (!sourceMapping || !squadMembership) {
-        result.skipped++;
-        return;
-      }
-
-      const existing = await prisma.nonBillableEntry.findUnique({
-        where: { externalRef },
-      });
-      if (existing) {
-        result.skipped++;
-        return;
-      }
-
-      await prisma.nonBillableEntry.create({
-        data: {
-          personId: person.id,
-          squadId: squadMembership.squadId,
-          date,
-          hours,
-          categoryId: sourceMapping.categoryId,
-          externalRef,
-        },
-      });
-      result.created++;
-      return;
+    // Validate and format components
+    if (components.length > 0) {
+      const formattedComponents = components.map(comp => `'${comp}'`).join(', ');
+      optionalClauses.push(`component IN (${formattedComponents})`);
     }
 
-    const componentName = components[0]?.name;
-    if (!componentName) {
-      result.skipped++;
-      return;
+    // Dynamically join optional clauses
+    if (optionalClauses.length > 0) {
+      // If both exist, join with OR and wrap in parentheses.
+      // If only one exists, leave it without parentheses.
+      const internalCondition = optionalClauses.length > 1 
+        ? `(${optionalClauses.join(' OR ')})` 
+        : optionalClauses[0];
+      
+      jql += ` AND ${internalCondition}`;
     }
 
-    const clientMapping = await prisma.jiraComponentClientMapping.findFirst({
-      where: {
-        componentKey: componentName,
-        effectiveFrom: { lte: date },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: date } }],
-      },
-    });
-    if (!clientMapping) {
-      result.skipped++;
-      return;
-    }
-
-    const roleType = await this.resolveRole(person.id, date);
-    if (!roleType) {
-      result.skipped++;
-      return;
-    }
-
-    const existing = await prisma.hourRecord.findUnique({ where: { externalRef } });
-    if (existing) {
-      result.skipped++;
-      return;
-    }
-
-    await prisma.hourRecord.create({
-      data: {
-        personId: person.id,
-        clientId: clientMapping.clientId,
-        date,
-        hours,
-        roleType: roleType as never,
-        source: "jira_na",
-        budgetSource: "retainer",
-        externalRef,
-        issueKey: issue.key,
-      },
-    });
-    result.created++;
-  }
-
-  private async resolveRole(personId: number, date: Date): Promise<string | null> {
-    const role = await prisma.personRole.findFirst({
-      where: {
-        personId,
-        isPrimary: true,
-        effectiveFrom: { lte: date },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: date } }],
-      },
-    });
-    return role?.roleType ?? null;
+    return jql;
   }
 }

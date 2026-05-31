@@ -24,7 +24,7 @@ function subTabBtn(active: boolean): React.CSSProperties {
 }
 function errMsg(e: unknown) { return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e); }
 
-const NB_TYPES = ["internal_ceremony", "learning_and_development", "admin", "other"];
+const NB_TYPES = ["shared_ceremony", "leave", "internal_meeting", "training", "company"];
 
 interface NbCategoryRow {
   id: number;
@@ -297,9 +297,9 @@ function SourceMappingsSection() {
             <label style={labelStyle}>Identifier Type *</label>
             <select style={inputStyle} required value={form.identifier_type} onChange={e => setForm({ ...form, identifier_type: e.target.value })}>
               <option value="">— Select type —</option>
-              <option value="account_key">Account Key</option>
-              <option value="component">Component</option>
-              <option value="project_key">Project Key</option>
+              <option value="issue_key">Issue Key (ex: MP-XXXX)</option>
+              <option value="account_key"> Account Key</option>
+              <option value="component_key">Component Key</option>
             </select>
           </div>
           <div style={fieldStyle}>
