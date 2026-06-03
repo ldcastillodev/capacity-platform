@@ -6,9 +6,9 @@ export async function GET(
   { params }: { params: Promise<{ contractId: string }> },
 ) {
   const { contractId } = await params;
-  const contract = await prisma.retainerContract.findUnique({
+  const contract = await prisma.contract.findUnique({
     where: { id: Number(contractId) },
-    include: { declarations: true },
+    include: { sow: true, declarations: true, extension: true },
   });
   if (!contract) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(contract);

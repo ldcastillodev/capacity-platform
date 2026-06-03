@@ -9,13 +9,10 @@ export async function PATCH(
   const clientId = Number(id);
   const body = await req.json() as { name?: string; region?: string; currency?: string };
 
-  // Guard: block currency change if billing records already exist
+  // Guard: block currency change if hour records already exist
   if (body.currency !== undefined) {
-    const [hourCount, rateCount] = await Promise.all([
-      prisma.hourRecord.count({ where: { clientId } }),
-      prisma.billingRate.count({ where: { clientId } }),
-    ]);
-    if (hourCount > 0 || rateCount > 0) {
+    const hourCount = await prisma.hourRecord.count({ where: { clientId } });
+    if (hourCount > 0) {
       return NextResponse.json(
         { error: "Cannot change currency after billing records exist." },
         { status: 400 },
@@ -37,7 +34,6 @@ export async function PATCH(
       currency: true,
       isActive: true,
       createdAt: true,
-      retainerContracts: { select: { id: true } },
     },
   });
   return NextResponse.json(client);

@@ -21,7 +21,6 @@ const FLAG_LABELS: Record<string, string> = {
   role_substitution: "Role Substitution",
   unusual_spike: "Unusual Spike",
   unusual_drop: "Unusual Drop",
-  cascade_violation: "Cascade Violation",
 };
 
 export default function FlagsPage() {

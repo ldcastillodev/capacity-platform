@@ -31,18 +31,19 @@ export async function POST(
     squad_id: number;
   }>;
 
-  const contract = await prisma.retainerContract.findUnique({
+  const contract = await prisma.contract.findUnique({
     where: { id: Number(contractId) },
+    include: { sow: { select: { clientId: true } } },
   });
   if (!contract) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const monthDate = new Date(body[0].month);
   const totalDeclared = body.reduce((s, r) => s + r.declared_hours, 0);
-  const poolHours = parseFloat(String(contract.totalPoolHours));
+  const assignedHours = parseFloat(String(contract.assignedHours));
 
-  if (totalDeclared > poolHours) {
+  if (totalDeclared > assignedHours) {
     return NextResponse.json(
-      { error: `Total declared hours (${totalDeclared}) exceeds pool hours (${poolHours})` },
+      { error: `Total declared hours (${totalDeclared}) exceeds assigned hours (${assignedHours})` },
       { status: 422 },
     );
   }
@@ -52,7 +53,7 @@ export async function POST(
       prisma.monthlyRoleDeclaration.create({
         data: {
           contractId: Number(contractId),
-          clientId: contract.clientId,
+          clientId: contract.sow.clientId,
           squadId: row.squad_id,
           month: monthDate,
           roleType: row.role_type as never,

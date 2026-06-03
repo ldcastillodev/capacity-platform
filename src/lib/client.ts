@@ -81,17 +81,6 @@ export interface Person {
   is_active: boolean;
 }
 
-export interface TeApproved {
-  squad_id: number;
-  te_hours: number;
-}
-
-export interface CeremonyAllocation {
-  client_id: number;
-  month: string;
-  total_allocated_hours: number;
-}
-
 export interface NonBillableSummary {
   id: number;
   personId: number;
@@ -144,38 +133,6 @@ export interface EnhancementSuggestion {
   current_hours: string | null;
 }
 
-export interface ContractExtension {
-  id: number;
-  clientId: number;
-  client_id: number;
-  month: string;
-  type: string;
-  status: "pending_approval" | "approved";
-  requestedHours: string;
-  requested_hours: string;
-  roleType: RoleType | null;
-  role_type: RoleType | null;
-  notes: string | null;
-  approvedAt: string | null;
-  approved_at: string | null;
-}
-
-export interface TEDeclaration {
-  id: number;
-  extensionId: number;
-  extension_id: number;
-  clientId: number;
-  client_id: number;
-  squadId: number;
-  squad_id: number;
-  month: string;
-  roleType: string;
-  role_type: string;
-  declaredHours: string;
-  declared_hours: string;
-  status: string;
-}
-
 export interface SimulationResult {
   proposed_client_name: string;
   proposed_start_month: string;
@@ -224,12 +181,6 @@ export const fetchSquads = () =>
 export const fetchPeople = () =>
   api.get<Person[]>("/people").then((r) => norm(r.data));
 
-export const fetchTeApproved = (month: string) =>
-  api.get<TeApproved[]>("/analytics/te-approved", { params: { month } }).then((r) => r.data);
-
-export const fetchCeremonyAllocations = (params?: { month?: string }) =>
-  api.get<CeremonyAllocation[]>("/analytics/ceremony-allocation", { params }).then((r) => r.data);
-
 export const fetchNonBillableSummary = (params?: { month?: string; squad_id?: number }) =>
   api.get<NonBillableSummary[]>("/analytics/nonbillable-summary", { params }).then((r) => norm(r.data));
 
@@ -241,29 +192,6 @@ export const fetchSuggestions = (params?: { month?: string; status?: string }) =
 
 export const dismissSuggestion = (id: number) =>
   api.patch(`/analytics/suggestions/${id}/status`, { status: "dismissed" }).then((r) => r.data);
-
-export const fetchExtensions = (clientId: number) =>
-  api.get<ContractExtension[]>(`/clients/${clientId}/extensions`).then((r) => norm(r.data));
-
-export const createExtension = (clientId: number, body: {
-  month: string;
-  requested_hours: number;
-  type?: string;
-  status?: string;
-  role_type?: RoleType | null;
-  notes?: string;
-}) => api.post<ContractExtension>(`/clients/${clientId}/extensions`, body).then((r) => norm(r.data));
-
-export const approveExtension = (extensionId: number) =>
-  api.patch<ContractExtension>(`/extensions/${extensionId}/approve`).then((r) => norm(r.data));
-
-export const fetchExtensionDeclarations = (extensionId: number) =>
-  api.get<TEDeclaration[]>(`/extensions/${extensionId}/declarations`).then((r) => norm(r.data));
-
-export const createExtensionDeclaration = (
-  extensionId: number,
-  body: { role_type: string; declared_hours: number },
-) => api.post<TEDeclaration>(`/extensions/${extensionId}/declarations`, body).then((r) => norm(r.data));
 
 export const runSimulation = (body: {
   proposed_client_name: string;
@@ -338,7 +266,6 @@ export type DeclarationStatus = "draft" | "derived" | "confirmed" | "locked";
 export interface Declaration {
   id: number;
   contract_id: number | null;
-  extension_id?: number | null;
   client_id: number;
   squad_id: number | null;
   month: string;

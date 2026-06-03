@@ -15,9 +15,6 @@ export async function GET(req: NextRequest) {
       currency: true,
       isActive: true,
       createdAt: true,
-      retainerContracts: {
-        select: { id: true },
-      },
     },
   });
   return NextResponse.json(clients);
@@ -39,7 +36,6 @@ export async function POST(req: NextRequest) {
       currency: true,
       isActive: true,
       createdAt: true,
-      retainerContracts: { select: { id: true } },
     },
   });
   return NextResponse.json(client, { status: 201 });

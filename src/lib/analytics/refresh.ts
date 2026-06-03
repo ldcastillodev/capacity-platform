@@ -56,12 +56,10 @@ export async function runAnalyticsRefresh(months?: Date[]): Promise<void> {
     await refreshBurnSnapshots(m);
   }
 
-  await refreshCeremonyAttribution(prior);
   await deriveMissingDeclarations(currentMonth);
   await refreshStaffingGaps(currentMonth);
   await runAnomalyDetection(currentMonth);
   await refreshNonbillableSummaries(currentMonth);
-  await refreshCeremonyAllocations(currentMonth);
 }
 
 // ─── Phase 1 & 2: Consumption Summaries ──────────────────────────────────────
@@ -75,17 +73,17 @@ async function refreshConsumptionSummaries(month: Date): Promise<void> {
   });
 
   for (const { id: clientId } of activeClients) {
-    const contract = await prisma.retainerContract.findFirst({
+    const contract = await prisma.contract.findFirst({
       where: {
-        clientId,
+        sow: { clientId },
         status: "active",
-        validFrom: { lte: month },
-        OR: [{ validTo: null }, { validTo: { gte: month } }],
+        startDate: { lte: month },
+        OR: [{ endDate: null }, { endDate: { gte: month } }],
       },
     });
     if (!contract) continue;
 
-    await upsertConsumptionRow(clientId, month, mEnd, null, contract.totalPoolHours);
+    await upsertConsumptionRow(clientId, month, mEnd, null, contract.assignedHours);
 
     const roles = await prisma.monthlyRoleDeclaration.findMany({
       where: { clientId, month },
@@ -94,7 +92,7 @@ async function refreshConsumptionSummaries(month: Date): Promise<void> {
     });
 
     for (const { roleType } of roles) {
-      await upsertConsumptionRow(clientId, month, mEnd, roleType, contract.totalPoolHours);
+      await upsertConsumptionRow(clientId, month, mEnd, roleType, contract.assignedHours);
     }
   }
 }
@@ -109,12 +107,10 @@ async function upsertConsumptionRow(
   const baseWhere = { clientId, date: { gte: month, lte: mEnd } };
   const roleFilter = roleType ? { roleType: roleType as never } : {};
 
-  const [retainerH, teH, coH, smeH] = await Promise.all([
-    sumHours({ ...baseWhere, budgetSource: "retainer", ...roleFilter }),
-    sumHours({ ...baseWhere, budgetSource: "te", ...roleFilter }),
-    sumHours({ ...baseWhere, budgetSource: "change_order", ...roleFilter }),
-    sumHours({ ...baseWhere, budgetSource: "sme", ...roleFilter }),
-  ]);
+  const retainerH = await sumHours({ ...baseWhere, budgetSource: "retainer", ...roleFilter });
+  const teH = 0;
+  const coH = 0;
+  const smeH = 0;
 
   const consumed = retainerH + teH + coH + smeH;
 
@@ -209,141 +205,16 @@ async function sumSnapshotAmount(
   return toNum(sum);
 }
 
-async function getCostRate(
-  personId: number,
-  roleType: string,
-  month: Date,
-): Promise<number | null> {
-  const roleTypeOr = roleType
-    ? [{ roleType: roleType as never }, { roleType: null }]
-    : [{ roleType: null }];
-
-  const row = await prisma.costRate.findFirst({
-    where: {
-      effectiveFrom: { lte: month },
-      AND: [
-        { OR: [{ personId }, { personId: null }] },
-        { OR: roleTypeOr as never },
-        { OR: [{ effectiveTo: null }, { effectiveTo: { gte: month } }] as never },
-      ],
-    },
-    orderBy: { personId: "desc" },
-  });
-  return row ? toNum(row.ratePerHour) : null;
-}
-
-// ─── Phase 3: Ceremony Attribution ───────────────────────────────────────────
-
-async function refreshCeremonyAttribution(month: Date): Promise<void> {
-  const mEnd = monthEnd(month);
-
-  const ceremonyCats = await prisma.nonBillableCategory.findMany({
-    where: { type: "shared_ceremony" },
-    select: { id: true },
-  });
-  const ceremonyCatIds = ceremonyCats.map((c) => c.id);
-  if (ceremonyCatIds.length === 0) return;
-
-  const squads = await prisma.squad.findMany({ select: { id: true } });
-
-  for (const { id: squadId } of squads) {
-    const ceremonyAgg = await prisma.nonBillableEntry.aggregate({
-      where: {
-        squadId,
-        categoryId: { in: ceremonyCatIds },
-        date: { gte: month, lte: mEnd },
-      },
-      _sum: { hours: true },
-    });
-    const totalCeremonyHours = toNum(ceremonyAgg._sum.hours);
-    if (totalCeremonyHours === 0) continue;
-
-    const clientHoursRaw = await prisma.hourRecord.groupBy({
-      by: ["clientId"],
-      where: {
-        person: {
-          squadMemberships: { some: { squadId } },
-        },
-        date: { gte: month, lte: mEnd },
-      },
-      _sum: { hours: true },
-    });
-
-    const clientHours: Record<number, number> = {};
-    let squadTotalActual = 0;
-    for (const row of clientHoursRaw) {
-      const h = toNum(row._sum.hours);
-      clientHours[row.clientId] = h;
-      squadTotalActual += h;
-    }
-    if (squadTotalActual === 0) continue;
-
-    for (const [clientIdStr, clientActual] of Object.entries(clientHours)) {
-      const clientId = Number(clientIdStr);
-      const fraction = round4(clientActual / squadTotalActual);
-      const attributed = round2(totalCeremonyHours * fraction);
-
-      const costImpact = await calcBlendedCeremonyCost(squadId, attributed, month);
-
-      await prisma.ceremonyAttribution.upsert({
-        where: { squadId_clientId_month: { squadId, clientId, month } },
-        create: {
-          squadId,
-          clientId,
-          month,
-          squadTotalCeremonyHours: totalCeremonyHours,
-          clientActualHours: clientActual,
-          squadTotalActualHours: squadTotalActual,
-          attributionFraction: fraction,
-          attributedHours: attributed,
-          costImpact,
-        },
-        update: {
-          squadTotalCeremonyHours: totalCeremonyHours,
-          clientActualHours: clientActual,
-          squadTotalActualHours: squadTotalActual,
-          attributionFraction: fraction,
-          attributedHours: attributed,
-          costImpact,
-          calculatedAt: new Date(),
-        },
-      });
-    }
-  }
-}
-
-async function calcBlendedCeremonyCost(
-  squadId: number,
-  attributedHours: number,
-  month: Date,
-): Promise<number | null> {
-  const members = await prisma.squadMembership.findMany({
-    where: {
-      squadId,
-      effectiveFrom: { lte: month },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gte: month } }],
-    },
-    select: { personId: true },
-  });
-  const rates: number[] = [];
-  for (const { personId } of members) {
-    const rate = await getCostRate(personId, "", month);
-    if (rate !== null) rates.push(rate);
-  }
-  if (rates.length === 0) return null;
-  const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
-  return round2(attributedHours * avg);
-}
-
 // ─── Phase 4: Derive Missing Declarations ────────────────────────────────────
 
 async function deriveMissingDeclarations(month: Date): Promise<void> {
-  const contracts = await prisma.retainerContract.findMany({
+  const contracts = await prisma.contract.findMany({
     where: {
       status: "active",
-      validFrom: { lte: month },
-      OR: [{ validTo: null }, { validTo: { gte: month } }],
+      startDate: { lte: month },
+      OR: [{ endDate: null }, { endDate: { gte: month } }],
     },
+    include: { sow: { select: { clientId: true } } },
   });
 
   for (const contract of contracts) {
@@ -386,7 +257,7 @@ async function deriveMissingDeclarations(month: Date): Promise<void> {
     const refTotal = sameMonthRows.reduce((s, r) => s + toNum(r.declaredHours), 0);
     if (refTotal <= 0) continue;
 
-    const scale = toNum(contract.totalPoolHours) / refTotal;
+    const scale = toNum(contract.assignedHours) / refTotal;
 
     await prisma.monthlyRoleDeclaration.deleteMany({
       where: { contractId: contract.id, month, status: "derived" },
@@ -398,7 +269,7 @@ async function deriveMissingDeclarations(month: Date): Promise<void> {
       await prisma.monthlyRoleDeclaration.create({
         data: {
           contractId: contract.id,
-          clientId: contract.clientId,
+          clientId: contract.sow.clientId,
           squadId: ref.squadId,
           month,
           roleType: ref.roleType,
@@ -533,22 +404,8 @@ async function calcAvailableHours(
     });
     if (!hasRole) continue;
 
-    const holidays = await prisma.holidayEntry.count({
-      where: {
-        calendar: {
-          personAssignments: {
-            some: {
-              personId: m.personId,
-              effectiveFrom: { lte: mEnd },
-            },
-          },
-        },
-        date: { gte: month, lte: mEnd },
-      },
-    });
-
     const weeklyHours = toNum(m.person.weeklyCapacityHours);
-    const workingDays = workingDaysInMonth(month) - holidays;
+    const workingDays = workingDaysInMonth(month);
     total += weeklyHours * (workingDays / 5) * toNum(m.allocationPct);
   }
   return round2(total);
@@ -584,21 +441,11 @@ async function calcActualHours(
   month: Date,
   mEnd: Date,
 ): Promise<number> {
-  const squadClients = await prisma.retainerContract.findMany({
-    where: {
-      squadId,
-      status: "active",
-      validFrom: { lte: mEnd },
-      OR: [{ validTo: null }, { validTo: { gte: month } }],
-    },
-    select: { clientId: true },
-  });
-  const clientIds = squadClients.map((c) => c.clientId);
-  if (clientIds.length === 0) return 0;
-
   const agg = await prisma.hourRecord.aggregate({
     where: {
-      clientId: { in: clientIds },
+      person: {
+        squadMemberships: { some: { squadId } },
+      },
       roleType: { in: roleTypes as never[] },
       date: { gte: month, lte: mEnd },
     },
@@ -1104,60 +951,6 @@ async function upsertSuggestion(data: {
   });
 }
 
-// ─── Phase 8: Ceremony Allocations ───────────────────────────────────────────
-
-async function refreshCeremonyAllocations(month: Date): Promise<void> {
-  const mEnd = monthEnd(month);
-
-  await prisma.monthlyCeremonyAllocation.deleteMany({ where: { month } });
-
-  const ceremonyCats = await prisma.nonBillableCategory.findMany({
-    where: { type: "shared_ceremony" },
-    select: { id: true },
-  });
-  const ceremonyCatIds = ceremonyCats.map((c) => c.id);
-  if (ceremonyCatIds.length === 0) return;
-
-  const ceremonyByPerson = await prisma.nonBillableEntry.groupBy({
-    by: ["personId", "squadId"],
-    where: {
-      categoryId: { in: ceremonyCatIds },
-      date: { gte: month, lte: mEnd },
-    },
-    _sum: { hours: true },
-  });
-
-  for (const row of ceremonyByPerson) {
-    const ceremonyHours = toNum(row._sum.hours);
-    const squadId = row.squadId;
-
-    const billableByClient = await prisma.hourRecord.groupBy({
-      by: ["clientId"],
-      where: { personId: row.personId, date: { gte: month, lte: mEnd } },
-      _sum: { hours: true },
-    });
-
-    const totalBillable = billableByClient.reduce((s, r) => s + toNum(r._sum.hours), 0);
-    if (totalBillable === 0) continue;
-
-    for (const b of billableByClient) {
-      const proportion = toNum(b._sum.hours) / totalBillable;
-      const allocated = round2(ceremonyHours * proportion);
-      if (allocated <= 0) continue;
-
-      await prisma.monthlyCeremonyAllocation.create({
-        data: {
-          personId: row.personId,
-          clientId: b.clientId,
-          squadId,
-          month,
-          allocatedHours: allocated,
-        },
-      });
-    }
-  }
-}
-
 // ─── Burn Snapshots ───────────────────────────────────────────────────────────
 
 async function refreshBurnSnapshots(month: Date): Promise<void> {
@@ -1171,19 +964,19 @@ async function refreshBurnSnapshots(month: Date): Promise<void> {
   });
 
   for (const { id: clientId } of activeClients) {
-    const contracts = await prisma.retainerContract.findMany({
+    const contracts = await prisma.contract.findMany({
       where: {
-        clientId,
+        sow: { clientId },
         status: "active",
-        validFrom: { lte: month },
-        OR: [{ validTo: null }, { validTo: { gte: month } }],
+        startDate: { lte: month },
+        OR: [{ endDate: null }, { endDate: { gte: month } }],
       },
-      select: { totalPoolHours: true },
+      select: { assignedHours: true },
     });
     if (contracts.length === 0) continue;
 
     const poolHours = round2(
-      contracts.reduce((s, c) => s + toNum(c.totalPoolHours), 0),
+      contracts.reduce((s, c) => s + toNum(c.assignedHours), 0),
     );
 
     const weekStarts: Date[] = [];

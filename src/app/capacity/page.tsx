@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchStaffingGaps,
   fetchSquads,
-  fetchTeApproved,
   type StaffingGap,
 } from "@/lib/client";
 import MonthNavigator from "@/components/MonthNavigator";
@@ -124,7 +123,7 @@ function mergeDevRows(rows: ParsedRow[]): ParsedRow[] {
   return result;
 }
 
-function SquadCard({ squadName, rows, teHours = 0 }: { squadName: string; rows: StaffingGap[]; teHours?: number }): React.ReactElement {
+function SquadCard({ squadName, rows }: { squadName: string; rows: StaffingGap[] }): React.ReactElement {
   const parsed = mergeDevRows(rows.map(parseRow));
   const totalAvailable = parsed.reduce((s, r) => s + r.total_available_hours, 0);
   const totalCommitted = parsed.reduce((s, r) => s + r.committed_hours, 0);
@@ -228,7 +227,6 @@ function SquadCard({ squadName, rows, teHours = 0 }: { squadName: string; rows: 
                 <td style={t}>{fmtHours(totalAvailable)}</td>
                 <td style={{ ...t, whiteSpace: "nowrap" }}>
                   {fmtHours(totalCommitted)}
-                  {teHours > 0 && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: "#6366f1", background: "rgba(99,102,241,0.1)", borderRadius: 4, padding: "1px 5px" }}>+{fmtHours(teHours)} T&E</span>}
                 </td>
                 <td style={{ ...t, whiteSpace: "nowrap" }}>
                   {fmtHours(totalActual)}
@@ -263,16 +261,6 @@ export default function CapacityPage(): React.ReactElement {
     queryKey: ["squads"],
     queryFn: fetchSquads,
   });
-
-  const { data: teApproved = [] } = useQuery({
-    queryKey: ["te-approved", month],
-    queryFn: () => fetchTeApproved(month),
-  });
-
-  const teBySquad: Record<number, number> = {};
-  for (const t of teApproved) {
-    teBySquad[t.squad_id] = (teBySquad[t.squad_id] ?? 0) + t.te_hours;
-  }
 
   if (gapsLoading || squadsLoading) {
     return <div style={{ color: "var(--text-muted)", padding: "40px 0" }}>Loading…</div>;
@@ -326,7 +314,7 @@ export default function CapacityPage(): React.ReactElement {
         <p style={{ color: "var(--text-muted)" }}>No staffing data for this period.</p>
       ) : (
         sortedSquadIds.map((squadId) => (
-          <SquadCard key={squadId} squadName={squadNames[squadId] ?? `Squad ${squadId}`} rows={bySquad[squadId] ?? []} teHours={teBySquad[squadId] ?? 0} />
+          <SquadCard key={squadId} squadName={squadNames[squadId] ?? `Squad ${squadId}`} rows={bySquad[squadId] ?? []} />
         ))
       )}
     </div>

@@ -13,7 +13,6 @@ interface ClientRecord {
   currency: string;
   isActive: boolean;
   createdAt: string;
-  retainerContracts: { id: number }[];
 }
 
 interface FormState {
@@ -181,7 +180,6 @@ export function ClientsTab() {
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Region</th>
                 <th style={thStyle}>Currency</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Contracts</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
               </tr>
@@ -214,9 +212,6 @@ export function ClientsTab() {
                   </td>
                   <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>
                     {client.currency}
-                  </td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>
-                    {client.retainerContracts.length}
                   </td>
                   <td style={{ padding: "11px 14px", textAlign: "center" }}>
                     <span

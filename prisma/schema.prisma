@@ -65,44 +65,14 @@ enum DeclarationStatus {
   derived
 }
 
-enum ExtensionType {
-  te
-  co
+enum HourType {
+  monthly
+  total
 }
 
-enum ExtensionStatus {
-  pending_approval
-  approved
-  rejected
-  closed
-}
-
-enum ChangeOrderStatus {
-  pending_written
-  pending_docusign
-  approved
-  active
-  closed
-}
-
-enum TEBillingType {
-  same_rate
-  premium_flat
-  premium_pct
-  blended_rate
-  per_role
-}
-
-enum SMESource {
-  internal_other_squad
-  external_contractor
-}
-
-enum SMEStatus {
-  requested
-  confirmed
-  active
-  closed
+enum ContractType {
+  base
+  change_order
 }
 
 enum SyncSource {
@@ -141,7 +111,6 @@ enum AnomalyFlagType {
   underburn_risk
   role_substitution
   missing_data
-  cascade_violation
 }
 
 enum AnomalySeverity {
@@ -196,19 +165,14 @@ model Squad {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
 
-  lead            Person?              @relation("SquadLead", fields: [leadPersonId], references: [id])
+  lead            Person?                          @relation("SquadLead", fields: [leadPersonId], references: [id])
   members         SquadMembership[]
   capacityConfigs SquadCapacityConfig[]
   declarations    MonthlyRoleDeclaration[]
-  changeOrders    ChangeOrder[]
-  smeEngagements  SMEEngagement[]
   gapSnapshots    StaffingGapSnapshot[]
-  ceremonyAttributions CeremonyAttribution[]
-  ceremonyAllocations  MonthlyCeremonyAllocation[]
   nbSummaries     MonthlyNonBillableSummary[]
   suggestions     NonBillableEnhancementSuggestion[]
   anomalyFlags    AnomalyFlag[]
-  retainerContracts RetainerContract[]
 
   @@map("squads")
 }
@@ -224,19 +188,14 @@ model Person {
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at")
 
-  ledSquads           Squad[]                  @relation("SquadLead")
-  squadMemberships    SquadMembership[]
-  roles               PersonRole[]
-  clientAccess        ClientPersonAccess[]
-  calendarAssignments PersonCalendarAssignment[]
-  hourRecords         HourRecord[]
-  nbEntries           NonBillableEntry[]
-  nbSummaries         MonthlyNonBillableSummary[]
-  suggestions         NonBillableEnhancementSuggestion[]
-  ceremonyAllocations MonthlyCeremonyAllocation[]
-  smeEngagements      SMEEngagement[]          @relation("SMEPerson")
-  simulations         ClientSimulation[]       @relation("SimRequestedBy")
-  costRates           CostRate[]
+  ledSquads        Squad[]                          @relation("SquadLead")
+  squadMemberships SquadMembership[]
+  roles            PersonRole[]
+  hourRecords      HourRecord[]
+  nbEntries        NonBillableEntry[]
+  nbSummaries      MonthlyNonBillableSummary[]
+  suggestions      NonBillableEnhancementSuggestion[]
+  simulations      ClientSimulation[]               @relation("SimRequestedBy")
 
   @@map("persons")
 }
@@ -281,40 +240,17 @@ model Client {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  personAccess         ClientPersonAccess[]
-  billingRates         BillingRate[]
-  retainerContracts    RetainerContract[]
-  extensions           ContractExtension[]
-  teBillingConfig      TEBillingConfig?
-  changeOrders         ChangeOrder[]
-  smeEngagements       SMEEngagement[]
+  sows                 StatementOfWork[]
   hourRecords          HourRecord[]
   consumptionSummaries MonthlyConsumptionSummary[]
   burnSnapshots        WeeklyBurnSnapshot[]
-  ceremonyAttributions CeremonyAttribution[]
-  ceremonyAllocations  MonthlyCeremonyAllocation[]
   anomalyFlags         AnomalyFlag[]
   declarations         MonthlyRoleDeclaration[]
-  cascadeRules         RoleCascadeRule[]
   tempoMappings        TempoAccountClientMapping[]
   jiraMappings         JiraComponentClientMapping[]
   simulations          ClientSimulation[]
 
   @@map("clients")
-}
-
-model ClientPersonAccess {
-  id        Int       @id @default(autoincrement())
-  clientId  Int       @map("client_id")
-  personId  Int       @map("person_id")
-  grantedAt DateTime  @default(now()) @map("granted_at")
-  grantedBy Int?      @map("granted_by")
-  revokedAt DateTime? @map("revoked_at")
-
-  client Client @relation(fields: [clientId], references: [id])
-  person Person @relation(fields: [personId], references: [id])
-
-  @@map("client_person_access")
 }
 
 model SquadCapacityConfig {
@@ -330,286 +266,119 @@ model SquadCapacityConfig {
   @@map("squad_capacity_configs")
 }
 
-model RoleCascadeRule {
-  id            Int      @id @default(autoincrement())
-  clientId      Int?     @map("client_id")
-  triggerRole   RoleType @map("trigger_role")
-  dependentRole RoleType @map("dependent_role")
-  ratio         Decimal  @db.Decimal(5, 4)
-
-  client Client? @relation(fields: [clientId], references: [id])
-
-  @@unique([clientId, triggerRole, dependentRole])
-  @@map("role_cascade_rules")
-}
-
-// ─── Calendar ─────────────────────────────────────────────────────────────────
-
-model HolidayCalendar {
-  id     Int    @id @default(autoincrement())
-  region String @db.VarChar(50)
-  name   String @db.VarChar(120)
-
-  entries            HolidayEntry[]
-  personAssignments  PersonCalendarAssignment[]
-
-  @@unique([region, name])
-  @@map("holiday_calendars")
-}
-
-model HolidayEntry {
-  id         Int      @id @default(autoincrement())
-  calendarId Int      @map("calendar_id")
-  date       DateTime @db.Date
-  name       String   @db.VarChar(200)
-
-  calendar HolidayCalendar @relation(fields: [calendarId], references: [id])
-
-  @@unique([calendarId, date])
-  @@map("holiday_entries")
-}
-
-model PersonCalendarAssignment {
-  id            Int       @id @default(autoincrement())
-  personId      Int       @map("person_id")
-  calendarId    Int       @map("calendar_id")
-  effectiveFrom DateTime  @map("effective_from") @db.Date
-  effectiveTo   DateTime? @map("effective_to") @db.Date
-
-  person   Person          @relation(fields: [personId], references: [id])
-  calendar HolidayCalendar @relation(fields: [calendarId], references: [id])
-
-  @@unique([personId, effectiveFrom])
-  @@index([personId])
-  @@map("person_calendar_assignments")
-}
-
 // ─── Contracts ────────────────────────────────────────────────────────────────
 
-model RetainerContract {
-  id             Int            @id @default(autoincrement())
-  clientId       Int            @map("client_id")
-  squadId        Int            @map("squad_id")
-  totalPoolHours Decimal        @map("total_pool_hours") @db.Decimal(8, 2)
-  status         ContractStatus @default(active)
-  validFrom      DateTime       @map("valid_from") @db.Date
-  validTo        DateTime?      @map("valid_to") @db.Date
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at")
+model StatementOfWork {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(200)
+  clientId    Int       @map("client_id")
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  parentSowId Int?      @unique @map("parent_sow_id")
 
-  client       Client                   @relation(fields: [clientId], references: [id])
-  squad        Squad                    @relation(fields: [squadId], references: [id])
-  declarations MonthlyRoleDeclaration[]
-  amendments   ContractAmendment[]
+  client    Client           @relation(fields: [clientId], references: [id])
+  parentSow StatementOfWork? @relation("SowSelf", fields: [parentSowId], references: [id], onDelete: SetNull)
+  childSow  StatementOfWork? @relation("SowSelf")
+  contracts Contract[]
 
-  @@index([clientId, status])
-  @@map("retainer_contracts")
+  @@index([clientId])
+  @@map("statements_of_work")
+}
+
+model Contract {
+  id               Int            @id @default(autoincrement())
+  name             String         @db.VarChar(200)
+  sowId            Int            @map("sow_id")
+  hourType         HourType       @map("hour_type")
+  type             ContractType
+  assignedHours    Decimal        @map("assigned_hours") @db.Decimal(8, 2)
+  startDate        DateTime       @map("start_date") @db.Date
+  endDate          DateTime?      @map("end_date") @db.Date
+  status           ContractStatus @default(active)
+  parentContractId Int?           @unique @map("parent_contract_id")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  sow            StatementOfWork          @relation(fields: [sowId], references: [id])
+  parentContract Contract?                @relation("ContractSelf", fields: [parentContractId], references: [id], onDelete: SetNull)
+  childContract  Contract?                @relation("ContractSelf")
+  extension      Extension?
+  declarations   MonthlyRoleDeclaration[]
+  hourRecords    HourRecord[]
+
+  @@index([sowId, status])
+  @@map("contracts")
+}
+
+model Extension {
+  id          Int      @id @default(autoincrement())
+  contractId  Int      @unique @map("contract_id")
+  hours       Decimal  @db.Decimal(8, 2)
+  reason      String?
+  targetMonth DateTime @map("target_month") @db.Date
+
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@map("extensions")
 }
 
 model MonthlyRoleDeclaration {
-  id                   Int               @id @default(autoincrement())
-  contractId           Int?              @map("contract_id")
-  extensionId          Int?              @map("extension_id")
-  clientId             Int               @map("client_id")
-  squadId              Int               @map("squad_id")
-  month                DateTime          @db.Date
-  roleType             RoleType          @map("role_type")
-  declaredHours        Decimal           @map("declared_hours") @db.Decimal(8, 2)
-  status               DeclarationStatus @default(draft)
-  submittedAt          DateTime?         @map("submitted_at")
-  submittedBy          Int?              @map("submitted_by")
-  changeFromPriorHours Decimal?          @map("change_from_prior_hours") @db.Decimal(8, 2)
-  significantChangeFlag Boolean          @default(false) @map("significant_change_flag")
-  lateChangeFlag       Boolean           @default(false) @map("late_change_flag")
-  overrideReason       String?           @map("override_reason")
-  overrideBy           Int?              @map("override_by")
-  updatedAt            DateTime          @default(now()) @updatedAt @map("updated_at")
+  id                    Int               @id @default(autoincrement())
+  contractId            Int?              @map("contract_id")
+  clientId              Int               @map("client_id")
+  squadId               Int               @map("squad_id")
+  month                 DateTime          @db.Date
+  roleType              RoleType          @map("role_type")
+  declaredHours         Decimal           @map("declared_hours") @db.Decimal(8, 2)
+  status                DeclarationStatus @default(draft)
+  submittedAt           DateTime?         @map("submitted_at")
+  submittedBy           Int?              @map("submitted_by")
+  changeFromPriorHours  Decimal?          @map("change_from_prior_hours") @db.Decimal(8, 2)
+  significantChangeFlag Boolean           @default(false) @map("significant_change_flag")
+  lateChangeFlag        Boolean           @default(false) @map("late_change_flag")
+  overrideReason        String?           @map("override_reason")
+  overrideBy            Int?              @map("override_by")
+  updatedAt             DateTime          @default(now()) @updatedAt @map("updated_at")
 
-  contract  RetainerContract?  @relation(fields: [contractId], references: [id])
-  extension ContractExtension? @relation(fields: [extensionId], references: [id])
-  client    Client             @relation(fields: [clientId], references: [id])
-  squad     Squad              @relation(fields: [squadId], references: [id])
-  history   MonthlyRoleDeclarationHistory[]
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  client   Client    @relation(fields: [clientId], references: [id])
+  squad    Squad     @relation(fields: [squadId], references: [id])
+  history  MonthlyRoleDeclarationHistory[]
 
   @@index([clientId, month])
   @@index([squadId, month])
   @@index([contractId, month, roleType])
-  @@index([extensionId, month, roleType])
   @@index([clientId, month, status])
   @@map("monthly_role_declarations")
-}
-
-model BillingRate {
-  id            Int       @id @default(autoincrement())
-  clientId      Int       @map("client_id")
-  roleType      RoleType? @map("role_type")
-  ratePerHour   Decimal   @map("rate_per_hour") @db.Decimal(10, 4)
-  currency      Currency
-  effectiveFrom DateTime  @map("effective_from") @db.Date
-  effectiveTo   DateTime? @map("effective_to") @db.Date
-
-  client Client @relation(fields: [clientId], references: [id])
-
-  @@unique([clientId, roleType, effectiveFrom])
-  @@map("billing_rates")
-}
-
-model CostRate {
-  id            Int       @id @default(autoincrement())
-  personId      Int?      @map("person_id")
-  roleType      RoleType? @map("role_type")
-  ratePerHour   Decimal   @map("rate_per_hour") @db.Decimal(10, 4)
-  currency      Currency
-  effectiveFrom DateTime  @map("effective_from") @db.Date
-  effectiveTo   DateTime? @map("effective_to") @db.Date
-
-  person Person? @relation(fields: [personId], references: [id])
-
-  @@unique([personId, roleType, effectiveFrom])
-  @@map("cost_rates")
-}
-
-model TEBillingConfig {
-  id       Int           @id @default(autoincrement())
-  clientId Int           @unique @map("client_id")
-  type     TEBillingType
-  value    Decimal?      @db.Decimal(10, 4)
-  currency Currency?
-
-  client    Client            @relation(fields: [clientId], references: [id])
-  roleRates TEBillingRoleRate[]
-
-  @@map("te_billing_configs")
-}
-
-model TEBillingRoleRate {
-  id               Int      @id @default(autoincrement())
-  teBillingConfigId Int     @map("te_billing_config_id")
-  roleType         RoleType @map("role_type")
-  ratePerHour      Decimal  @map("rate_per_hour") @db.Decimal(10, 4)
-  currency         Currency
-
-  config TEBillingConfig @relation(fields: [teBillingConfigId], references: [id])
-
-  @@unique([teBillingConfigId, roleType])
-  @@map("te_billing_role_rates")
-}
-
-model ContractExtension {
-  id             Int             @id @default(autoincrement())
-  clientId       Int             @map("client_id")
-  month          DateTime        @db.Date
-  type           ExtensionType   @default(te)
-  status         ExtensionStatus @default(pending_approval)
-  requestedHours Decimal         @map("requested_hours") @db.Decimal(8, 2)
-  roleType       RoleType?       @map("role_type")
-  rateOverride   Decimal?        @map("rate_override") @db.Decimal(10, 4)
-  approvedBy     Int?            @map("approved_by")
-  approvedAt     DateTime?       @map("approved_at")
-  notes          String?
-  resolvedRate     Decimal?  @map("resolved_rate")     @db.Decimal(10, 4)
-  resolvedCurrency Currency? @map("resolved_currency")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
-
-  client       Client                   @relation(fields: [clientId], references: [id])
-  declarations MonthlyRoleDeclaration[]
-  history      ContractExtensionHistory[]
-
-  @@index([clientId, month])
-  @@map("contract_extensions")
-}
-
-model ChangeOrder {
-  id                  Int               @id @default(autoincrement())
-  clientId            Int               @map("client_id")
-  squadId             Int               @map("squad_id")
-  dateRangeStart      DateTime          @map("date_range_start") @db.Date
-  dateRangeEnd        DateTime          @map("date_range_end") @db.Date
-  status              ChangeOrderStatus @default(pending_written)
-  writtenApprovalRef  String?           @map("written_approval_ref") @db.VarChar(500)
-  writtenApprovalAt   DateTime?         @map("written_approval_at")
-  docusignEnvelopeId  String?           @map("docusign_envelope_id") @db.VarChar(200)
-  docusignSignedAt    DateTime?         @map("docusign_signed_at")
-  notes               String?
-  createdAt           DateTime          @default(now()) @map("created_at")
-  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
-
-  client    Client                @relation(fields: [clientId], references: [id])
-  squad     Squad                 @relation(fields: [squadId], references: [id])
-  lineItems ChangeOrderLineItem[]
-  history   ChangeOrderHistory[]
-
-  @@map("change_orders")
-}
-
-model ChangeOrderLineItem {
-  id            Int      @id @default(autoincrement())
-  changeOrderId Int      @map("change_order_id")
-  roleType      RoleType @map("role_type")
-  hours         Decimal  @db.Decimal(8, 2)
-  rateOverride  Decimal? @map("rate_override") @db.Decimal(10, 4)
-
-  changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id])
-  history     ChangeOrderLineItemHistory[]
-
-  @@unique([changeOrderId, roleType])
-  @@map("change_order_line_items")
-}
-
-model SMEEngagement {
-  id               Int       @id @default(autoincrement())
-  clientId         Int       @map("client_id")
-  squadId          Int       @map("squad_id")
-  month            DateTime  @db.Date
-  roleDescription  String    @map("role_description") @db.VarChar(200)
-  source           SMESource
-  personId         Int?      @map("person_id")
-  contractedHours  Decimal   @map("contracted_hours") @db.Decimal(8, 2)
-  costRate         Decimal   @map("cost_rate") @db.Decimal(10, 4)
-  billingRate      Decimal   @map("billing_rate") @db.Decimal(10, 4)
-  currency         Currency
-  approvedBy       Int?      @map("approved_by")
-  status           SMEStatus @default(requested)
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
-
-  client Client  @relation(fields: [clientId], references: [id])
-  squad  Squad   @relation(fields: [squadId], references: [id])
-  person Person? @relation("SMEPerson", fields: [personId], references: [id])
-  history SMEEngagementHistory[]
-
-  @@map("sme_engagements")
 }
 
 // ─── Time Records ─────────────────────────────────────────────────────────────
 
 model HourRecord {
-  id                  Int          @id @default(autoincrement())
-  personId            Int          @map("person_id")
-  clientId            Int          @map("client_id")
-  date                DateTime     @db.Date
-  hours               Decimal      @db.Decimal(6, 2)
-  roleType            RoleType     @map("role_type")
-  source              SyncSource
-  budgetSource        BudgetSource @default(retainer) @map("budget_source")
-  contractExtensionId Int?         @map("contract_extension_id")
-  changeOrderId       Int?         @map("change_order_id")
-  smeEngagementId     Int?         @map("sme_engagement_id")
-  externalRef         String?      @unique @map("external_ref") @db.VarChar(300)
-  description         String?
-  issueKey            String?      @map("issue_key") @db.VarChar(50)
-  issueSummary        String?      @map("issue_summary")
-  billingRateSnapshot  Decimal? @map("billing_rate_snapshot")  @db.Decimal(10, 4)
-  costRateSnapshot     Decimal? @map("cost_rate_snapshot")     @db.Decimal(10, 4)
-  currencySnapshot     Currency? @map("currency_snapshot")
-  billedAmountSnapshot Decimal? @map("billed_amount_snapshot") @db.Decimal(12, 4)
-  costAmountSnapshot   Decimal? @map("cost_amount_snapshot")   @db.Decimal(12, 4)
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @default(now()) @updatedAt @map("updated_at")
+  id                   Int          @id @default(autoincrement())
+  personId             Int          @map("person_id")
+  clientId             Int          @map("client_id")
+  contractId           Int?         @map("contract_id")
+  date                 DateTime     @db.Date
+  hours                Decimal      @db.Decimal(6, 2)
+  roleType             RoleType     @map("role_type")
+  source               SyncSource
+  budgetSource         BudgetSource @default(retainer) @map("budget_source")
+  externalRef          String?      @unique @map("external_ref") @db.VarChar(300)
+  description          String?
+  issueKey             String?      @map("issue_key") @db.VarChar(50)
+  issueSummary         String?      @map("issue_summary")
+  billingRateSnapshot  Decimal?     @map("billing_rate_snapshot")  @db.Decimal(10, 4)
+  costRateSnapshot     Decimal?     @map("cost_rate_snapshot")     @db.Decimal(10, 4)
+  currencySnapshot     Currency?    @map("currency_snapshot")
+  billedAmountSnapshot Decimal?     @map("billed_amount_snapshot") @db.Decimal(12, 4)
+  costAmountSnapshot   Decimal?     @map("cost_amount_snapshot")   @db.Decimal(12, 4)
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @default(now()) @updatedAt @map("updated_at")
 
-  person Person @relation(fields: [personId], references: [id])
-  client Client @relation(fields: [clientId], references: [id])
+  person   Person    @relation(fields: [personId], references: [id])
+  client   Client    @relation(fields: [clientId], references: [id])
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
 
   @@index([clientId, date])
   @@index([personId, date])
@@ -626,8 +395,8 @@ model NonBillableCategory {
   isActive      Boolean         @default(true) @map("is_active")
   deactivatedAt DateTime?       @map("deactivated_at")
 
-  entries         NonBillableEntry[]
-  sourceMappings  NonBillableSourceMapping[]
+  entries        NonBillableEntry[]
+  sourceMappings NonBillableSourceMapping[]
 
   @@map("nonbillable_categories")
 }
@@ -652,11 +421,11 @@ model NonBillableEntry {
 }
 
 model NonBillableSourceMapping {
-  id              Int    @id @default(autoincrement())
+  id              Int              @id @default(autoincrement())
   source          NbMappingSource
   identifierType  NbIdentifierType @map("identifier_type")
-  identifierValue String @map("identifier_value") @db.VarChar(200)
-  categoryId      Int    @map("category_id")
+  identifierValue String           @map("identifier_value") @db.VarChar(200)
+  categoryId      Int              @map("category_id")
 
   category NonBillableCategory @relation(fields: [categoryId], references: [id])
 
@@ -678,12 +447,12 @@ model TempoAccountClientMapping {
 }
 
 model JiraComponentClientMapping {
-  id             Int       @id @default(autoincrement())
-  jiraInstance   String    @default("na") @map("jira_instance") @db.VarChar(10)
-  componentKey   String    @map("component_key") @db.VarChar(200)
-  clientId       Int       @map("client_id")
-  effectiveFrom  DateTime  @map("effective_from") @db.Date
-  effectiveTo    DateTime? @map("effective_to") @db.Date
+  id            Int       @id @default(autoincrement())
+  jiraInstance  String    @default("na") @map("jira_instance") @db.VarChar(10)
+  componentKey  String    @map("component_key") @db.VarChar(200)
+  clientId      Int       @map("client_id")
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
 
   client Client @relation(fields: [clientId], references: [id])
 
@@ -692,19 +461,19 @@ model JiraComponentClientMapping {
 }
 
 model SyncLog {
-  id                 Int        @id @default(autoincrement())
-  source             SyncSource
-  syncType           SyncType   @map("sync_type")
-  startedAt          DateTime   @map("started_at")
-  completedAt        DateTime?  @map("completed_at")
-  dateFrom           DateTime?  @map("date_from")
-  dateTo             DateTime?  @map("date_to")
-  recordsFetched     Int        @default(0) @map("records_fetched")
-  recordsCreated     Int        @default(0) @map("records_created")
-  recordsSkipped     Int        @default(0) @map("records_skipped")
-  recordsConflicted  Int        @default(0) @map("records_conflicted")
-  errorMessage       String?    @map("error_message")
-  unmappedRefs       String?    @map("unmapped_refs")
+  id                Int        @id @default(autoincrement())
+  source            SyncSource
+  syncType          SyncType   @map("sync_type")
+  startedAt         DateTime   @map("started_at")
+  completedAt       DateTime?  @map("completed_at")
+  dateFrom          DateTime?  @map("date_from")
+  dateTo            DateTime?  @map("date_to")
+  recordsFetched    Int        @default(0) @map("records_fetched")
+  recordsCreated    Int        @default(0) @map("records_created")
+  recordsSkipped    Int        @default(0) @map("records_skipped")
+  recordsConflicted Int        @default(0) @map("records_conflicted")
+  errorMessage      String?    @map("error_message")
+  unmappedRefs      String?    @map("unmapped_refs")
 
   @@index([source, startedAt])
   @@map("sync_logs")
@@ -713,22 +482,22 @@ model SyncLog {
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 model StaffingGapSnapshot {
-  id                 Int      @id @default(autoincrement())
-  squadId            Int      @map("squad_id")
-  roleType           RoleType @map("role_type")
-  month              DateTime @db.Date
+  id                  Int      @id @default(autoincrement())
+  squadId             Int      @map("squad_id")
+  roleType            RoleType @map("role_type")
+  month               DateTime @db.Date
   totalAvailableHours Decimal  @map("total_available_hours") @db.Decimal(8, 2)
-  hardBufferHours    Decimal  @map("hard_buffer_hours") @db.Decimal(8, 2)
-  softBufferHours    Decimal  @default(0) @map("soft_buffer_hours") @db.Decimal(8, 2)
-  committedHours     Decimal  @map("committed_hours") @db.Decimal(8, 2)
-  actualHours        Decimal  @default(0) @map("actual_hours") @db.Decimal(8, 2)
-  unplannedHours     Decimal  @default(0) @map("unplanned_hours") @db.Decimal(8, 2)
-  actualNbHours      Decimal  @default(0) @map("actual_nb_hours") @db.Decimal(8, 2)
-  netGapHours        Decimal  @map("net_gap_hours") @db.Decimal(8, 2)
-  commitmentRatio    Decimal  @map("commitment_ratio") @db.Decimal(6, 4)
-  isUnderstaffed     Boolean  @default(false) @map("is_understaffed")
-  isOverstaffed      Boolean  @default(false) @map("is_overstaffed")
-  calculatedAt       DateTime @default(now()) @map("calculated_at")
+  hardBufferHours     Decimal  @map("hard_buffer_hours") @db.Decimal(8, 2)
+  softBufferHours     Decimal  @default(0) @map("soft_buffer_hours") @db.Decimal(8, 2)
+  committedHours      Decimal  @map("committed_hours") @db.Decimal(8, 2)
+  actualHours         Decimal  @default(0) @map("actual_hours") @db.Decimal(8, 2)
+  unplannedHours      Decimal  @default(0) @map("unplanned_hours") @db.Decimal(8, 2)
+  actualNbHours       Decimal  @default(0) @map("actual_nb_hours") @db.Decimal(8, 2)
+  netGapHours         Decimal  @map("net_gap_hours") @db.Decimal(8, 2)
+  commitmentRatio     Decimal  @map("commitment_ratio") @db.Decimal(6, 4)
+  isUnderstaffed      Boolean  @default(false) @map("is_understaffed")
+  isOverstaffed       Boolean  @default(false) @map("is_overstaffed")
+  calculatedAt        DateTime @default(now()) @map("calculated_at")
   capacityHoursAtTime Decimal? @map("capacity_hours_at_time") @db.Decimal(8, 2)
   hardBufferPctAtTime Decimal? @map("hard_buffer_pct_at_time") @db.Decimal(5, 4)
   softBufferPctAtTime Decimal? @map("soft_buffer_pct_at_time") @db.Decimal(5, 4)
@@ -768,18 +537,18 @@ model MonthlyConsumptionSummary {
 }
 
 model WeeklyBurnSnapshot {
-  id                     Int       @id @default(autoincrement())
-  clientId               Int       @map("client_id")
-  weekStart              DateTime  @map("week_start") @db.Date
-  roleType               RoleType? @map("role_type")
-  cumulativeHours        Decimal   @default(0) @map("cumulative_hours") @db.Decimal(8, 2)
-  expectedCumulative     Decimal   @default(0) @map("expected_cumulative") @db.Decimal(8, 2)
-  burnRateRatio          Decimal   @default(1) @map("burn_rate_ratio") @db.Decimal(6, 4)
-  projectedEomHours      Decimal   @default(0) @map("projected_eom_hours") @db.Decimal(8, 2)
-  poolHours              Decimal   @default(0) @map("pool_hours") @db.Decimal(8, 2)
-  alertLevel             AlertLevel @default(safe) @map("alert_level")
-  projectedExhaustionDate DateTime? @map("projected_exhaustion_date") @db.Date
-  createdAt              DateTime   @default(now()) @map("created_at")
+  id                      Int        @id @default(autoincrement())
+  clientId                Int        @map("client_id")
+  weekStart               DateTime   @map("week_start") @db.Date
+  roleType                RoleType?  @map("role_type")
+  cumulativeHours         Decimal    @default(0) @map("cumulative_hours") @db.Decimal(8, 2)
+  expectedCumulative      Decimal    @default(0) @map("expected_cumulative") @db.Decimal(8, 2)
+  burnRateRatio           Decimal    @default(1) @map("burn_rate_ratio") @db.Decimal(6, 4)
+  projectedEomHours       Decimal    @default(0) @map("projected_eom_hours") @db.Decimal(8, 2)
+  poolHours               Decimal    @default(0) @map("pool_hours") @db.Decimal(8, 2)
+  alertLevel              AlertLevel @default(safe) @map("alert_level")
+  projectedExhaustionDate DateTime?  @map("projected_exhaustion_date") @db.Date
+  createdAt               DateTime   @default(now()) @map("created_at")
 
   client Client @relation(fields: [clientId], references: [id])
 
@@ -789,40 +558,20 @@ model WeeklyBurnSnapshot {
   @@map("weekly_burn_snapshots")
 }
 
-model CeremonyAttribution {
-  id                      Int      @id @default(autoincrement())
-  squadId                 Int      @map("squad_id")
-  clientId                Int      @map("client_id")
-  month                   DateTime @db.Date
-  squadTotalCeremonyHours Decimal  @map("squad_total_ceremony_hours") @db.Decimal(8, 2)
-  clientActualHours       Decimal  @map("client_actual_hours") @db.Decimal(8, 2)
-  squadTotalActualHours   Decimal  @map("squad_total_actual_hours") @db.Decimal(8, 2)
-  attributionFraction     Decimal  @map("attribution_fraction") @db.Decimal(6, 4)
-  attributedHours         Decimal  @map("attributed_hours") @db.Decimal(8, 2)
-  costImpact              Decimal? @map("cost_impact") @db.Decimal(12, 4)
-  calculatedAt            DateTime @default(now()) @map("calculated_at")
-
-  squad  Squad  @relation(fields: [squadId], references: [id])
-  client Client @relation(fields: [clientId], references: [id])
-
-  @@unique([squadId, clientId, month])
-  @@map("ceremony_attributions")
-}
-
 model AnomalyFlag {
-  id               Int             @id @default(autoincrement())
-  clientId         Int             @map("client_id")
-  squadId          Int?            @map("squad_id")
-  month            DateTime        @db.Date
-  roleType         RoleType?       @map("role_type")
-  flagType         AnomalyFlagType @map("flag_type")
-  severity         AnomalySeverity
-  detectorVersion  String          @default("rules_v1") @map("detector_version") @db.VarChar(50)
-  explanation      String?
-  detectedAt       DateTime        @default(now()) @map("detected_at")
-  resolvedAt       DateTime?       @map("resolved_at")
-  resolvedBy       Int?            @map("resolved_by")
-  resolutionNotes  String?         @map("resolution_notes")
+  id              Int             @id @default(autoincrement())
+  clientId        Int             @map("client_id")
+  squadId         Int?            @map("squad_id")
+  month           DateTime        @db.Date
+  roleType        RoleType?       @map("role_type")
+  flagType        AnomalyFlagType @map("flag_type")
+  severity        AnomalySeverity
+  detectorVersion String          @default("rules_v1") @map("detector_version") @db.VarChar(50)
+  explanation     String?
+  detectedAt      DateTime        @default(now()) @map("detected_at")
+  resolvedAt      DateTime?       @map("resolved_at")
+  resolvedBy      Int?            @map("resolved_by")
+  resolutionNotes String?         @map("resolution_notes")
 
   client Client @relation(fields: [clientId], references: [id])
   squad  Squad? @relation(fields: [squadId], references: [id])
@@ -833,18 +582,18 @@ model AnomalyFlag {
 }
 
 model MonthlyNonBillableSummary {
-  id                 Int              @id @default(autoincrement())
-  personId           Int              @map("person_id")
-  squadId            Int              @map("squad_id")
-  month              DateTime         @db.Date
-  categoryType       NonBillableType? @map("category_type")
-  totalHours         Decimal          @default(0) @map("total_hours") @db.Decimal(8, 2)
-  capacityHours      Decimal          @default(0) @map("capacity_hours") @db.Decimal(8, 2)
-  nonbillablePct     Decimal          @default(0) @map("nonbillable_pct") @db.Decimal(6, 4)
-  billableHoursLost  Decimal          @default(0) @map("billable_hours_lost") @db.Decimal(8, 2)
-  priorMonthHours    Decimal?         @map("prior_month_hours") @db.Decimal(8, 2)
-  monthOverMonthDelta Decimal?        @map("month_over_month_delta") @db.Decimal(8, 2)
-  lastRefreshed      DateTime         @default(now()) @map("last_refreshed")
+  id                  Int              @id @default(autoincrement())
+  personId            Int              @map("person_id")
+  squadId             Int              @map("squad_id")
+  month               DateTime         @db.Date
+  categoryType        NonBillableType? @map("category_type")
+  totalHours          Decimal          @default(0) @map("total_hours") @db.Decimal(8, 2)
+  capacityHours       Decimal          @default(0) @map("capacity_hours") @db.Decimal(8, 2)
+  nonbillablePct      Decimal          @default(0) @map("nonbillable_pct") @db.Decimal(6, 4)
+  billableHoursLost   Decimal          @default(0) @map("billable_hours_lost") @db.Decimal(8, 2)
+  priorMonthHours     Decimal?         @map("prior_month_hours") @db.Decimal(8, 2)
+  monthOverMonthDelta Decimal?         @map("month_over_month_delta") @db.Decimal(8, 2)
+  lastRefreshed       DateTime         @default(now()) @map("last_refreshed")
 
   person Person @relation(fields: [personId], references: [id])
   squad  Squad  @relation(fields: [squadId], references: [id])
@@ -855,19 +604,19 @@ model MonthlyNonBillableSummary {
 }
 
 model NonBillableEnhancementSuggestion {
-  id              Int             @id @default(autoincrement())
-  personId        Int?            @map("person_id")
-  squadId         Int?            @map("squad_id")
-  month           DateTime        @db.Date
-  suggestionType  SuggestionType  @map("suggestion_type")
+  id              Int              @id @default(autoincrement())
+  personId        Int?             @map("person_id")
+  squadId         Int?             @map("squad_id")
+  month           DateTime         @db.Date
+  suggestionType  SuggestionType   @map("suggestion_type")
   status          SuggestionStatus @default(open)
   explanation     String
-  suggestedAction String          @map("suggested_action")
-  suggestedHours  Decimal?        @map("suggested_hours") @db.Decimal(8, 2)
-  currentHours    Decimal?        @map("current_hours") @db.Decimal(8, 2)
-  detectedAt      DateTime        @default(now()) @map("detected_at")
-  resolvedAt      DateTime?       @map("resolved_at")
-  resolvedBy      Int?            @map("resolved_by")
+  suggestedAction String           @map("suggested_action")
+  suggestedHours  Decimal?         @map("suggested_hours") @db.Decimal(8, 2)
+  currentHours    Decimal?         @map("current_hours") @db.Decimal(8, 2)
+  detectedAt      DateTime         @default(now()) @map("detected_at")
+  resolvedAt      DateTime?        @map("resolved_at")
+  resolvedBy      Int?             @map("resolved_by")
 
   person Person? @relation(fields: [personId], references: [id])
   squad  Squad?  @relation(fields: [squadId], references: [id])
@@ -876,42 +625,25 @@ model NonBillableEnhancementSuggestion {
   @@map("nonbillable_enhancement_suggestions")
 }
 
-model MonthlyCeremonyAllocation {
-  id             Int      @id @default(autoincrement())
-  personId       Int      @map("person_id")
-  clientId       Int      @map("client_id")
-  squadId        Int?     @map("squad_id")
-  month          DateTime @db.Date
-  allocatedHours Decimal  @map("allocated_hours") @db.Decimal(8, 2)
-  lastRefreshed  DateTime @default(now()) @updatedAt @map("last_refreshed")
-
-  person Person @relation(fields: [personId], references: [id])
-  client Client @relation(fields: [clientId], references: [id])
-  squad  Squad? @relation(fields: [squadId], references: [id])
-
-  @@unique([personId, clientId, month])
-  @@map("monthly_ceremony_allocations")
-}
-
 // ─── Simulation ───────────────────────────────────────────────────────────────
 
 model ClientSimulation {
-  id                  Int       @id @default(autoincrement())
-  clientId            Int?      @map("client_id")
-  name                String    @default("") @db.VarChar(200)
-  proposedClientName  String    @map("proposed_client_name") @db.VarChar(200)
-  proposedStartMonth  DateTime  @map("proposed_start_month") @db.Date
-  proposedPoolHours   Decimal   @map("proposed_pool_hours") @db.Decimal(8, 2)
-  requestedBy         Int?      @map("requested_by")
-  approvedAt          DateTime? @map("approved_at")
-  approvedBy          Int?      @map("approved_by")
-  simulationResult    String?   @map("simulation_result")
-  feasible            Boolean?
-  bottleneckRole      RoleType? @map("bottleneck_role")
-  createdAt           DateTime  @default(now()) @map("created_at")
+  id                 Int       @id @default(autoincrement())
+  clientId           Int?      @map("client_id")
+  name               String    @default("") @db.VarChar(200)
+  proposedClientName String    @map("proposed_client_name") @db.VarChar(200)
+  proposedStartMonth DateTime  @map("proposed_start_month") @db.Date
+  proposedPoolHours  Decimal   @map("proposed_pool_hours") @db.Decimal(8, 2)
+  requestedBy        Int?      @map("requested_by")
+  approvedAt         DateTime? @map("approved_at")
+  approvedBy         Int?      @map("approved_by")
+  simulationResult   String?   @map("simulation_result")
+  feasible           Boolean?
+  bottleneckRole     RoleType? @map("bottleneck_role")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
-  client            Client?                    @relation(fields: [clientId], references: [id])
-  requestedByPerson Person?                    @relation("SimRequestedBy", fields: [requestedBy], references: [id])
+  client            Client?                   @relation(fields: [clientId], references: [id])
+  requestedByPerson Person?                   @relation("SimRequestedBy", fields: [requestedBy], references: [id])
   lineItems         ClientSimulationLineItem[]
 
   @@index([clientId, createdAt])
@@ -919,15 +651,15 @@ model ClientSimulation {
 }
 
 model ClientSimulationLineItem {
-  id              Int             @id @default(autoincrement())
-  simulationId    Int             @map("simulation_id")
-  roleType        RoleType        @map("role_type")
-  requestedHours  Decimal         @map("requested_hours") @db.Decimal(8, 2)
-  availableHours  Decimal         @map("available_hours") @db.Decimal(8, 2)
-  gapHours        Decimal         @map("gap_hours") @db.Decimal(8, 2)
-  action          SimulationAction
-  ftesToHire      Decimal         @default(0) @map("ftes_to_hire") @db.Decimal(4, 2)
-  estimatedMarginPct Decimal?     @map("estimated_margin_pct") @db.Decimal(6, 4)
+  id                 Int              @id @default(autoincrement())
+  simulationId       Int              @map("simulation_id")
+  roleType           RoleType         @map("role_type")
+  requestedHours     Decimal          @map("requested_hours") @db.Decimal(8, 2)
+  availableHours     Decimal          @map("available_hours") @db.Decimal(8, 2)
+  gapHours           Decimal          @map("gap_hours") @db.Decimal(8, 2)
+  action             SimulationAction
+  ftesToHire         Decimal          @default(0) @map("ftes_to_hire") @db.Decimal(4, 2)
+  estimatedMarginPct Decimal?         @map("estimated_margin_pct") @db.Decimal(6, 4)
 
   simulation ClientSimulation @relation(fields: [simulationId], references: [id])
 
@@ -947,80 +679,9 @@ model MonthlyRoleDeclarationHistory {
   prevStatus        DeclarationStatus? @map("prev_status")
   newStatus         DeclarationStatus? @map("new_status")
   reason            String?
-  declaration       MonthlyRoleDeclaration @relation(fields: [declarationId], references: [id])
+
+  declaration MonthlyRoleDeclaration @relation(fields: [declarationId], references: [id])
+
   @@index([declarationId, changedAt])
   @@map("monthly_role_declaration_history")
-}
-
-model ContractAmendment {
-  id            Int      @id @default(autoincrement())
-  contractId    Int      @map("contract_id")
-  effectiveFrom DateTime @map("effective_from") @db.Date
-  prevPoolHours Decimal  @map("prev_pool_hours") @db.Decimal(8, 2)
-  newPoolHours  Decimal  @map("new_pool_hours")  @db.Decimal(8, 2)
-  reason        String?
-  changedBy     Int?     @map("changed_by")
-  createdAt     DateTime @default(now()) @map("created_at")
-  contract      RetainerContract @relation(fields: [contractId], references: [id])
-  @@index([contractId, effectiveFrom])
-  @@map("contract_amendments")
-}
-
-model ContractExtensionHistory {
-  id                 Int              @id @default(autoincrement())
-  extensionId        Int              @map("extension_id")
-  changedAt          DateTime         @default(now()) @map("changed_at")
-  changedBy          Int?             @map("changed_by")
-  prevStatus         ExtensionStatus? @map("prev_status")
-  newStatus          ExtensionStatus? @map("new_status")
-  prevRequestedHours Decimal?         @map("prev_requested_hours") @db.Decimal(8, 2)
-  newRequestedHours  Decimal?         @map("new_requested_hours")  @db.Decimal(8, 2)
-  prevRateOverride   Decimal?         @map("prev_rate_override")   @db.Decimal(10, 4)
-  newRateOverride    Decimal?         @map("new_rate_override")    @db.Decimal(10, 4)
-  extension          ContractExtension @relation(fields: [extensionId], references: [id])
-  @@index([extensionId, changedAt])
-  @@map("contract_extension_history")
-}
-
-model ChangeOrderHistory {
-  id              Int               @id @default(autoincrement())
-  changeOrderId   Int               @map("change_order_id")
-  changedAt       DateTime          @default(now()) @map("changed_at")
-  changedBy       Int?              @map("changed_by")
-  prevStatus      ChangeOrderStatus? @map("prev_status")
-  newStatus       ChangeOrderStatus? @map("new_status")
-  prevNotes       String?           @map("prev_notes")
-  changeOrder     ChangeOrder       @relation(fields: [changeOrderId], references: [id])
-  @@index([changeOrderId, changedAt])
-  @@map("change_order_history")
-}
-
-model ChangeOrderLineItemHistory {
-  id               Int      @id @default(autoincrement())
-  lineItemId       Int      @map("line_item_id")
-  changedAt        DateTime @default(now()) @map("changed_at")
-  changedBy        Int?     @map("changed_by")
-  prevHours        Decimal? @map("prev_hours")         @db.Decimal(8, 2)
-  newHours         Decimal? @map("new_hours")          @db.Decimal(8, 2)
-  prevRateOverride Decimal? @map("prev_rate_override") @db.Decimal(10, 4)
-  newRateOverride  Decimal? @map("new_rate_override")  @db.Decimal(10, 4)
-  lineItem         ChangeOrderLineItem @relation(fields: [lineItemId], references: [id])
-  @@index([lineItemId, changedAt])
-  @@map("change_order_line_item_history")
-}
-
-model SMEEngagementHistory {
-  id              Int        @id @default(autoincrement())
-  engagementId    Int        @map("engagement_id")
-  changedAt       DateTime   @default(now()) @map("changed_at")
-  changedBy       Int?       @map("changed_by")
-  prevStatus      SMEStatus? @map("prev_status")
-  newStatus       SMEStatus? @map("new_status")
-  prevBillingRate Decimal?   @map("prev_billing_rate") @db.Decimal(10, 4)
-  newBillingRate  Decimal?   @map("new_billing_rate")  @db.Decimal(10, 4)
-  prevCostRate    Decimal?   @map("prev_cost_rate")    @db.Decimal(10, 4)
-  newCostRate     Decimal?   @map("new_cost_rate")     @db.Decimal(10, 4)
-  engagement      SMEEngagement @relation(fields: [engagementId], references: [id])
-  @@index([engagementId, changedAt])
-  @@map("sme_engagement_history")
 }

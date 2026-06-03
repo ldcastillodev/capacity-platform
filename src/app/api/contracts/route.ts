@@ -5,34 +5,39 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get("client_id");
 
-  const contracts = await prisma.retainerContract.findMany({
+  const contracts = await prisma.contract.findMany({
     where: {
       status: "active",
-      ...(clientId ? { clientId: Number(clientId) } : {}),
+      ...(clientId ? { sow: { clientId: Number(clientId) } } : {}),
     },
     orderBy: { createdAt: "desc" },
+    include: { sow: { select: { clientId: true, name: true } } },
   });
   return NextResponse.json(contracts);
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
-    client_id: number;
-    squad_id: number;
-    total_pool_hours: number;
+    sow_id: number;
+    name: string;
+    hour_type: string;
+    type: string;
+    assigned_hours: number;
+    start_date: string;
+    end_date?: string;
     status?: string;
-    valid_from: string;
-    valid_to?: string;
   };
 
-  const contract = await prisma.retainerContract.create({
+  const contract = await prisma.contract.create({
     data: {
-      clientId: body.client_id,
-      squadId: body.squad_id,
-      totalPoolHours: body.total_pool_hours,
+      sowId: body.sow_id,
+      name: body.name,
+      hourType: body.hour_type as never,
+      type: body.type as never,
+      assignedHours: body.assigned_hours,
+      startDate: new Date(body.start_date),
+      endDate: body.end_date ? new Date(body.end_date) : null,
       status: (body.status as never) ?? "active",
-      validFrom: new Date(body.valid_from),
-      validTo: body.valid_to ? new Date(body.valid_to) : null,
     },
   });
   return NextResponse.json(contract, { status: 201 });

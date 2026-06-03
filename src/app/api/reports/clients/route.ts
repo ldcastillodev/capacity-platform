@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     ...(roleType ? { roleType: roleType as any } : {}),
   };
 
-  const [rows, total, ceremonyRows] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.monthlyConsumptionSummary.findMany({
       where,
       include: { client: { select: { id: true, name: true, region: true, currency: true } } },
@@ -35,28 +35,9 @@ export async function GET(req: NextRequest) {
       skip: (page - 1) * pageSize,
     }),
     prisma.monthlyConsumptionSummary.count({ where }),
-    prisma.ceremonyAttribution.groupBy({
-      by: ["clientId", "month"],
-      where: {
-        ...monthFilter,
-        ...(clientIdParam ? { clientId: Number(clientIdParam) } : {}),
-      },
-      _sum: { attributedHours: true },
-    }),
   ]);
 
-  // Build ceremony lookup: clientId-YYYY-MM → hours
-  const ceremonyMap = new Map<string, number>();
-  for (const r of ceremonyRows) {
-    const key = `${r.clientId}-${new Date(r.month).toISOString().slice(0, 7)}`;
-    ceremonyMap.set(key, (ceremonyMap.get(key) ?? 0) + Number(r._sum.attributedHours ?? 0));
-  }
-
-  const data = rows.map((r) => ({
-    ...r,
-    ceremonyHours:
-      ceremonyMap.get(`${r.clientId}-${new Date(r.month).toISOString().slice(0, 7)}`) ?? 0,
-  }));
+  const data = rows.map((r) => ({ ...r, ceremonyHours: 0 }));
 
   return NextResponse.json({
     data,

@@ -87,37 +87,19 @@ async function main() {
   await prisma.$transaction([
     // History ledgers first (FK to parents below)
     prisma.monthlyRoleDeclarationHistory.deleteMany(),
-    prisma.contractExtensionHistory.deleteMany(),
-    prisma.changeOrderLineItemHistory.deleteMany(),
-    prisma.changeOrderHistory.deleteMany(),
-    prisma.sMEEngagementHistory.deleteMany(),
     // Analytics + leaf tables
     prisma.nonBillableEnhancementSuggestion.deleteMany(),
-    prisma.monthlyCeremonyAllocation.deleteMany(),
     prisma.monthlyNonBillableSummary.deleteMany(),
     prisma.anomalyFlag.deleteMany(),
     prisma.staffingGapSnapshot.deleteMany(),
-    prisma.ceremonyAttribution.deleteMany(),
     prisma.monthlyConsumptionSummary.deleteMany(),
     prisma.weeklyBurnSnapshot.deleteMany(),
     prisma.nonBillableEntry.deleteMany(),
     prisma.hourRecord.deleteMany(),
     prisma.syncLog.deleteMany(),
     prisma.monthlyRoleDeclaration.deleteMany(),
-    prisma.changeOrderLineItem.deleteMany(),
-    prisma.changeOrder.deleteMany(),
-    prisma.contractExtension.deleteMany(),
-    prisma.billingRate.deleteMany(),
-    prisma.costRate.deleteMany(),
-    prisma.contractAmendment.deleteMany(),
-    prisma.retainerContract.deleteMany(),
-    prisma.clientPersonAccess.deleteMany(),
-    prisma.sMEEngagement.deleteMany(),
-    prisma.nonBillableSourceMapping.deleteMany(),  // before nonBillableCategory (FK)
+    prisma.nonBillableSourceMapping.deleteMany(),
     prisma.nonBillableCategory.deleteMany(),
-    prisma.personCalendarAssignment.deleteMany(),
-    prisma.holidayEntry.deleteMany(),
-    prisma.holidayCalendar.deleteMany(),
     prisma.personRole.deleteMany(),
     prisma.squadMembership.deleteMany(),
     prisma.squadCapacityConfig.deleteMany(),
@@ -125,9 +107,6 @@ async function main() {
     prisma.clientSimulation.deleteMany(),
     prisma.jiraComponentClientMapping.deleteMany(),
     prisma.tempoAccountClientMapping.deleteMany(),
-    prisma.roleCascadeRule.deleteMany(),
-    prisma.tEBillingRoleRate.deleteMany(),
-    prisma.tEBillingConfig.deleteMany(),
   ]);
   // Clear in order to avoid FK violations
   await prisma.client.deleteMany();
@@ -197,147 +176,6 @@ async function main() {
   );
   await resetSeq("squad_capacity_configs");
 
-  console.log("Seeding client person access…");
-  await bulkInsert(
-    "client_person_access",
-    ["id", "client_id", "person_id", "granted_at", "granted_by", "revoked_at"],
-    snapshot.clientPersonAccess.map((a) => [
-      a.id, a.clientId, a.personId, new Date(a.grantedAt), a.grantedBy ?? null, d(a.revokedAt),
-    ]),
-  );
-
-  console.log("Seeding role cascade rules…");
-  await bulkInsert(
-    "role_cascade_rules",
-    ["id", "client_id", "trigger_role", "dependent_role", "ratio"],
-    snapshot.roleCascadeRules.map((r) => [
-      r.id, r.clientId ?? null, r.triggerRole, r.dependentRole, n(r.ratio),
-    ]),
-    [null, null, "roletype", "roletype", null],
-  );
-
-  console.log("Seeding holiday calendars…");
-  await bulkInsert(
-    "holiday_calendars",
-    ["id", "region", "name"],
-    snapshot.holidayCalendars.map((c) => [c.id, c.region, c.name]),
-  );
-
-  console.log("Seeding holiday entries…");
-  await bulkInsert(
-    "holiday_entries",
-    ["id", "calendar_id", "date", "name"],
-    snapshot.holidayEntries.map((e) => [e.id, e.calendarId, new Date(e.date), e.name]),
-  );
-
-  console.log("Seeding person calendar assignments…");
-  await bulkInsert(
-    "person_calendar_assignments",
-    ["id", "person_id", "calendar_id", "effective_from"],
-    snapshot.personCalendarAssignments.map((a) => [
-      a.id, a.personId, a.calendarId, new Date(a.effectiveFrom),
-    ]),
-  );
-
-  console.log("Seeding retainer contracts…");
-  await bulkInsert(
-    "retainer_contracts",
-    ["id", "client_id", "squad_id", "total_pool_hours", "status", "valid_from", "valid_to"],
-    snapshot.retainerContracts.map((c) => [
-      c.id, c.clientId, c.squadId, n(c.totalPoolHours), c.status, new Date(c.validFrom), d(c.validTo),
-    ]),
-    [null, null, null, null, "contractstatus", null, null],
-  );
-  await resetSeq("retainer_contracts");
-
-  console.log("Seeding contract extensions…");
-  await bulkInsert(
-    "contract_extensions",
-    ["id", "client_id", "month", "type", "status", "requested_hours", "role_type", "rate_override", "approved_by", "approved_at", "notes"],
-    snapshot.contractExtensions.map((e) => [
-      e.id, e.clientId, new Date(e.month), e.type, e.status, n(e.requestedHours),
-      e.roleType ?? null, n(e.rateOverride), e.approvedBy ?? null, d(e.approvedAt), e.notes ?? null,
-    ]),
-    [null, null, null, "extensiontype", "extensionstatus", null, "roletype", null, null, null, null],
-  );
-  if (snapshot.contractExtensions.length > 0) await resetSeq("contract_extensions");
-
-  console.log("Seeding billing rates…");
-  await bulkInsert(
-    "billing_rates",
-    ["id", "client_id", "role_type", "rate_per_hour", "currency", "effective_from", "effective_to"],
-    snapshot.billingRates.map((r) => [
-      r.id, r.clientId, r.roleType ?? null, n(r.ratePerHour), r.currency,
-      new Date(r.effectiveFrom), d(r.effectiveTo),
-    ]),
-    [null, null, "roletype", null, "currency", null, null],
-  );
-
-  console.log("Seeding cost rates…");
-  await bulkInsert(
-    "cost_rates",
-    ["id", "person_id", "role_type", "rate_per_hour", "currency", "effective_from", "effective_to"],
-    snapshot.costRates.map((r) => [
-      r.id, r.personId ?? null, r.roleType ?? null, n(r.ratePerHour), r.currency,
-      new Date(r.effectiveFrom), d(r.effectiveTo),
-    ]),
-    [null, null, "roletype", null, "currency", null, null],
-  );
-
-  console.log("Seeding TE billing configs…");
-  await bulkInsert(
-    "te_billing_configs",
-    ["id", "client_id", "type", "value", "currency"],
-    snapshot.teBillingConfigs.map((c) => [
-      c.id, c.clientId, c.type, n(c.value), c.currency ?? null,
-    ]),
-    [null, null, "tebillingtype", null, "currency"],
-  );
-
-  console.log("Seeding TE billing role rates…");
-  await bulkInsert(
-    "te_billing_role_rates",
-    ["id", "te_billing_config_id", "role_type", "rate_per_hour", "currency"],
-    snapshot.teBillingRoleRates.map((r) => [
-      r.id, r.teBillingConfigId, r.roleType, n(r.ratePerHour), r.currency,
-    ]),
-    [null, null, "roletype", null, "currency"],
-  );
-
-  console.log("Seeding change orders…");
-  await bulkInsert(
-    "change_orders",
-    ["id", "client_id", "squad_id", "date_range_start", "date_range_end", "status", "written_approval_ref", "written_approval_at", "docusign_envelope_id", "docusign_signed_at", "notes"],
-    snapshot.changeOrders.map((o) => [
-      o.id, o.clientId, o.squadId, new Date(o.dateRangeStart), new Date(o.dateRangeEnd),
-      o.status, o.writtenApprovalRef ?? null, d(o.writtenApprovalAt),
-      o.docusignEnvelopeId ?? null, d(o.docusignSignedAt), o.notes ?? null,
-    ]),
-    [null, null, null, null, null, "changeorderstatus", null, null, null, null, null],
-  );
-
-  console.log("Seeding change order line items…");
-  await bulkInsert(
-    "change_order_line_items",
-    ["id", "change_order_id", "role_type", "hours", "rate_override"],
-    snapshot.changeOrderLineItems.map((i) => [
-      i.id, i.changeOrderId, i.roleType, n(i.hours), n(i.rateOverride),
-    ]),
-    [null, null, "roletype", null, null],
-  );
-
-  console.log("Seeding SME engagements…");
-  await bulkInsert(
-    "sme_engagements",
-    ["id", "client_id", "squad_id", "month", "role_description", "source", "person_id", "contracted_hours", "cost_rate", "billing_rate", "currency", "approved_by", "status"],
-    snapshot.smeEngagements.map((e) => [
-      e.id, e.clientId, e.squadId, new Date(e.month), e.roleDescription, e.source,
-      e.personId ?? null, n(e.contractedHours), n(e.costRate), n(e.billingRate), e.currency,
-      e.approvedBy ?? null, e.status,
-    ]),
-    [null, null, null, null, null, "smesource", null, null, null, null, "currency", null, "smestatus"],
-  );
-
   console.log("Seeding NB categories…");
   await bulkInsert(
     "nonbillable_categories",
@@ -380,14 +218,14 @@ async function main() {
   console.log("Seeding monthly role declarations…");
   await bulkInsert(
     "monthly_role_declarations",
-    ["id", "contract_id", "extension_id", "client_id", "squad_id", "month", "role_type", "declared_hours", "status", "submitted_at", "submitted_by", "change_from_prior_hours", "significant_change_flag", "late_change_flag", "override_reason", "override_by"],
+    ["id", "contract_id", "client_id", "squad_id", "month", "role_type", "declared_hours", "status", "submitted_at", "submitted_by", "change_from_prior_hours", "significant_change_flag", "late_change_flag", "override_reason", "override_by"],
     snapshot.monthlyRoleDeclarations.map((dec) => [
-      dec.id, dec.contractId ?? null, dec.extensionId ?? null, dec.clientId, dec.squadId,
+      dec.id, dec.contractId ?? null, dec.clientId, dec.squadId,
       new Date(dec.month), dec.roleType, n(dec.declaredHours), dec.status,
       d(dec.submittedAt), dec.submittedBy ?? null, n(dec.changeFromPriorHours),
       dec.significantChangeFlag, dec.lateChangeFlag, dec.overrideReason ?? null, dec.overrideBy ?? null,
     ]),
-    [null, null, null, null, null, null, "roletype", null, "declarationstatus", null, null, null, null, null, null, null],
+    [null, null, null, null, null, "roletype", null, "declarationstatus", null, null, null, null, null, null, null],
   );
   await resetSeq("monthly_role_declarations");
 
@@ -395,13 +233,12 @@ async function main() {
   // hoursource is the actual Postgres enum name for the SyncSource Prisma enum
   await bulkInsert(
     "hour_records",
-    ["id", "person_id", "client_id", "date", "hours", "role_type", "source", "budget_source", "contract_extension_id", "change_order_id", "sme_engagement_id", "external_ref", "description", "issue_key", "issue_summary"],
+    ["id", "person_id", "client_id", "date", "hours", "role_type", "source", "budget_source", "external_ref", "description", "issue_key", "issue_summary"],
     snapshot.hourRecords.map((h) => [
       h.id, h.personId, h.clientId, new Date(h.date), n(h.hours), h.roleType, h.source, h.budgetSource,
-      h.contractExtensionId ?? null, h.changeOrderId ?? null, h.smeEngagementId ?? null,
       h.externalRef ?? null, h.description ?? null, h.issueKey ?? null, h.issueSummary ?? null,
     ]),
-    [null, null, null, null, null, "roletype", "hoursource", "budgetsource", null, null, null, null, null, null, null],
+    [null, null, null, null, null, "roletype", "hoursource", "budgetsource", null, null, null, null],
   );
   await resetSeq("hour_records");
 
@@ -472,22 +309,6 @@ async function main() {
   );
   if (priorNbSummaries.length > 0) await resetSeq("monthly_nonbillable_summaries");
 
-  // Pre-seed prior-month ceremony allocations.
-  // runAnalyticsRefresh uses a bare .create() for the current month (no upsert),
-  // so seeding current-month rows here would cause a unique-constraint violation.
-  console.log("Pre-seeding prior-month ceremony allocations…");
-  const priorCeremonyAllocs = snapshot.monthlyCeremonyAllocations.filter(
-    (a) => a.month.substring(0, 7) < curMonth,
-  );
-  await bulkInsert(
-    "monthly_ceremony_allocations",
-    ["id", "person_id", "client_id", "squad_id", "month", "allocated_hours"],
-    priorCeremonyAllocs.map((a) => [
-      a.id, a.personId, a.clientId, a.squadId ?? null, new Date(a.month), n(a.allocatedHours),
-    ]),
-  );
-  if (priorCeremonyAllocs.length > 0) await resetSeq("monthly_ceremony_allocations");
-
   // Pre-seed analytics snapshots. Refresh will upsert/update the current-month ones;
   // historical months (not recomputed by refresh) stay exactly as captured.
   console.log("Pre-seeding weekly burn snapshots…");
@@ -531,18 +352,6 @@ async function main() {
     [null, null, "roletype", null, null, null, null, null, null, null, null, null, null, null, null],
   );
   if (snapshot.staffingGapSnapshots.length > 0) await resetSeq("staffing_gap_snapshots");
-
-  console.log("Pre-seeding ceremony attributions…");
-  await bulkInsert(
-    "ceremony_attributions",
-    ["id", "squad_id", "client_id", "month", "squad_total_ceremony_hours", "client_actual_hours", "squad_total_actual_hours", "attribution_fraction", "attributed_hours", "cost_impact"],
-    snapshot.ceremonyAttributions.map((s) => [
-      s.id, s.squadId, s.clientId, new Date(s.month),
-      n(s.squadTotalCeremonyHours), n(s.clientActualHours), n(s.squadTotalActualHours),
-      n(s.attributionFraction), n(s.attributedHours), n(s.costImpact),
-    ]),
-  );
-  if (snapshot.ceremonyAttributions.length > 0) await resetSeq("ceremony_attributions");
 
   console.log("Pre-seeding anomaly flags…");
   await bulkInsert(
