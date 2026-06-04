@@ -15,10 +15,10 @@ export async function GET(req: NextRequest) {
       id: true,
       jiraInstance: true,
       componentKey: true,
-      clientId: true,
+      contractId: true,
       effectiveFrom: true,
       effectiveTo: true,
-      client: { select: { id: true, name: true } },
+      contract: { select: { id: true, name: true } },
     },
   });
   return NextResponse.json(mappings);
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
     component_key: string;
-    client_id: number;
+    contract_id: number;
     jira_instance?: string;
     effective_from?: string;
   };
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const mapping = await prisma.jiraComponentClientMapping.create({
     data: {
       componentKey: body.component_key,
-      clientId: body.client_id,
+      contractId: body.contract_id,
       jiraInstance: body.jira_instance ?? "na",
       effectiveFrom: body.effective_from ? new Date(body.effective_from) : new Date(),
     },
@@ -43,10 +43,10 @@ export async function POST(req: NextRequest) {
       id: true,
       jiraInstance: true,
       componentKey: true,
-      clientId: true,
+      contractId: true,
       effectiveFrom: true,
       effectiveTo: true,
-      client: { select: { id: true, name: true } },
+      contract: { select: { id: true, name: true } },
     },
   });
   return NextResponse.json(mapping, { status: 201 });

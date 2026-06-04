@@ -247,7 +247,6 @@ model Client {
   anomalyFlags         AnomalyFlag[]
   declarations         MonthlyRoleDeclaration[]
   tempoMappings        TempoAccountClientMapping[]
-  jiraMappings         JiraComponentClientMapping[]
   simulations          ClientSimulation[]
 
   @@map("clients")
@@ -305,6 +304,7 @@ model Contract {
   extension      Extension?
   declarations   MonthlyRoleDeclaration[]
   hourRecords    HourRecord[]
+  jiraMappings   JiraComponentClientMapping[]
 
   @@index([sowId, status])
   @@map("contracts")
@@ -450,11 +450,11 @@ model JiraComponentClientMapping {
   id            Int       @id @default(autoincrement())
   jiraInstance  String    @default("na") @map("jira_instance") @db.VarChar(10)
   componentKey  String    @map("component_key") @db.VarChar(200)
-  clientId      Int       @map("client_id")
+  contractId    Int       @map("contract_id")
   effectiveFrom DateTime  @map("effective_from") @db.Date
   effectiveTo   DateTime? @map("effective_to") @db.Date
 
-  client Client @relation(fields: [clientId], references: [id])
+  contract Contract @relation(fields: [contractId], references: [id])
 
   @@unique([jiraInstance, componentKey, effectiveFrom])
   @@map("jira_component_client_mappings")

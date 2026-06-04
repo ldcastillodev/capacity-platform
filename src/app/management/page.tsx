@@ -7,13 +7,12 @@ import { ClientsTab }    from "@/components/management/ClientsTab";
 import { ComponentsTab } from "@/components/management/ComponentsTab";
 import { WorkforceTab }  from "@/components/management/WorkforceTab";
 import { ContractsTab }  from "@/components/management/ContractsTab";
-import { BillingTab }    from "@/components/management/BillingTab";
 import { NonBillableTab } from "@/components/management/NonBillableTab";
 import { AnalyticsTab }  from "@/components/management/AnalyticsTab";
 import { ConfigTab }     from "@/components/management/ConfigTab";
 import { AuditTab }      from "@/components/management/AuditTab";
 
-type Tab = "squads" | "persons" | "clients" | "components" | "workforce" | "contracts" | "billing" | "nonbillable" | "analytics" | "config" | "audit";
+type Tab = "squads" | "persons" | "clients" | "components" | "workforce" | "contracts" | "nonbillable" | "analytics" | "config" | "audit";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "squads",      label: "Squads" },
@@ -22,7 +21,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "components",  label: "Components" },
   { id: "workforce",   label: "Workforce" },
   { id: "contracts",   label: "Contracts" },
-  { id: "billing",     label: "Billing" },
   { id: "nonbillable", label: "Non-Billable" },
   { id: "analytics",   label: "Analytics" },
   { id: "config",      label: "Config" },
@@ -76,7 +74,6 @@ export default function ManagementPage() {
       {activeTab === "components"  && <ComponentsTab />}
       {activeTab === "workforce"   && <WorkforceTab />}
       {activeTab === "contracts"   && <ContractsTab />}
-      {activeTab === "billing"     && <BillingTab />}
       {activeTab === "nonbillable" && <NonBillableTab />}
       {activeTab === "analytics"   && <AnalyticsTab />}
       {activeTab === "config"      && <ConfigTab />}

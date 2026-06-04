@@ -6,7 +6,7 @@ import { api } from "@/lib/client";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 
-interface ClientOption {
+interface ContractOption {
   id: number;
   name: string;
 }
@@ -15,23 +15,23 @@ interface ComponentRecord {
   id: number;
   jiraInstance: string;
   componentKey: string;
-  clientId: number;
+  contractId: number;
   effectiveFrom: string;
   effectiveTo: string | null;
-  client: { id: number; name: string };
+  contract: { id: number; name: string };
 }
 
 interface FormState {
   jira_instance: string;
   component_key: string;
-  client_id: string;
+  contract_id: string;
   effective_from: string;
 }
 
 const defaultForm: FormState = {
   jira_instance: "na",
   component_key: "",
-  client_id: "",
+  contract_id: "",
   effective_from: new Date().toISOString().split("T")[0],
 };
 
@@ -82,10 +82,10 @@ export function ComponentsTab() {
         .then((r) => r.data),
   });
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ["mgmt-clients-active"],
+  const { data: contracts = [] } = useQuery({
+    queryKey: ["mgmt-contracts-active"],
     queryFn: () =>
-      api.get<ClientOption[]>("/management/clients").then((r) => r.data),
+      api.get<ContractOption[]>("/management/contracts").then((r) => r.data),
   });
 
   const createMutation = useMutation({
@@ -94,7 +94,7 @@ export function ComponentsTab() {
         .post("/management/components", {
           jira_instance: f.jira_instance,
           component_key: f.component_key,
-          client_id: Number(f.client_id),
+          contract_id: Number(f.contract_id),
           effective_from: f.effective_from,
         })
         .then((r) => r.data),
@@ -109,7 +109,7 @@ export function ComponentsTab() {
       api
         .patch(`/management/components/${id}`, {
           jira_instance: f.jira_instance,
-          client_id: Number(f.client_id),
+          contract_id: Number(f.contract_id),
         })
         .then((r) => r.data),
     onSuccess: () => {
@@ -145,7 +145,7 @@ export function ComponentsTab() {
     setForm({
       jira_instance: comp.jiraInstance,
       component_key: comp.componentKey,
-      client_id: comp.clientId.toString(),
+      contract_id: comp.contractId.toString(),
       effective_from: formatDate(comp.effectiveFrom),
     });
     setEditing(comp);
@@ -218,7 +218,7 @@ export function ComponentsTab() {
               <tr>
                 <th style={thStyle}>Jira Instance</th>
                 <th style={thStyle}>Component Key</th>
-                <th style={thStyle}>Client</th>
+                <th style={thStyle}>Contract</th>
                 <th style={thStyle}>Effective From</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
@@ -239,7 +239,7 @@ export function ComponentsTab() {
                       {comp.componentKey}
                     </td>
                     <td style={{ padding: "11px 14px", fontSize: 14 }}>
-                      {comp.client.name}
+                      {comp.contract.name}
                     </td>
                     <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>
                       {formatDate(comp.effectiveFrom)}
@@ -361,15 +361,15 @@ export function ComponentsTab() {
             </div>
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Client *</label>
+            <label style={labelStyle}>Contract *</label>
             <select
               style={inputStyle}
               required
-              value={form.client_id}
-              onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+              value={form.contract_id}
+              onChange={(e) => setForm({ ...form, contract_id: e.target.value })}
             >
-              <option value="">— Select client —</option>
-              {clients.map((c) => (
+              <option value="">— Select contract —</option>
+              {contracts.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>

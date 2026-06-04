@@ -1,5 +1,11 @@
 import prisma from "../prisma";
-import type { Prisma, Person, NonBillableSourceMapping, SquadMembership, JiraComponentClientMapping, PersonRole } from "@prisma/client";
+import type { Prisma, Person, NonBillableSourceMapping, SquadMembership, PersonRole } from "@prisma/client";
+
+type JiraMappingWithContract = {
+  id: number; jiraInstance: string; componentKey: string; contractId: number;
+  effectiveFrom: Date; effectiveTo: Date | null;
+  contract: { sow: { clientId: number } };
+};
 
 interface JiraWorklog {
   id: string;
@@ -28,7 +34,7 @@ interface WorklogLookupContext {
   personByEmail: Map<string, Person>;
   sourceMappingByPrefix: Map<string, NonBillableSourceMapping>;
   squadMembershipsByPerson: Map<number, SquadMembership[]>;
-  clientMappings: JiraComponentClientMapping[];
+  clientMappings: JiraMappingWithContract[];
   personRoles: PersonRole[];
   existingRefs: Set<string | null>;
 }
@@ -95,7 +101,7 @@ export class JiraNAConnector {
           },
           orderBy: { allocationPct: "desc" },
         }),
-        prisma.jiraComponentClientMapping.findMany(),
+        prisma.jiraComponentClientMapping.findMany({ include: { contract: { include: { sow: true } } } }),
         prisma.personRole.findMany({ where: { isPrimary: true } }),
         prisma.hourRecord.findMany({
           where: { externalRef: { in: allExternalRefs } },
@@ -236,7 +242,7 @@ export class JiraNAConnector {
 
           hourRecordsToCreate.push({
             personId: person.id,
-            clientId: clientMapping.clientId,
+            clientId: clientMapping.contract.sow.clientId,
             date,
             hours,
             roleType: role.roleType,

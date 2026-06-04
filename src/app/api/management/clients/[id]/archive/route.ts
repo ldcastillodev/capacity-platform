@@ -8,12 +8,17 @@ export async function POST(
   const { id } = await params;
   const clientId = Number(id);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`UPDATE retainer_contracts SET status = 'closed' WHERE client_id = ${clientId} AND status != 'closed'`;
-    await tx.client.update({
-      where: { id: clientId },
-      data: { isActive: false },
-    });
+  const sowCount = await prisma.statementOfWork.count({ where: { clientId } });
+  if (sowCount > 0) {
+    return NextResponse.json(
+      { error: "Cannot archive client with active statements of work." },
+      { status: 400 },
+    );
+  }
+
+  await prisma.client.update({
+    where: { id: clientId },
+    data: { isActive: false },
   });
 
   return NextResponse.json({ success: true });
