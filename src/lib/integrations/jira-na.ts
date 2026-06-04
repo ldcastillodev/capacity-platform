@@ -250,6 +250,7 @@ export class JiraNAConnector {
             budgetSource: "retainer" as const,
             externalRef,
             issueKey: issue.key,
+            contractId: clientMapping.contractId,
           });
           result.created++;
         } catch (err) {
