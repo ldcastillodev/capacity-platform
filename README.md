@@ -329,17 +329,13 @@ docker compose up -d
 
 ### 4. Apply migrations
 
-Do **not** use `prisma migrate dev` — the migration history includes hand-crafted DDL that Prisma cannot shadow-apply safely. Instead apply each pending migration file directly:
-
 ```bash
-npx prisma db execute --file prisma/migrations/<migration_folder>/migration.sql --schema prisma/schema.prisma
+npx prisma migrate dev
 ```
 
-After all migrations are applied, generate the Prisma client:
+This applies the single consolidated migration and generates the Prisma client.
 
-```bash
-npx prisma generate
-```
+> **Note:** The migration includes hand-crafted CHECK constraints and partial indexes appended after the Prisma-generated DDL. If you add new migrations, use `npx prisma migrate dev` as normal.
 
 ### 5. Seed the database
 
@@ -384,7 +380,7 @@ docker compose restart
 ```bash
 docker compose down -v
 docker compose up -d
-# Apply each migration manually (see "Apply migrations" above)
+npx prisma migrate dev
 npx prisma db seed
 ```
 
