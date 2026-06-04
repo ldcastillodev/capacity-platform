@@ -34,8 +34,6 @@ export async function POST(req: NextRequest) {
     date: string;
     hours: number;
     role_type: string;
-    budget_source?: string;
-    description?: string;
   };
 
   const record = await prisma.hourRecord.create({
@@ -46,8 +44,6 @@ export async function POST(req: NextRequest) {
       hours: body.hours,
       roleType: body.role_type as never,
       source: "manual",
-      budgetSource: (body.budget_source as never) ?? "retainer",
-      description: body.description ?? null,
     },
   });
   return NextResponse.json(record, { status: 201 });

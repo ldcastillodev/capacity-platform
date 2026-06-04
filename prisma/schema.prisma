@@ -82,13 +82,6 @@ enum SyncSource {
   api
 }
 
-enum BudgetSource {
-  retainer
-  te
-  change_order
-  sme
-}
-
 enum NonBillableType {
   shared_ceremony
   leave
@@ -139,11 +132,6 @@ enum SimulationAction {
   redistribute
 }
 
-enum SyncType {
-  full
-  delta
-}
-
 enum NbMappingSource {
   tempo
   jira_na
@@ -192,7 +180,6 @@ model Person {
   squadMemberships SquadMembership[]
   roles            PersonRole[]
   hourRecords      HourRecord[]
-  nbEntries        NonBillableEntry[]
   nbSummaries      MonthlyNonBillableSummary[]
   suggestions      NonBillableEnhancementSuggestion[]
   simulations      ClientSimulation[]               @relation("SimRequestedBy")
@@ -355,35 +342,30 @@ model MonthlyRoleDeclaration {
 // ─── Time Records ─────────────────────────────────────────────────────────────
 
 model HourRecord {
-  id                   Int          @id @default(autoincrement())
-  personId             Int          @map("person_id")
-  clientId             Int          @map("client_id")
-  contractId           Int?         @map("contract_id")
-  date                 DateTime     @db.Date
-  hours                Decimal      @db.Decimal(6, 2)
-  roleType             RoleType     @map("role_type")
-  source               SyncSource
-  budgetSource         BudgetSource @default(retainer) @map("budget_source")
-  externalRef          String?      @unique @map("external_ref") @db.VarChar(300)
-  description          String?
-  issueKey             String?      @map("issue_key") @db.VarChar(50)
-  issueSummary         String?      @map("issue_summary")
-  billingRateSnapshot  Decimal?     @map("billing_rate_snapshot")  @db.Decimal(10, 4)
-  costRateSnapshot     Decimal?     @map("cost_rate_snapshot")     @db.Decimal(10, 4)
-  currencySnapshot     Currency?    @map("currency_snapshot")
-  billedAmountSnapshot Decimal?     @map("billed_amount_snapshot") @db.Decimal(12, 4)
-  costAmountSnapshot   Decimal?     @map("cost_amount_snapshot")   @db.Decimal(12, 4)
-  createdAt            DateTime     @default(now()) @map("created_at")
-  updatedAt            DateTime     @default(now()) @updatedAt @map("updated_at")
+  id                    Int                  @id @default(autoincrement())
+  personId              Int                  @map("person_id")
+  clientId              Int?                 @map("client_id")
+  contractId            Int?                 @map("contract_id")
+  date                  DateTime             @db.Date
+  hours                 Decimal              @db.Decimal(6, 2)
+  roleType              RoleType?            @map("role_type")
+  source                SyncSource
+  isNonBillable         Boolean              @default(false) @map("is_non_billable")
+  nonBillableCategoryId Int?                 @map("nonbillable_category_id")
+  externalRef           String?              @unique @map("external_ref") @db.VarChar(300)
+  issueKey              String?              @map("issue_key") @db.VarChar(50)
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @default(now()) @updatedAt @map("updated_at")
 
-  person   Person    @relation(fields: [personId], references: [id])
-  client   Client    @relation(fields: [clientId], references: [id])
-  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  person              Person               @relation(fields: [personId], references: [id])
+  client              Client?              @relation(fields: [clientId], references: [id])
+  contract            Contract?            @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  nonBillableCategory NonBillableCategory? @relation(fields: [nonBillableCategoryId], references: [id])
 
   @@index([clientId, date])
   @@index([personId, date])
   @@index([roleType, date])
-  @@index([clientId, date, budgetSource])
+  @@index([clientId, date, isNonBillable])
   @@map("hour_records")
 }
 
@@ -395,29 +377,10 @@ model NonBillableCategory {
   isActive      Boolean         @default(true) @map("is_active")
   deactivatedAt DateTime?       @map("deactivated_at")
 
-  entries        NonBillableEntry[]
+  hourRecords    HourRecord[]
   sourceMappings NonBillableSourceMapping[]
 
   @@map("nonbillable_categories")
-}
-
-model NonBillableEntry {
-  id          Int      @id @default(autoincrement())
-  personId    Int      @map("person_id")
-  squadId     Int      @map("squad_id")
-  date        DateTime @db.Date
-  hours       Decimal  @db.Decimal(6, 2)
-  categoryId  Int      @map("category_id")
-  notes       String?
-  externalRef String?  @unique @map("external_ref") @db.VarChar(300)
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  person   Person              @relation(fields: [personId], references: [id])
-  category NonBillableCategory @relation(fields: [categoryId], references: [id])
-
-  @@index([personId, date])
-  @@index([squadId, date])
-  @@map("nonbillable_entries")
 }
 
 model NonBillableSourceMapping {
@@ -463,7 +426,6 @@ model JiraComponentClientMapping {
 model SyncLog {
   id                Int        @id @default(autoincrement())
   source            SyncSource
-  syncType          SyncType   @map("sync_type")
   startedAt         DateTime   @map("started_at")
   completedAt       DateTime?  @map("completed_at")
   dateFrom          DateTime?  @map("date_from")
@@ -472,8 +434,6 @@ model SyncLog {
   recordsCreated    Int        @default(0) @map("records_created")
   recordsSkipped    Int        @default(0) @map("records_skipped")
   recordsConflicted Int        @default(0) @map("records_conflicted")
-  errorMessage      String?    @map("error_message")
-  unmappedRefs      String?    @map("unmapped_refs")
 
   @@index([source, startedAt])
   @@map("sync_logs")

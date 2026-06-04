@@ -93,7 +93,6 @@ function DeclarationsHistorySection() {
 interface SyncLogRow {
   id: number;
   source: string;
-  syncType: string;
   startedAt: string;
   completedAt: string | null;
   dateFrom: string | null;
@@ -102,8 +101,6 @@ interface SyncLogRow {
   recordsCreated: number | null;
   recordsSkipped: number | null;
   recordsConflicted: number | null;
-  errorMessage: string | null;
-  unmappedRefs: unknown;
 }
 
 function SyncLogsSection() {
@@ -118,13 +115,6 @@ function SyncLogsSection() {
       return api.get<SyncLogRow[]>("/management/sync-logs", { params }).then(r => r.data);
     },
   });
-
-  function unmappedDisplay(v: unknown): string {
-    if (v == null) return "—";
-    if (Array.isArray(v)) return String(v.length);
-    const s = String(v);
-    return s.length > 40 ? s.slice(0, 40) + "…" : s;
-  }
 
   return (
     <div>
@@ -142,28 +132,22 @@ function SyncLogsSection() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr>
                 <th style={thStyle}>Source</th>
-                <th style={thStyle}>Type</th>
                 <th style={thStyle}>Started</th>
                 <th style={thStyle}>Completed</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Fetched</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Created</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Skipped</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Conflicted</th>
-                <th style={thStyle}>Error</th>
               </tr></thead>
               <tbody>{rows.map((row, i) => (
                 <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
                   <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 500 }}>{row.source}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.syncType}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{fmt(row.startedAt)}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{fmt(row.completedAt)}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, textAlign: "right" }}>{nullDash(row.recordsFetched)}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, textAlign: "right" }}>{nullDash(row.recordsCreated)}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, textAlign: "right" }}>{nullDash(row.recordsSkipped)}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, textAlign: "right" }}>{nullDash(row.recordsConflicted)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: row.errorMessage ? "var(--critical)" : "var(--text-muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {row.errorMessage ?? unmappedDisplay(row.unmappedRefs)}
-                  </td>
                 </tr>
               ))}</tbody>
             </table>

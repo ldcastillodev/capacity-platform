@@ -1,5 +1,5 @@
 import prisma from "../prisma";
-import type { Prisma, Person, NonBillableSourceMapping, SquadMembership, PersonRole } from "@prisma/client";
+import type { Prisma, Person, NonBillableSourceMapping, PersonRole } from "@prisma/client";
 
 type JiraMappingWithContract = {
   id: number; jiraInstance: string; componentKey: string; contractId: number;
@@ -33,7 +33,6 @@ interface SyncResult {
 interface WorklogLookupContext {
   personByEmail: Map<string, Person>;
   sourceMappingByPrefix: Map<string, NonBillableSourceMapping>;
-  squadMembershipsByPerson: Map<number, SquadMembership[]>;
   clientMappings: JiraMappingWithContract[];
   personRoles: PersonRole[];
   existingRefs: Set<string | null>;
@@ -63,7 +62,6 @@ export class JiraNAConnector {
     const log = await prisma.syncLog.create({
       data: {
         source: "jira_na",
-        syncType: mode,
         startedAt: new Date(),
         dateFrom: new Date(dateFrom),
         dateTo: new Date(dateTo),
@@ -86,28 +84,15 @@ export class JiraNAConnector {
       const [
         persons,
         nonBillableSourceMappings,
-        squadMemberships,
         clientMappings,
         personRoles,
         existingHourRecords,
-        existingNonBillableEntries,
       ] = await Promise.all([
         prisma.person.findMany(),
         prisma.nonBillableSourceMapping.findMany({ where: { source: "jira_na" } }),
-        prisma.squadMembership.findMany({
-          where: {
-            effectiveFrom: { lte: now },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
-          },
-          orderBy: { allocationPct: "desc" },
-        }),
         prisma.jiraComponentClientMapping.findMany({ include: { contract: { include: { sow: true } } } }),
         prisma.personRole.findMany({ where: { isPrimary: true } }),
         prisma.hourRecord.findMany({
-          where: { externalRef: { in: allExternalRefs } },
-          select: { externalRef: true },
-        }),
-        prisma.nonBillableEntry.findMany({
           where: { externalRef: { in: allExternalRefs } },
           select: { externalRef: true },
         }),
@@ -118,22 +103,11 @@ export class JiraNAConnector {
       const sourceMappingByPrefix = new Map(
         nonBillableSourceMappings.map(m => [m.identifierValue, m]),
       );
-      const squadMembershipsByPerson = new Map<number, typeof squadMemberships>();
-      for (const sm of squadMemberships) {
-        if (!squadMembershipsByPerson.has(sm.personId)) {
-          squadMembershipsByPerson.set(sm.personId, []);
-        }
-        squadMembershipsByPerson.get(sm.personId)!.push(sm);
-      }
-      const existingRefs = new Set([
-        ...existingHourRecords.map(r => r.externalRef),
-        ...existingNonBillableEntries.map(r => r.externalRef),
-      ]);
+      const existingRefs = new Set(existingHourRecords.map(r => r.externalRef));
 
       const ctx: WorklogLookupContext = {
         personByEmail,
         sourceMappingByPrefix,
-        squadMembershipsByPerson,
         clientMappings,
         personRoles,
         existingRefs,
@@ -148,13 +122,12 @@ export class JiraNAConnector {
           recordsFetched: result.created + result.skipped,
           recordsCreated: result.created,
           recordsSkipped: result.skipped,
-          errorMessage: result.errors.length > 0 ? result.errors.slice(0, 5).join("; ") : null,
         },
       });
     } catch (err) {
       await prisma.syncLog.update({
         where: { id: log.id },
-        data: { completedAt: new Date(), errorMessage: String(err) },
+        data: { completedAt: new Date() },
       });
       throw err;
     }
@@ -168,7 +141,6 @@ export class JiraNAConnector {
     result: SyncResult,
   ): Promise<void> {
     const hourRecordsToCreate: Prisma.HourRecordCreateManyInput[] = [];
-    const nonBillableEntriesToCreate: Prisma.NonBillableEntryCreateManyInput[] = [];
 
     for (const issue of issues) {
       for (const wl of issue.worklogs ?? []) {
@@ -183,7 +155,7 @@ export class JiraNAConnector {
           const hours = wl.timeSpentSeconds / 3600;
           const components = issue.fields.components ?? [];
           const isNonBillable = ctx.sourceMappingByPrefix.has(issue.key);
-  
+
           const person = ctx.personByEmail.get(wl.author.emailAddress);
           if (!person) {
             result.skipped++;
@@ -192,21 +164,21 @@ export class JiraNAConnector {
 
           if (isNonBillable) {
             const sourceMapping = ctx.sourceMappingByPrefix.get(issue.key);
-            const squadList = ctx.squadMembershipsByPerson.get(person.id);
-            const squadMembership = squadList?.[0]; // already sorted by allocationPct desc
-
-            if (!sourceMapping || !squadMembership) {
+            if (!sourceMapping) {
               result.skipped++;
               continue;
             }
-
-            nonBillableEntriesToCreate.push({
+            hourRecordsToCreate.push({
               personId: person.id,
-              squadId: squadMembership.squadId,
+              clientId: null,
               date,
               hours,
-              categoryId: sourceMapping.categoryId,
+              roleType: null,
+              source: "jira_na" as const,
+              isNonBillable: true,
+              nonBillableCategoryId: sourceMapping.categoryId,
               externalRef,
+              issueKey: issue.key,
             });
             result.created++;
             continue;
@@ -247,7 +219,6 @@ export class JiraNAConnector {
             hours,
             roleType: role.roleType,
             source: "jira_na" as const,
-            budgetSource: "retainer" as const,
             externalRef,
             issueKey: issue.key,
             contractId: clientMapping.contractId,
@@ -259,17 +230,10 @@ export class JiraNAConnector {
       }
     }
 
-    // Batch insert in chunks of 500
     const BATCH_SIZE = 500;
     for (let i = 0; i < hourRecordsToCreate.length; i += BATCH_SIZE) {
       await prisma.hourRecord.createMany({
         data: hourRecordsToCreate.slice(i, i + BATCH_SIZE),
-        skipDuplicates: true,
-      });
-    }
-    for (let i = 0; i < nonBillableEntriesToCreate.length; i += BATCH_SIZE) {
-      await prisma.nonBillableEntry.createMany({
-        data: nonBillableEntriesToCreate.slice(i, i + BATCH_SIZE),
         skipDuplicates: true,
       });
     }

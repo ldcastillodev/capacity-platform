@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { SquadsTab }     from "@/components/management/SquadsTab";
-import { PersonsTab }    from "@/components/management/PersonsTab";
 import { ClientsTab }    from "@/components/management/ClientsTab";
 import { ComponentsTab } from "@/components/management/ComponentsTab";
 import { WorkforceTab }  from "@/components/management/WorkforceTab";
@@ -12,11 +10,9 @@ import { AnalyticsTab }  from "@/components/management/AnalyticsTab";
 import { ConfigTab }     from "@/components/management/ConfigTab";
 import { AuditTab }      from "@/components/management/AuditTab";
 
-type Tab = "squads" | "persons" | "clients" | "components" | "workforce" | "contracts" | "nonbillable" | "analytics" | "config" | "audit";
+type Tab = "clients" | "components" | "workforce" | "contracts" | "nonbillable" | "analytics" | "config" | "audit";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "squads",      label: "Squads" },
-  { id: "persons",     label: "Persons" },
   { id: "clients",     label: "Clients" },
   { id: "components",  label: "Components" },
   { id: "workforce",   label: "Workforce" },
@@ -28,7 +24,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function ManagementPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("squads");
+  const [activeTab, setActiveTab] = useState<Tab>("clients");
 
   return (
     <div>
@@ -68,8 +64,6 @@ export default function ManagementPage() {
         ))}
       </div>
 
-      {activeTab === "squads"      && <SquadsTab />}
-      {activeTab === "persons"     && <PersonsTab />}
       {activeTab === "clients"     && <ClientsTab />}
       {activeTab === "components"  && <ComponentsTab />}
       {activeTab === "workforce"   && <WorkforceTab />}

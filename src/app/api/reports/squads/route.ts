@@ -84,15 +84,18 @@ export async function GET(req: NextRequest) {
         FROM squad_members mem2
         JOIN hour_records hr ON hr.person_id = mem2.person_id
           AND DATE_TRUNC('month', hr.date) = sm3.month
+          AND hr.is_non_billable = false
           ${roleFilter}
         WHERE mem2.squad_id = sm3.squad_id AND mem2.month = sm3.month
       ), 0)::text AS billable_hours,
       COALESCE((
-        SELECT SUM(nbe.hours)
-        FROM nonbillable_entries nbe
-        WHERE nbe.squad_id = sm3.squad_id
-          AND DATE_TRUNC('month', nbe.date) = sm3.month
+        SELECT SUM(hr2.hours)
+        FROM squad_members mem3
+        JOIN hour_records hr2 ON hr2.person_id = mem3.person_id
+          AND DATE_TRUNC('month', hr2.date) = sm3.month
+          AND hr2.is_non_billable = true
           ${roleFilterNb}
+        WHERE mem3.squad_id = sm3.squad_id AND mem3.month = sm3.month
       ), 0)::text AS nb_hours,
       COALESCE(cc.capacity_hours, 0)::text AS capacity_hours
     FROM squad_months sm3

@@ -48,12 +48,10 @@ type BannerResult = { ok: boolean; message: string } | null;
 interface SyncLogEntry {
   id: number;
   source: "tempo" | "jira_na";
-  syncType: string;
   startedAt: string;
   completedAt: string | null;
   dateFrom: string | null;
   dateTo: string | null;
-  errorMessage: string | null;
 }
 
 const card: React.CSSProperties = {
@@ -158,16 +156,14 @@ function LastSyncStatus({ logs }: { logs: SyncLogEntry[] }) {
     <div style={card}>
       <div style={{ fontWeight: 600, marginBottom: 16 }}>Last Sync Status</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {logs.map((log) => {
-          const hasError = !!log.errorMessage;
-          return (
+        {logs.map((log) => (
             <div
               key={log.id}
               style={{
                 border: "1px solid var(--border)",
                 borderRadius: 8,
                 padding: "14px 16px",
-                background: hasError ? "var(--critical-bg)" : "var(--safe-bg)",
+                background: "var(--safe-bg)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -180,24 +176,20 @@ function LastSyncStatus({ logs }: { logs: SyncLogEntry[] }) {
                     fontWeight: 600,
                     padding: "2px 8px",
                     borderRadius: 4,
-                    background: hasError ? "var(--critical)" : "var(--safe)",
+                    background: "var(--safe)",
                     color: "#FDFDFD",
                     textTransform: "uppercase",
                     letterSpacing: "0.04em",
                   }}
                 >
-                  {hasError ? "Error" : "Success"}
+                  {log.completedAt ? "Success" : "Running"}
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px 16px" }}>
                 <div>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>Date &amp; Time</div>
                   <div style={{ fontSize: 13 }}>{fmtDateTime(log.startedAt)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>Sync Type</div>
-                  <div style={{ fontSize: 13, textTransform: "capitalize" }}>{log.syncType}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>Date Range</div>
@@ -208,15 +200,8 @@ function LastSyncStatus({ logs }: { logs: SyncLogEntry[] }) {
                   </div>
                 </div>
               </div>
-
-              {hasError && (
-                <div style={{ marginTop: 10, fontSize: 12, color: "var(--critical)" }}>
-                  {log.errorMessage}
-                </div>
-              )}
             </div>
-          );
-        })}
+          ))}
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import prisma from "@/lib/prisma";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const personId = searchParams.get("person_id");
-  const squadId = searchParams.get("squad_id");
   const month = searchParams.get("month");
 
   if (!personId || !month) {
@@ -14,30 +13,30 @@ export async function GET(req: NextRequest) {
   const monthDate = new Date(month + "T00:00:00");
   const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
 
-  const entries = await prisma.nonBillableEntry.findMany({
+  const entries = await prisma.hourRecord.findMany({
     where: {
       personId: Number(personId),
-      ...(squadId ? { squadId: Number(squadId) } : {}),
+      isNonBillable: true,
       date: { gte: monthDate, lte: monthEnd },
     },
-    include: { category: true },
+    include: { nonBillableCategory: true },
     orderBy: { date: "asc" },
   });
 
-  // Group by category type → category name
   const groups: Record<string, {
     category_type: string;
     category_name: string;
     total_hours: number;
-    entries: Array<{ date: string; hours: number; external_ref: string | null; notes: string | null }>;
+    entries: Array<{ date: string; hours: number; external_ref: string | null; notes: null }>;
   }> = {};
 
   for (const e of entries) {
-    const key = `${e.category.type}|${e.category.name}`;
+    if (!e.nonBillableCategory) continue;
+    const key = `${e.nonBillableCategory.type}|${e.nonBillableCategory.name}`;
     if (!groups[key]) {
       groups[key] = {
-        category_type: e.category.type,
-        category_name: e.category.name,
+        category_type: e.nonBillableCategory.type,
+        category_name: e.nonBillableCategory.name,
         total_hours: 0,
         entries: [],
       };
@@ -47,7 +46,7 @@ export async function GET(req: NextRequest) {
       date: e.date.toISOString().substring(0, 10),
       hours: Number(e.hours),
       external_ref: e.externalRef ?? null,
-      notes: e.notes ?? null,
+      notes: null,
     });
   }
 

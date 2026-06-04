@@ -7,6 +7,7 @@ import {
   dismissSuggestion,
   fetchNonBillableSummary,
   fetchNonBillableEntries,
+  fetchNbBySquad,
   fetchPeople,
   fetchSuggestions,
   type NonBillableSummary,
@@ -153,14 +154,18 @@ function NbEntryDetail({ personId, month }: { personId: number; month: string })
   );
 }
 
+type NbView = "by_person" | "by_squad";
+
 export default function NonBillablePage() {
   const [month, setMonth] = useMonth();
   const queryClient = useQueryClient();
   const [expandedPerson, setExpandedPerson] = useState<number | null>(null);
+  const [view, setView] = useState<NbView>("by_person");
 
   const { data: summaryRaw, isLoading } = useQuery({ queryKey: ["nonbillable", month], queryFn: () => fetchNonBillableSummary({ month }) });
   const { data: people } = useQuery({ queryKey: ["people"], queryFn: fetchPeople });
   const { data: suggestions, isLoading: loadingSuggestions } = useQuery({ queryKey: ["suggestions", month, "open"], queryFn: () => fetchSuggestions({ month, status: "open" }) });
+  const { data: nbBySquad, isLoading: squadLoading } = useQuery({ queryKey: ["nb-by-squad", month], queryFn: () => fetchNbBySquad({ month }), enabled: view === "by_squad" });
 
   const dismissMutation = useMutation({ mutationFn: (id: number) => dismissSuggestion(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suggestions"] }) });
 
@@ -181,8 +186,12 @@ export default function NonBillablePage() {
   const openSuggestions = (suggestions ?? []).filter((s) => s.status === "open");
 
   const thStyle: React.CSSProperties = { padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12, color: "var(--text-muted)", borderBottom: "1px solid var(--border)", background: "var(--bg)", whiteSpace: "nowrap" };
+  const thR: React.CSSProperties = { ...thStyle, textAlign: "right" };
+  const tdStyle: React.CSSProperties = { padding: "11px 14px", borderBottom: "1px solid var(--border)", fontSize: 14 };
+  const tdR: React.CSSProperties = { ...tdStyle, textAlign: "right" };
 
-  if (isLoading) return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
+  if (isLoading && view === "by_person") return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
+  if (squadLoading && view === "by_squad") return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
 
   return (
     <div>
@@ -192,6 +201,18 @@ export default function NonBillablePage() {
           <p style={{ color: "var(--text-muted)", marginTop: 4 }}>{formatMonthDisplay(month)} · % shown as share of each person's total logged hours</p>
         </div>
         <MonthNavigator month={month} onChange={setMonth} />
+      </div>
+
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", marginBottom: 24 }}>
+        {(["by_person", "by_squad"] as NbView[]).map((v) => {
+          const labels: Record<NbView, string> = { by_person: "By Person", by_squad: "By Squad" };
+          const active = view === v;
+          return (
+            <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", border: "none", background: "transparent", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "var(--primary)" : "var(--text-muted)", cursor: "pointer", borderBottom: `2px solid ${active ? "var(--primary)" : "transparent"}`, marginBottom: -1, borderRadius: 0 }}>
+              {labels[v]}
+            </button>
+          );
+        })}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, marginBottom: 32 }}>
@@ -214,7 +235,49 @@ export default function NonBillablePage() {
         />
       </div>
 
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+      {view === "by_squad" && (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", fontWeight: 600, fontSize: 15 }}>By Squad</div>
+          {squadLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
+            : (nbBySquad ?? []).length === 0
+              ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No data for this period. Run analytics refresh to populate.</p>
+              : (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Squad</th>
+                      <th style={thR}>NB Hours</th>
+                      <th style={{ ...thStyle, minWidth: 180 }}>NB % of capacity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(nbBySquad ?? []).map((row, i) => {
+                      const color = riskColor(row.nb_pct);
+                      const clampedPct = Math.min(row.nb_pct, 1);
+                      return (
+                        <tr key={row.squad_id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
+                          <td style={{ ...tdStyle, fontWeight: 500 }}>{row.squad_name}</td>
+                          <td style={tdR}>{row.total_hours.toFixed(1)}h</td>
+                          <td style={tdStyle}>
+                            {row.capacity_hours > 0 ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ flex: 1, height: 8, background: "var(--border)", borderRadius: 99, overflow: "hidden", minWidth: 80 }}>
+                                  <div style={{ width: `${(clampedPct * 100).toFixed(1)}%`, height: "100%", background: color, borderRadius: 99 }} />
+                                </div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color, minWidth: 42, textAlign: "right" }}>{(row.nb_pct * 100).toFixed(1)}%</span>
+                              </div>
+                            ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+        </div>
+      )}
+
+      {view === "by_person" && <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>Where is non-billable time going?</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {CAT_ORDER.filter((c) => catTotals[c]).map((cat) => {
@@ -235,9 +298,9 @@ export default function NonBillablePage() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
+      {view === "by_person" && <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", fontWeight: 600, fontSize: 15 }}>By Person</div>
         {rollup.length === 0
           ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No data for this period.</p>
@@ -300,7 +363,7 @@ export default function NonBillablePage() {
               </tbody>
             </table>
           )}
-      </div>
+      </div>}
 
       <div>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>

@@ -10,10 +10,9 @@ export async function GET(req: NextRequest) {
       orderBy: { startedAt: "desc" },
       take: 200,
       select: {
-        id: true, source: true, syncType: true, startedAt: true, completedAt: true,
+        id: true, source: true, startedAt: true, completedAt: true,
         dateFrom: true, dateTo: true,
         recordsFetched: true, recordsCreated: true, recordsSkipped: true, recordsConflicted: true,
-        errorMessage: true, unmappedRefs: true,
       },
     });
     return NextResponse.json(rows);

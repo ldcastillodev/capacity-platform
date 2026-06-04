@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TempoConnector } from "@/lib/integrations/tempo";
 import { JiraNAConnector } from "@/lib/integrations/jira-na";
+import { runAnalyticsRefresh } from "@/lib/analytics/refresh";
 import prisma from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
@@ -30,6 +31,11 @@ export async function POST(req: NextRequest) {
     results.jira_na = await connector.sync(dateFrom, dateTo, "full");
   }
 
+  const today = new Date();
+  const thisMonth = new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1));
+  const prevMonth = new Date(Date.UTC(today.getFullYear(), today.getMonth() - 1, 1));
+  await runAnalyticsRefresh([prevMonth, thisMonth]);
+
   return NextResponse.json({ ok: true, results });
 }
 
@@ -40,12 +46,10 @@ export async function GET() {
     select: {
       id: true,
       source: true,
-      syncType: true,
       startedAt: true,
       completedAt: true,
       dateFrom: true,
       dateTo: true,
-      errorMessage: true,
     },
   });
 

@@ -4,8 +4,10 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
 import { ManagementModal } from "./ManagementModal";
+import { SquadsTab } from "./SquadsTab";
+import { PersonsTab } from "./PersonsTab";
 
-type SubTab = "memberships" | "roles" | "capacity";
+type SubTab = "squads" | "persons" | "memberships" | "roles" | "capacity";
 
 const thStyle: React.CSSProperties = {
   padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12,
@@ -427,8 +429,10 @@ function CapacityConfigSection() {
 // ── Main Export ───────────────────────────────────────────────────────────────
 
 export function WorkforceTab() {
-  const [sub, setSub] = useState<SubTab>("memberships");
+  const [sub, setSub] = useState<SubTab>("squads");
   const SUB_TABS: { id: SubTab; label: string }[] = [
+    { id: "squads", label: "Squads" },
+    { id: "persons", label: "Persons" },
     { id: "memberships", label: "Squad Memberships" },
     { id: "roles", label: "Person Roles" },
     { id: "capacity", label: "Capacity Configs" },
@@ -440,6 +444,8 @@ export function WorkforceTab() {
           <button key={t.id} onClick={() => setSub(t.id)} style={subTabBtn(sub === t.id)}>{t.label}</button>
         ))}
       </div>
+      {sub === "squads" && <SquadsTab />}
+      {sub === "persons" && <PersonsTab />}
       {sub === "memberships" && <MembershipsSection />}
       {sub === "roles" && <PersonRolesSection />}
       {sub === "capacity" && <CapacityConfigSection />}

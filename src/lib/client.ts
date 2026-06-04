@@ -236,6 +236,78 @@ export interface BurnSnapshot {
 export const fetchBurnSnapshots = (params?: { client_id?: number; month?: string }) =>
   api.get<BurnSnapshot[]>("/analytics/burn", { params }).then((r) => norm(r.data));
 
+export interface BurnByContractRow {
+  contract_id: number;
+  contract_name: string;
+  client_id: number;
+  client_name: string;
+  consumed_hours: number;
+  pool_hours: number;
+  utilization_pct: number;
+}
+
+export const fetchBurnByContract = (params?: { month?: string }) =>
+  api.get<BurnByContractRow[]>("/analytics/burn-by-contract", { params }).then((r) => r.data);
+
+export interface ConsumptionByContractRow {
+  contract_id: number;
+  contract_name: string;
+  client_id: number;
+  client_name: string;
+  declared_hours: number;
+  consumed_hours: number;
+  remaining_hours: number;
+  utilization_pct: number;
+}
+
+export const fetchConsumptionByContract = (params?: { month?: string }) =>
+  api.get<ConsumptionByContractRow[]>("/analytics/consumption-by-contract", { params }).then((r) => r.data);
+
+export interface NbByClientRow {
+  client_id: number;
+  client_name: string;
+  total_hours: number;
+}
+
+export const fetchNbByClient = (params?: { month?: string }) =>
+  api.get<NbByClientRow[]>("/analytics/nb-by-client", { params }).then((r) => r.data);
+
+export interface NbByContractRow {
+  contract_id: number;
+  contract_name: string;
+  client_name: string;
+  total_hours: number;
+}
+
+export const fetchNbByContract = (params?: { month?: string }) =>
+  api.get<NbByContractRow[]>("/analytics/nb-by-contract", { params }).then((r) => r.data);
+
+export interface NbBySquadRow {
+  squad_id: number;
+  squad_name: string;
+  total_hours: number;
+  capacity_hours: number;
+  nb_pct: number;
+}
+
+export const fetchNbBySquad = (params?: { month?: string }) =>
+  api.get<NbBySquadRow[]>("/analytics/nb-by-squad", { params }).then((r) => r.data);
+
+export interface BurnByContractWeeklyRow {
+  contract_id: number;
+  contract_name: string;
+  client_id: number;
+  client_name: string;
+  pool_hours: number;
+  consumed_hours: number;
+  utilization_pct: number;
+  alert_level: string;
+  weeks: Array<{ week_start: string; cumulative_hours: number; expected_cumulative: number; pool_hours: number }>;
+}
+
+export const fetchBurnByContractWeekly = (params?: { month?: string }) =>
+  api.get<BurnByContractWeeklyRow[]>("/analytics/burn-by-contract-weekly", { params }).then((r) => r.data);
+
 // ─── Anomaly flags ────────────────────────────────────────────────────────────
 
 export type AnomalySeverity = "low" | "medium" | "high" | "critical";

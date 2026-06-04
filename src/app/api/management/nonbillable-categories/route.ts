@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, name: true, type: true, description: true,
         isActive: true, deactivatedAt: true,
-        _count: { select: { entries: true, sourceMappings: true } },
+        _count: { select: { hourRecords: true, sourceMappings: true } },
       },
     });
     return NextResponse.json(rows);
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       select: {
         id: true, name: true, type: true, description: true,
         isActive: true, deactivatedAt: true,
-        _count: { select: { entries: true, sourceMappings: true } },
+        _count: { select: { hourRecords: true, sourceMappings: true } },
       },
     });
     return NextResponse.json(row, { status: 201 });

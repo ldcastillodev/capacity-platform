@@ -94,7 +94,6 @@ async function main() {
     prisma.staffingGapSnapshot.deleteMany(),
     prisma.monthlyConsumptionSummary.deleteMany(),
     prisma.weeklyBurnSnapshot.deleteMany(),
-    prisma.nonBillableEntry.deleteMany(),
     prisma.hourRecord.deleteMany(),
     prisma.syncLog.deleteMany(),
     prisma.monthlyRoleDeclaration.deleteMany(),
@@ -233,37 +232,26 @@ async function main() {
   // hoursource is the actual Postgres enum name for the SyncSource Prisma enum
   await bulkInsert(
     "hour_records",
-    ["id", "person_id", "client_id", "date", "hours", "role_type", "source", "budget_source", "external_ref", "description", "issue_key", "issue_summary"],
+    ["id", "person_id", "client_id", "date", "hours", "role_type", "source", "external_ref", "issue_key"],
     snapshot.hourRecords.map((h) => [
-      h.id, h.personId, h.clientId, new Date(h.date), n(h.hours), h.roleType, h.source, h.budgetSource,
-      h.externalRef ?? null, h.description ?? null, h.issueKey ?? null, h.issueSummary ?? null,
+      h.id, h.personId, h.clientId, new Date(h.date), n(h.hours), h.roleType, h.source,
+      h.externalRef ?? null, h.issueKey ?? null,
     ]),
-    [null, null, null, null, null, "roletype", "hoursource", "budgetsource", null, null, null, null],
+    [null, null, null, null, null, "roletype", "hoursource", null, null],
   );
   await resetSeq("hour_records");
-
-  console.log("Seeding NB entries…");
-  await bulkInsert(
-    "nonbillable_entries",
-    ["id", "person_id", "squad_id", "date", "hours", "category_id", "notes", "external_ref"],
-    snapshot.nonBillableEntries.map((e) => [
-      e.id, e.personId, e.squadId, new Date(e.date), n(e.hours), e.categoryId,
-      e.notes ?? null, e.externalRef ?? null,
-    ]),
-  );
-  await resetSeq("nonbillable_entries");
 
   console.log("Seeding sync logs…");
   // hoursource is the actual Postgres enum name for sync_logs.source too
   await bulkInsert(
     "sync_logs",
-    ["id", "source", "sync_type", "started_at", "completed_at", "date_from", "date_to", "records_fetched", "records_created", "records_skipped", "records_conflicted", "error_message", "unmapped_refs"],
+    ["id", "source", "started_at", "completed_at", "date_from", "date_to", "records_fetched", "records_created", "records_skipped", "records_conflicted"],
     snapshot.syncLogs.map((l) => [
-      l.id, l.source, l.syncType, new Date(l.startedAt), d(l.completedAt),
+      l.id, l.source, new Date(l.startedAt), d(l.completedAt),
       d(l.dateFrom), d(l.dateTo), l.recordsFetched, l.recordsCreated,
-      l.recordsSkipped, l.recordsConflicted, l.errorMessage ?? null, l.unmappedRefs ?? null,
+      l.recordsSkipped, l.recordsConflicted,
     ]),
-    [null, "hoursource", null, null, null, null, null, null, null, null, null, null, null],
+    [null, "hoursource", null, null, null, null, null, null, null, null],
   );
   if (snapshot.syncLogs.length > 0) await resetSeq("sync_logs");
 

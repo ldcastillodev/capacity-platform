@@ -13,18 +13,19 @@ export async function GET(req: NextRequest) {
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
       dateFilter = { gte: start, lte: end };
     }
-    const rows = await prisma.nonBillableEntry.findMany({
+    const rows = await prisma.hourRecord.findMany({
       where: {
+        isNonBillable: true,
         ...(personId ? { personId: Number(personId) } : {}),
         ...(dateFilter ? { date: dateFilter } : {}),
       },
       orderBy: { date: "desc" },
       take: 200,
       select: {
-        id: true, personId: true, squadId: true, date: true,
-        hours: true, categoryId: true, notes: true, externalRef: true, createdAt: true,
+        id: true, personId: true, date: true,
+        hours: true, nonBillableCategoryId: true, externalRef: true, createdAt: true,
         person: { select: { id: true, name: true } },
-        category: { select: { id: true, name: true } },
+        nonBillableCategory: { select: { id: true, name: true } },
       },
     });
     return NextResponse.json(rows);

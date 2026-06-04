@@ -13,12 +13,15 @@ export async function GET(req: NextRequest) {
   const monthDate = new Date(month);
   const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
 
-  const entries = await prisma.nonBillableEntry.findMany({
+  const entries = await prisma.hourRecord.findMany({
     where: {
-      ...(squadId ? { squadId: Number(squadId) } : {}),
+      isNonBillable: true,
+      ...(squadId
+        ? { person: { squadMemberships: { some: { squadId: Number(squadId) } } } }
+        : {}),
       date: { gte: monthDate, lte: monthEnd },
     },
-    include: { person: { include: { roles: { where: { effectiveTo: null } } } }, category: true },
+    include: { person: { include: { roles: { where: { effectiveTo: null } } } } },
   });
 
   const byRole: Record<string, number> = {};

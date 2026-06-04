@@ -44,7 +44,6 @@ export class TempoConnector {
     const log = await prisma.syncLog.create({
       data: {
         source: "tempo",
-        syncType: mode,
         startedAt: new Date(),
         dateFrom: new Date(dateFrom),
         dateTo: new Date(dateTo),
@@ -86,16 +85,12 @@ export class TempoConnector {
           recordsFetched: result.created + result.skipped,
           recordsCreated: result.created,
           recordsSkipped: result.skipped,
-          errorMessage: result.errors.length > 0 ? result.errors.slice(0, 5).join("; ") : null,
         },
       });
     } catch (err) {
       await prisma.syncLog.update({
         where: { id: log.id },
-        data: {
-          completedAt: new Date(),
-          errorMessage: String(err),
-        },
+        data: { completedAt: new Date() },
       });
       throw err;
     }
@@ -175,9 +170,7 @@ export class TempoConnector {
         hours,
         roleType: roleType as never,
         source: "tempo",
-        budgetSource: "retainer",
         externalRef,
-        description: wl.description,
         issueKey,
       },
     });
@@ -208,34 +201,22 @@ export class TempoConnector {
       return;
     }
 
-    const squadMembership = await prisma.squadMembership.findFirst({
-      where: {
-        personId: person.id,
-        effectiveFrom: { lte: date },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: date } }],
-      },
-      orderBy: { allocationPct: "desc" },
-    });
-    if (!squadMembership) {
-      result.skipped++;
-      return;
-    }
-
-    const existing = await prisma.nonBillableEntry.findUnique({
-      where: { externalRef },
-    });
+    const existing = await prisma.hourRecord.findUnique({ where: { externalRef } });
     if (existing) {
       result.skipped++;
       return;
     }
 
-    await prisma.nonBillableEntry.create({
+    await prisma.hourRecord.create({
       data: {
         personId: person.id,
-        squadId: squadMembership.squadId,
+        clientId: null,
         date,
         hours,
-        categoryId: sourceMapping.categoryId,
+        roleType: null,
+        source: "tempo",
+        isNonBillable: true,
+        nonBillableCategoryId: sourceMapping.categoryId,
         externalRef,
       },
     });

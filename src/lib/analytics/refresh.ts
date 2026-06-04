@@ -107,7 +107,7 @@ async function upsertConsumptionRow(
   const baseWhere = { clientId, date: { gte: month, lte: mEnd } };
   const roleFilter = roleType ? { roleType: roleType as never } : {};
 
-  const retainerH = await sumHours({ ...baseWhere, budgetSource: "retainer", ...roleFilter });
+  const retainerH = await sumHours({ ...baseWhere, isNonBillable: false, ...roleFilter });
   const teH = 0;
   const coH = 0;
   const smeH = 0;
@@ -133,15 +133,10 @@ async function upsertConsumptionRow(
   const remaining = Math.max(declaredHours - retainerH, 0);
   const utilizationPct = declaredHours > 0 ? round4(retainerH / declaredHours) : 0;
 
-  // Aggregate from HourRecord snapshot columns (not live rate resolution)
-  const billedRevenue = await sumSnapshotAmount(clientId, month, mEnd, roleType, "billedAmountSnapshot");
-  const directCost = await sumSnapshotAmount(clientId, month, mEnd, roleType, "costAmountSnapshot");
-  let grossMargin: number | null = null;
-  let grossMarginPct: number | null = null;
-  if (billedRevenue !== null && directCost !== null) {
-    grossMargin = round2(billedRevenue - directCost);
-    grossMarginPct = billedRevenue > 0 ? round4(grossMargin / billedRevenue) : 0;
-  }
+  const billedRevenue = null;
+  const directCost = null;
+  const grossMargin = null;
+  const grossMarginPct = null;
 
   const data = {
     declaredHours: round2(declaredHours),
@@ -178,31 +173,6 @@ async function sumHours(where: Record<string, unknown>): Promise<number> {
     _sum: { hours: true },
   });
   return toNum(agg._sum.hours);
-}
-
-/**
- * Aggregate billedAmountSnapshot or costAmountSnapshot from HourRecord directly.
- * Returns null only when no rows with a non-null snapshot value exist.
- */
-async function sumSnapshotAmount(
-  clientId: number,
-  month: Date,
-  mEnd: Date,
-  roleType: string | null,
-  field: "billedAmountSnapshot" | "costAmountSnapshot",
-): Promise<number | null> {
-  const agg = await prisma.hourRecord.aggregate({
-    where: {
-      clientId,
-      date: { gte: month, lte: mEnd },
-      ...(roleType ? { roleType: roleType as never } : {}),
-      [field]: { not: null },
-    } as never,
-    _sum: { [field]: true } as never,
-  });
-  const sum = (agg._sum as Record<string, unknown>)[field];
-  if (sum === null || sum === undefined) return null;
-  return toNum(sum);
 }
 
 // ─── Phase 4: Derive Missing Declarations ────────────────────────────────────
@@ -487,11 +457,11 @@ async function calcActualNbHours(
     });
     if (!hasRole) continue;
 
-    const agg = await prisma.nonBillableEntry.aggregate({
+    const agg = await prisma.hourRecord.aggregate({
       where: {
         personId,
-        squadId,
-        categoryId: { in: nbCatIds },
+        isNonBillable: true,
+        nonBillableCategoryId: { in: nbCatIds },
         date: { gte: month, lte: mEnd },
       },
       _sum: { hours: true },
@@ -691,8 +661,8 @@ async function refreshNonbillableSummaries(month: Date): Promise<void> {
       date: { gte: month, lte: mEnd },
     });
 
-    const totalNbAgg = await prisma.nonBillableEntry.aggregate({
-      where: { personId, date: { gte: month, lte: mEnd } },
+    const totalNbAgg = await prisma.hourRecord.aggregate({
+      where: { personId, isNonBillable: true, date: { gte: month, lte: mEnd } },
       _sum: { hours: true },
     });
     const totalNbHours = toNum(totalNbAgg._sum.hours);
@@ -712,11 +682,12 @@ async function refreshNonbillableSummaries(month: Date): Promise<void> {
       if (categoryType === null) {
         typeHours = totalNbHours;
       } else {
-        const agg = await prisma.nonBillableEntry.aggregate({
+        const agg = await prisma.hourRecord.aggregate({
           where: {
             personId,
+            isNonBillable: true,
             date: { gte: month, lte: mEnd },
-            category: { type: categoryType as never },
+            nonBillableCategory: { type: categoryType as never },
           },
           _sum: { hours: true },
         });
@@ -820,8 +791,13 @@ async function runEnhancementEngine(month: Date): Promise<void> {
     });
     const ceremonyIds = ceremonyCats.map((c) => c.id);
 
-    const ceremonyAgg = await prisma.nonBillableEntry.aggregate({
-      where: { squadId, categoryId: { in: ceremonyIds }, date: { gte: month, lte: mEnd } },
+    const ceremonyAgg = await prisma.hourRecord.aggregate({
+      where: {
+        person: { squadMemberships: { some: { squadId } } },
+        isNonBillable: true,
+        nonBillableCategoryId: { in: ceremonyIds },
+        date: { gte: month, lte: mEnd },
+      },
       _sum: { hours: true },
     });
     const ceremonyHours = toNum(ceremonyAgg._sum.hours);
@@ -829,6 +805,7 @@ async function runEnhancementEngine(month: Date): Promise<void> {
     const billableAgg = await prisma.hourRecord.aggregate({
       where: {
         person: { squadMemberships: { some: { squadId } } },
+        isNonBillable: false,
         date: { gte: month, lte: mEnd },
       },
       _sum: { hours: true },
@@ -994,7 +971,7 @@ async function refreshBurnSnapshots(month: Date): Promise<void> {
       const cumAgg = await prisma.hourRecord.aggregate({
         where: {
           clientId,
-          budgetSource: "retainer",
+          isNonBillable: false,
           date: { gte: month, lte: weekEnd },
         },
         _sum: { hours: true },
