@@ -289,7 +289,6 @@ function SourceMappingsSection() {
             <label style={labelStyle}>Source *</label>
             <select style={inputStyle} required value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}>
               <option value="">— Select source —</option>
-              <option value="tempo">Tempo</option>
               <option value="jira_na">Jira NA</option>
             </select>
           </div>

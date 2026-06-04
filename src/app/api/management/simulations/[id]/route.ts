@@ -7,8 +7,6 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    await prisma.clientSimulationLineItem.deleteMany({ where: { simulationId: Number(id) } });
-    await prisma.clientSimulation.delete({ where: { id: Number(id) } });
     return NextResponse.json({ deleted: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

@@ -13,9 +13,7 @@ export async function GET(req: NextRequest) {
       name: true,
       email: true,
       isActive: true,
-      employmentType: true,
       weeklyCapacityHours: true,
-      tempoAccountId: true,
       squadMemberships: {
         where: { effectiveTo: null },
         select: {
@@ -39,7 +37,6 @@ export async function POST(req: NextRequest) {
     email: string;
     employment_type?: string;
     weekly_capacity_hours?: number;
-    tempo_account_id?: string;
     squad_id?: number | null;
     allocation_pct?: number;
   };
@@ -49,9 +46,7 @@ export async function POST(req: NextRequest) {
       data: {
         name: body.name,
         email: body.email,
-        employmentType: (body.employment_type as never) ?? "dedicated",
         weeklyCapacityHours: body.weekly_capacity_hours ?? 40,
-        tempoAccountId: body.tempo_account_id ?? null,
       },
     });
 
@@ -75,9 +70,7 @@ export async function POST(req: NextRequest) {
         name: true,
         email: true,
         isActive: true,
-        employmentType: true,
         weeklyCapacityHours: true,
-        tempoAccountId: true,
         squadMemberships: {
           where: { effectiveTo: null },
           select: {

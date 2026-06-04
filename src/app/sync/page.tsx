@@ -12,10 +12,9 @@ function thirtyDaysAgoStr(): string {
   return d.toISOString().split("T")[0];
 }
 
-function getSource(tempo: boolean, jira: boolean): "tempo" | "jira_na" | "all" {
-  if (tempo && !jira) return "tempo";
-  if (!tempo && jira) return "jira_na";
-  return "all";
+function getSource(jira: boolean): "jira_na" | "all" {
+  if (!jira) return "all";
+  return "jira_na";
 }
 
 function getMonthsArray(dateFrom: string, dateTo: string): string[] {
@@ -47,7 +46,7 @@ type BannerResult = { ok: boolean; message: string } | null;
 
 interface SyncLogEntry {
   id: number;
-  source: "tempo" | "jira_na";
+  source: "jira_na";
   startedAt: string;
   completedAt: string | null;
   dateFrom: string | null;
@@ -150,7 +149,7 @@ function Banner({ result }: { result: BannerResult }) {
 function LastSyncStatus({ logs }: { logs: SyncLogEntry[] }) {
   if (logs.length === 0) return null;
 
-  const sourceLabel: Record<string, string> = { tempo: "Tempo", jira_na: "Jira NA" };
+  const sourceLabel: Record<string, string> = { jira_na: "Jira NA" };
 
   return (
     <div style={card}>
@@ -210,7 +209,6 @@ function LastSyncStatus({ logs }: { logs: SyncLogEntry[] }) {
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgoStr);
   const [dateTo, setDateTo] = useState(todayStr);
-  const [tempoChecked, setTempoChecked] = useState(true);
   const [jiraChecked, setJiraChecked] = useState(true);
 
   const [syncLoading, setSyncLoading] = useState(false);
@@ -243,7 +241,7 @@ export default function SyncPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          source: getSource(tempoChecked, jiraChecked),
+          source: getSource(jiraChecked),
           date_from: dateFrom,
           date_to: dateTo,
         }),
@@ -297,7 +295,7 @@ export default function SyncPage() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700 }}>Sync</h1>
         <p style={{ color: "var(--text-muted)", marginTop: 4 }}>
-          Trigger data sync from Jira/Tempo and analytics refresh.
+          Trigger data sync from Jira and analytics refresh.
         </p>
       </div>
 
@@ -337,7 +335,6 @@ export default function SyncPage() {
         <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
           {(
             [
-              { id: "tempo", label: "Tempo", checked: tempoChecked, set: setTempoChecked },
               { id: "jira",  label: "Jira NA", checked: jiraChecked,  set: setJiraChecked  },
             ] as const
           ).map(({ id, label: lbl, checked, set }) => (
@@ -357,7 +354,7 @@ export default function SyncPage() {
         </div>
         <PrimaryButton
           onClick={runSync}
-          disabled={syncLoading || (!tempoChecked && !jiraChecked)}
+          disabled={syncLoading || !jiraChecked}
           loading={syncLoading}
         >
           {syncLoading ? "Running…" : "Run Sync"}

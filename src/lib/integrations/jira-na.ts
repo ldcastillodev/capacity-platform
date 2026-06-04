@@ -1,5 +1,5 @@
 import prisma from "../prisma";
-import type { Prisma, Person, NonBillableSourceMapping, PersonRole } from "@prisma/client";
+import type { Prisma, Person, NonBillableSourceMapping, PersonRole, SquadMembership } from "@prisma/client";
 
 type JiraMappingWithContract = {
   id: number; jiraInstance: string; componentKey: string; contractId: number;
@@ -35,6 +35,7 @@ interface WorklogLookupContext {
   sourceMappingByPrefix: Map<string, NonBillableSourceMapping>;
   clientMappings: JiraMappingWithContract[];
   personRoles: PersonRole[];
+  squadMemberships: SquadMembership[];
   existingRefs: Set<string | null>;
 }
 
@@ -86,12 +87,14 @@ export class JiraNAConnector {
         nonBillableSourceMappings,
         clientMappings,
         personRoles,
+        squadMemberships,
         existingHourRecords,
       ] = await Promise.all([
         prisma.person.findMany(),
         prisma.nonBillableSourceMapping.findMany({ where: { source: "jira_na" } }),
         prisma.jiraComponentClientMapping.findMany({ include: { contract: { include: { sow: true } } } }),
-        prisma.personRole.findMany({ where: { isPrimary: true } }),
+        prisma.personRole.findMany(),
+        prisma.squadMembership.findMany(),
         prisma.hourRecord.findMany({
           where: { externalRef: { in: allExternalRefs } },
           select: { externalRef: true },
@@ -110,6 +113,7 @@ export class JiraNAConnector {
         sourceMappingByPrefix,
         clientMappings,
         personRoles,
+        squadMemberships,
         existingRefs,
       };
 
@@ -162,6 +166,18 @@ export class JiraNAConnector {
             continue;
           }
 
+          const squadMembership = ctx.squadMemberships.find(
+            sm =>
+              sm.personId === person.id &&
+              sm.effectiveFrom <= date &&
+              (sm.effectiveTo === null || sm.effectiveTo >= date),
+          );
+
+          if (!squadMembership) {
+            result.skipped++;
+            continue; 
+          }
+
           if (isNonBillable) {
             const sourceMapping = ctx.sourceMappingByPrefix.get(issue.key);
             if (!sourceMapping) {
@@ -170,6 +186,7 @@ export class JiraNAConnector {
             }
             hourRecordsToCreate.push({
               personId: person.id,
+              squadId: squadMembership.squadId,
               clientId: null,
               date,
               hours,
@@ -214,6 +231,7 @@ export class JiraNAConnector {
 
           hourRecordsToCreate.push({
             personId: person.id,
+            squadId: squadMembership.squadId,
             clientId: clientMapping.contract.sow.clientId,
             date,
             hours,

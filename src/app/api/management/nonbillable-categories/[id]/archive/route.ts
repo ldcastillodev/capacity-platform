@@ -9,9 +9,9 @@ export async function POST(
   try {
     const row = await prisma.nonBillableCategory.update({
       where: { id: Number(id) },
-      data: { isActive: false, deactivatedAt: new Date() },
+      data: { isActive: false },
       select: {
-        id: true, name: true, type: true, isActive: true, deactivatedAt: true,
+        id: true, name: true, type: true, isActive: true,
       },
     });
     return NextResponse.json(row);

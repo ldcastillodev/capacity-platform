@@ -7,16 +7,12 @@ export async function PATCH(
 ) {
   const { id } = await params;
   try {
-    const body = await req.json() as { hard_buffer_pct?: number; soft_buffer_pct?: number };
     const row = await prisma.squadCapacityConfig.update({
       where: { id: Number(id) },
       data: {
-        ...(body.hard_buffer_pct !== undefined && { hardBufferPct: body.hard_buffer_pct }),
-        ...(body.soft_buffer_pct !== undefined && { softBufferPct: body.soft_buffer_pct }),
       },
       select: {
         id: true, squadId: true, roleType: true,
-        hardBufferPct: true, softBufferPct: true,
         squad: { select: { id: true, name: true } },
       },
     });

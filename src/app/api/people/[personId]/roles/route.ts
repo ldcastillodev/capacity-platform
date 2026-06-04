@@ -19,7 +19,6 @@ export async function POST(
       personId: Number(personId),
       roleType: body.role_type as never,
       seniority: (body.seniority as never) ?? null,
-      isPrimary: body.is_primary ?? true,
       effectiveFrom: new Date(body.effective_from),
       effectiveTo: body.effective_to ? new Date(body.effective_to) : null,
     },

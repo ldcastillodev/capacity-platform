@@ -16,9 +16,7 @@ interface PersonRecord {
   name: string;
   email: string;
   isActive: boolean;
-  employmentType: string;
   weeklyCapacityHours: string;
-  tempoAccountId: string | null;
   squadMemberships: Array<{
     id: number;
     squadId: number;
@@ -30,9 +28,7 @@ interface PersonRecord {
 interface FormState {
   name: string;
   email: string;
-  employment_type: string;
   weekly_capacity_hours: string;
-  tempo_account_id: string;
   squad_id: string;
   allocation_pct: string;
 }
@@ -40,9 +36,7 @@ interface FormState {
 const defaultForm: FormState = {
   name: "",
   email: "",
-  employment_type: "dedicated",
   weekly_capacity_hours: "40",
-  tempo_account_id: "",
   squad_id: "",
   allocation_pct: "100",
 };
@@ -102,9 +96,7 @@ export function PersonsTab() {
         .post("/management/persons", {
           name: f.name,
           email: f.email,
-          employment_type: f.employment_type,
           weekly_capacity_hours: parseFloat(f.weekly_capacity_hours) || 40,
-          tempo_account_id: f.tempo_account_id || null,
           squad_id: f.squad_id ? Number(f.squad_id) : null,
           allocation_pct: f.squad_id ? parseFloat(f.allocation_pct) / 100 : undefined,
         })
@@ -121,9 +113,7 @@ export function PersonsTab() {
         .patch(`/management/persons/${id}`, {
           name: f.name,
           email: f.email,
-          employment_type: f.employment_type,
           weekly_capacity_hours: parseFloat(f.weekly_capacity_hours) || 40,
-          tempo_account_id: f.tempo_account_id || null,
           squad_id: f.squad_id ? Number(f.squad_id) : null,
           allocation_pct: f.squad_id ? parseFloat(f.allocation_pct) / 100 : undefined,
         })
@@ -164,9 +154,7 @@ export function PersonsTab() {
     setForm({
       name: person.name,
       email: person.email,
-      employment_type: person.employmentType,
       weekly_capacity_hours: parseFloat(person.weeklyCapacityHours).toString(),
-      tempo_account_id: person.tempoAccountId ?? "",
       squad_id: currentSquad?.squadId?.toString() ?? "",
       allocation_pct: currentSquad
         ? (parseFloat(currentSquad.allocationPct) * 100).toString()
@@ -242,7 +230,6 @@ export function PersonsTab() {
               <tr>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Email</th>
-                <th style={thStyle}>Type</th>
                 <th style={thStyle}>Squad</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Hrs/wk</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
@@ -262,24 +249,6 @@ export function PersonsTab() {
                     </td>
                     <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>
                       {person.email}
-                    </td>
-                    <td style={{ padding: "11px 14px", fontSize: 13 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          padding: "2px 7px",
-                          borderRadius: 99,
-                          background: person.employmentType === "dedicated"
-                            ? "rgba(37,99,235,0.08)"
-                            : "rgba(245,158,11,0.1)",
-                          color: person.employmentType === "dedicated"
-                            ? "var(--primary)"
-                            : "#d97706",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {person.employmentType}
-                      </span>
                     </td>
                     <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>
                       {squad
@@ -392,17 +361,6 @@ export function PersonsTab() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
             <div>
-              <label style={labelStyle}>Employment Type</label>
-              <select
-                style={inputStyle}
-                value={form.employment_type}
-                onChange={(e) => setForm({ ...form, employment_type: e.target.value })}
-              >
-                <option value="dedicated">Dedicated</option>
-                <option value="shared">Shared</option>
-              </select>
-            </div>
-            <div>
               <label style={labelStyle}>Weekly Hours</label>
               <input
                 style={inputStyle}
@@ -412,18 +370,6 @@ export function PersonsTab() {
                 step="0.5"
                 value={form.weekly_capacity_hours}
                 onChange={(e) => setForm({ ...form, weekly_capacity_hours: e.target.value })}
-              />
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-            <div>
-              <label style={labelStyle}>Tempo Account ID</label>
-              <input
-                style={inputStyle}
-                type="text"
-                value={form.tempo_account_id}
-                onChange={(e) => setForm({ ...form, tempo_account_id: e.target.value })}
-                placeholder="Optional"
               />
             </div>
           </div>

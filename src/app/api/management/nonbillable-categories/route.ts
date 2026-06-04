@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
       select: {
         id: true, name: true, type: true, description: true,
-        isActive: true, deactivatedAt: true,
+        isActive: true,
         _count: { select: { hourRecords: true, sourceMappings: true } },
       },
     });
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       },
       select: {
         id: true, name: true, type: true, description: true,
-        isActive: true, deactivatedAt: true,
+        isActive: true,
         _count: { select: { hourRecords: true, sourceMappings: true } },
       },
     });

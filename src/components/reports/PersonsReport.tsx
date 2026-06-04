@@ -48,13 +48,12 @@ export type PersonFilters = {
   from: string;
   to: string;
   squadId: string;
-  employmentType: string;
 };
 
 function defaultPersonFilters(): PersonFilters {
   const now = new Date();
   const def = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  return { from: def, to: def, squadId: "", employmentType: "" };
+  return { from: def, to: def, squadId: "" };
 }
 
 export default function PersonsReport() {
@@ -74,7 +73,6 @@ export default function PersonsReport() {
         from: filters.from || undefined,
         to: filters.to || undefined,
         squadId: filters.squadId ? Number(filters.squadId) : undefined,
-        employmentType: filters.employmentType || undefined,
         page,
         pageSize: PAGE_SIZE,
       }),
@@ -124,7 +122,6 @@ export default function PersonsReport() {
       from: filters.from || undefined,
       to: filters.to || undefined,
       squadId: filters.squadId ? Number(filters.squadId) : undefined,
-      employmentType: filters.employmentType || undefined,
       page: 1,
       pageSize: 10000,
     });

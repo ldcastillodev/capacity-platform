@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
       orderBy: { effectiveFrom: "desc" },
       select: {
         id: true, personId: true, roleType: true,
-        seniority: true, isPrimary: true, effectiveFrom: true, effectiveTo: true,
+        seniority: true, effectiveFrom: true, effectiveTo: true,
         person: { select: { id: true, name: true } },
       },
     });
@@ -31,12 +31,11 @@ export async function POST(req: NextRequest) {
         personId: body.person_id,
         roleType: body.role_type as never,
         seniority: body.seniority as never ?? null,
-        isPrimary: body.is_primary ?? true,
         effectiveFrom: new Date(body.effective_from),
       },
       select: {
         id: true, personId: true, roleType: true,
-        seniority: true, isPrimary: true, effectiveFrom: true, effectiveTo: true,
+        seniority: true, effectiveFrom: true, effectiveTo: true,
         person: { select: { id: true, name: true } },
       },
     });

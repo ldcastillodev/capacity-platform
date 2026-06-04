@@ -36,11 +36,6 @@ enum Seniority {
   L5
 }
 
-enum EmploymentType {
-  dedicated
-  shared
-}
-
 enum Region {
   emea
   na
@@ -76,7 +71,6 @@ enum ContractType {
 }
 
 enum SyncSource {
-  tempo
   jira_na
   manual
   api
@@ -133,7 +127,6 @@ enum SimulationAction {
 }
 
 enum NbMappingSource {
-  tempo
   jira_na
 }
 
@@ -153,7 +146,7 @@ model Squad {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
 
-  lead            Person?                          @relation("SquadLead", fields: [leadPersonId], references: [id])
+  lead            Person?                            @relation("SquadLead", fields: [leadPersonId], references: [id])
   members         SquadMembership[]
   capacityConfigs SquadCapacityConfig[]
   declarations    MonthlyRoleDeclaration[]
@@ -161,38 +154,36 @@ model Squad {
   nbSummaries     MonthlyNonBillableSummary[]
   suggestions     NonBillableEnhancementSuggestion[]
   anomalyFlags    AnomalyFlag[]
+  HourRecord      HourRecord[]
 
   @@map("squads")
 }
 
 model Person {
-  id                  Int            @id @default(autoincrement())
-  name                String         @db.VarChar(200)
-  email               String         @unique @db.VarChar(200)
-  employmentType      EmploymentType @default(dedicated) @map("employment_type")
-  isActive            Boolean        @default(true) @map("is_active")
-  weeklyCapacityHours Decimal        @default(40.00) @map("weekly_capacity_hours") @db.Decimal(5, 2)
-  tempoAccountId      String?        @unique @map("tempo_account_id") @db.VarChar(200)
-  createdAt           DateTime       @default(now()) @map("created_at")
-  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at")
+  id                  Int      @id @default(autoincrement())
+  name                String   @db.VarChar(200)
+  email               String   @unique @db.VarChar(200)
+  isActive            Boolean  @default(true) @map("is_active")
+  weeklyCapacityHours Decimal  @default(40.00) @map("weekly_capacity_hours") @db.Decimal(5, 2)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
 
-  ledSquads        Squad[]                          @relation("SquadLead")
+  leadSquads       Squad[]                            @relation("SquadLead")
   squadMemberships SquadMembership[]
   roles            PersonRole[]
   hourRecords      HourRecord[]
   nbSummaries      MonthlyNonBillableSummary[]
   suggestions      NonBillableEnhancementSuggestion[]
-  simulations      ClientSimulation[]               @relation("SimRequestedBy")
 
   @@map("persons")
 }
 
 model SquadMembership {
-  id            Int      @id @default(autoincrement())
-  personId      Int      @map("person_id")
-  squadId       Int      @map("squad_id")
-  allocationPct Decimal  @default(1.0000) @map("allocation_pct") @db.Decimal(5, 4)
-  effectiveFrom DateTime @map("effective_from") @db.Date
+  id            Int       @id @default(autoincrement())
+  personId      Int       @map("person_id")
+  squadId       Int       @map("squad_id")
+  allocationPct Decimal   @default(1.0000) @map("allocation_pct") @db.Decimal(5, 4)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
   effectiveTo   DateTime? @map("effective_to") @db.Date
 
   person Person @relation(fields: [personId], references: [id])
@@ -204,13 +195,12 @@ model SquadMembership {
 }
 
 model PersonRole {
-  id            Int       @id @default(autoincrement())
-  personId      Int       @map("person_id")
-  roleType      RoleType  @map("role_type")
+  id            Int        @id @default(autoincrement())
+  personId      Int        @map("person_id")
+  roleType      RoleType   @map("role_type")
   seniority     Seniority?
-  isPrimary     Boolean   @default(true) @map("is_primary")
-  effectiveFrom DateTime  @map("effective_from") @db.Date
-  effectiveTo   DateTime? @map("effective_to") @db.Date
+  effectiveFrom DateTime   @map("effective_from") @db.Date
+  effectiveTo   DateTime?  @map("effective_to") @db.Date
 
   person Person @relation(fields: [personId], references: [id])
 
@@ -233,18 +223,14 @@ model Client {
   burnSnapshots        WeeklyBurnSnapshot[]
   anomalyFlags         AnomalyFlag[]
   declarations         MonthlyRoleDeclaration[]
-  tempoMappings        TempoAccountClientMapping[]
-  simulations          ClientSimulation[]
 
   @@map("clients")
 }
 
 model SquadCapacityConfig {
-  id             Int      @id @default(autoincrement())
-  squadId        Int      @map("squad_id")
-  roleType       RoleType @map("role_type")
-  hardBufferPct  Decimal  @default(0.1500) @map("hard_buffer_pct") @db.Decimal(5, 4)
-  softBufferPct  Decimal  @default(0.1000) @map("soft_buffer_pct") @db.Decimal(5, 4)
+  id       Int      @id @default(autoincrement())
+  squadId  Int      @map("squad_id")
+  roleType RoleType @map("role_type")
 
   squad Squad @relation(fields: [squadId], references: [id])
 
@@ -285,9 +271,9 @@ model Contract {
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at")
 
-  sow            StatementOfWork          @relation(fields: [sowId], references: [id])
-  parentContract Contract?                @relation("ContractSelf", fields: [parentContractId], references: [id], onDelete: SetNull)
-  childContract  Contract?                @relation("ContractSelf")
+  sow            StatementOfWork              @relation(fields: [sowId], references: [id])
+  parentContract Contract?                    @relation("ContractSelf", fields: [parentContractId], references: [id], onDelete: SetNull)
+  childContract  Contract?                    @relation("ContractSelf")
   extension      Extension?
   declarations   MonthlyRoleDeclaration[]
   hourRecords    HourRecord[]
@@ -327,9 +313,9 @@ model MonthlyRoleDeclaration {
   overrideBy            Int?              @map("override_by")
   updatedAt             DateTime          @default(now()) @updatedAt @map("updated_at")
 
-  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  client   Client    @relation(fields: [clientId], references: [id])
-  squad    Squad     @relation(fields: [squadId], references: [id])
+  contract Contract?                       @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  client   Client                          @relation(fields: [clientId], references: [id])
+  squad    Squad                           @relation(fields: [squadId], references: [id])
   history  MonthlyRoleDeclarationHistory[]
 
   @@index([clientId, month])
@@ -342,40 +328,42 @@ model MonthlyRoleDeclaration {
 // ─── Time Records ─────────────────────────────────────────────────────────────
 
 model HourRecord {
-  id                    Int                  @id @default(autoincrement())
-  personId              Int                  @map("person_id")
-  clientId              Int?                 @map("client_id")
-  contractId            Int?                 @map("contract_id")
-  date                  DateTime             @db.Date
-  hours                 Decimal              @db.Decimal(6, 2)
-  roleType              RoleType?            @map("role_type")
+  id                    Int        @id @default(autoincrement())
+  personId              Int        @map("person_id")
+  squadId               Int        @map("squad_id")
+  clientId              Int?       @map("client_id")
+  contractId            Int?       @map("contract_id")
+  date                  DateTime   @db.Date
+  hours                 Decimal    @db.Decimal(6, 2)
+  roleType              RoleType?  @map("role_type")
   source                SyncSource
-  isNonBillable         Boolean              @default(false) @map("is_non_billable")
-  nonBillableCategoryId Int?                 @map("nonbillable_category_id")
-  externalRef           String?              @unique @map("external_ref") @db.VarChar(300)
-  issueKey              String?              @map("issue_key") @db.VarChar(50)
-  createdAt             DateTime             @default(now()) @map("created_at")
-  updatedAt             DateTime             @default(now()) @updatedAt @map("updated_at")
+  isNonBillable         Boolean    @default(false) @map("is_non_billable")
+  nonBillableCategoryId Int?       @map("nonbillable_category_id")
+  externalRef           String?    @unique @map("external_ref") @db.VarChar(300)
+  issueKey              String?    @map("issue_key") @db.VarChar(50)
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @default(now()) @updatedAt @map("updated_at")
 
   person              Person               @relation(fields: [personId], references: [id])
+  squad               Squad                @relation(fields: [squadId], references: [id])
   client              Client?              @relation(fields: [clientId], references: [id])
   contract            Contract?            @relation(fields: [contractId], references: [id], onDelete: SetNull)
   nonBillableCategory NonBillableCategory? @relation(fields: [nonBillableCategoryId], references: [id])
 
   @@index([clientId, date])
   @@index([personId, date])
+  @@index([squadId, date])
   @@index([roleType, date])
   @@index([clientId, date, isNonBillable])
   @@map("hour_records")
 }
 
 model NonBillableCategory {
-  id            Int             @id @default(autoincrement())
-  name          String          @unique @db.VarChar(120)
-  type          NonBillableType
-  description   String?
-  isActive      Boolean         @default(true) @map("is_active")
-  deactivatedAt DateTime?       @map("deactivated_at")
+  id          Int             @id @default(autoincrement())
+  name        String          @unique @db.VarChar(120)
+  type        NonBillableType
+  description String?
+  isActive    Boolean         @default(true) @map("is_active")
 
   hourRecords    HourRecord[]
   sourceMappings NonBillableSourceMapping[]
@@ -394,19 +382,6 @@ model NonBillableSourceMapping {
 
   @@unique([source, identifierValue])
   @@map("nonbillable_source_mappings")
-}
-
-model TempoAccountClientMapping {
-  id            Int       @id @default(autoincrement())
-  accountKey    String    @map("account_key") @db.VarChar(200)
-  clientId      Int       @map("client_id")
-  effectiveFrom DateTime  @map("effective_from") @db.Date
-  effectiveTo   DateTime? @map("effective_to") @db.Date
-
-  client Client @relation(fields: [clientId], references: [id])
-
-  @@unique([accountKey, effectiveFrom])
-  @@map("tempo_account_client_mappings")
 }
 
 model JiraComponentClientMapping {
@@ -536,8 +511,8 @@ model AnomalyFlag {
   client Client @relation(fields: [clientId], references: [id])
   squad  Squad? @relation(fields: [squadId], references: [id])
 
-  @@index([clientId, month])
   @@unique([clientId, month, flagType, roleType, detectorVersion], name: "uq_anomaly_dedupe")
+  @@index([clientId, month])
   @@map("anomaly_flags")
 }
 
@@ -585,48 +560,6 @@ model NonBillableEnhancementSuggestion {
   @@map("nonbillable_enhancement_suggestions")
 }
 
-// ─── Simulation ───────────────────────────────────────────────────────────────
-
-model ClientSimulation {
-  id                 Int       @id @default(autoincrement())
-  clientId           Int?      @map("client_id")
-  name               String    @default("") @db.VarChar(200)
-  proposedClientName String    @map("proposed_client_name") @db.VarChar(200)
-  proposedStartMonth DateTime  @map("proposed_start_month") @db.Date
-  proposedPoolHours  Decimal   @map("proposed_pool_hours") @db.Decimal(8, 2)
-  requestedBy        Int?      @map("requested_by")
-  approvedAt         DateTime? @map("approved_at")
-  approvedBy         Int?      @map("approved_by")
-  simulationResult   String?   @map("simulation_result")
-  feasible           Boolean?
-  bottleneckRole     RoleType? @map("bottleneck_role")
-  createdAt          DateTime  @default(now()) @map("created_at")
-
-  client            Client?                   @relation(fields: [clientId], references: [id])
-  requestedByPerson Person?                   @relation("SimRequestedBy", fields: [requestedBy], references: [id])
-  lineItems         ClientSimulationLineItem[]
-
-  @@index([clientId, createdAt])
-  @@map("client_simulations")
-}
-
-model ClientSimulationLineItem {
-  id                 Int              @id @default(autoincrement())
-  simulationId       Int              @map("simulation_id")
-  roleType           RoleType         @map("role_type")
-  requestedHours     Decimal          @map("requested_hours") @db.Decimal(8, 2)
-  availableHours     Decimal          @map("available_hours") @db.Decimal(8, 2)
-  gapHours           Decimal          @map("gap_hours") @db.Decimal(8, 2)
-  action             SimulationAction
-  ftesToHire         Decimal          @default(0) @map("ftes_to_hire") @db.Decimal(4, 2)
-  estimatedMarginPct Decimal?         @map("estimated_margin_pct") @db.Decimal(6, 4)
-
-  simulation ClientSimulation @relation(fields: [simulationId], references: [id])
-
-  @@unique([simulationId, roleType])
-  @@map("client_simulation_line_items")
-}
-
 // ─── History Ledgers ──────────────────────────────────────────────────────────
 
 model MonthlyRoleDeclarationHistory {
@@ -635,7 +568,7 @@ model MonthlyRoleDeclarationHistory {
   changedAt         DateTime           @default(now()) @map("changed_at")
   changedBy         Int?               @map("changed_by")
   prevDeclaredHours Decimal?           @map("prev_declared_hours") @db.Decimal(8, 2)
-  newDeclaredHours  Decimal?           @map("new_declared_hours")  @db.Decimal(8, 2)
+  newDeclaredHours  Decimal?           @map("new_declared_hours") @db.Decimal(8, 2)
   prevStatus        DeclarationStatus? @map("prev_status")
   newStatus         DeclarationStatus? @map("new_status")
   reason            String?

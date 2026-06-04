@@ -14,14 +14,13 @@ export async function PATCH(
       where: { id: Number(id) },
       data: {
         ...(body.seniority !== undefined && { seniority: body.seniority as never }),
-        ...(body.is_primary !== undefined && { isPrimary: body.is_primary }),
         ...(body.effective_to !== undefined && {
           effectiveTo: body.effective_to ? new Date(body.effective_to) : null,
         }),
       },
       select: {
         id: true, personId: true, roleType: true,
-        seniority: true, isPrimary: true, effectiveFrom: true, effectiveTo: true,
+        seniority: true, effectiveFrom: true, effectiveTo: true,
         person: { select: { id: true, name: true } },
       },
     });

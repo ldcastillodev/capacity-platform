@@ -417,7 +417,7 @@ export const fetchReportClients = (params: {
   api.get<ReportPage<ClientReportRow>>("/reports/clients", { params }).then((r) => r.data);
 
 export const fetchReportPersons = (params: {
-  from?: string; to?: string; squadId?: number; employmentType?: string;
+  from?: string; to?: string; squadId?: number;
   page?: number; pageSize?: number;
 }) =>
   api.get<ReportPage<PersonReportRow>>("/reports/persons", { params }).then((r) => r.data);

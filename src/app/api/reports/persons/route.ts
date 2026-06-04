@@ -7,7 +7,6 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const squadIdParam = searchParams.get("squadId");
-  const employmentType = searchParams.get("employmentType");
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
   const pageSize = Math.min(200, Math.max(1, Number(searchParams.get("pageSize") ?? 25)));
 
@@ -18,10 +17,6 @@ export async function GET(req: NextRequest) {
 
   const squadFilter = squadIdParam
     ? Prisma.sql`AND sm.squad_id = ${Number(squadIdParam)}`
-    : Prisma.empty;
-
-  const employmentFilter = employmentType
-    ? Prisma.sql`AND p.employment_type::text = ${employmentType}`
     : Prisma.empty;
 
   // CROSS JOIN date_range dr comes before squad_memberships so dr is in scope for WHERE
@@ -62,7 +57,6 @@ export async function GET(req: NextRequest) {
         AND sm.effective_from <= (dr.month + INTERVAL '1 month' - INTERVAL '1 day')::date
         AND (sm.effective_to IS NULL OR sm.effective_to >= dr.month)
         ${squadFilter}
-        ${employmentFilter}
     )
     SELECT
       pm.person_id,

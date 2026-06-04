@@ -10,7 +10,6 @@ export async function GET(req: NextRequest) {
       orderBy: { roleType: "asc" },
       select: {
         id: true, squadId: true, roleType: true,
-        hardBufferPct: true, softBufferPct: true,
         squad: { select: { id: true, name: true } },
       },
     });
@@ -30,12 +29,9 @@ export async function POST(req: NextRequest) {
       data: {
         squadId: body.squad_id,
         roleType: body.role_type as never,
-        hardBufferPct: body.hard_buffer_pct ?? 0.15,
-        softBufferPct: body.soft_buffer_pct ?? 0.10,
       },
       select: {
         id: true, squadId: true, roleType: true,
-        hardBufferPct: true, softBufferPct: true,
         squad: { select: { id: true, name: true } },
       },
     });

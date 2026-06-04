@@ -121,7 +121,7 @@ function SyncLogsSection() {
       <form onSubmit={e => { e.preventDefault(); setSubmitted({ source: filterInput }); }} style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-end" }}>
         <div>
           <label style={labelStyle}>Source</label>
-          <input style={{ ...inputStyle, width: 200 }} type="text" value={filterInput} onChange={e => setFilterInput(e.target.value)} placeholder="e.g. tempo, jira" />
+          <input style={{ ...inputStyle, width: 200 }} type="text" value={filterInput} onChange={e => setFilterInput(e.target.value)} placeholder="e.g. jira" />
         </div>
         <button type="submit" style={{ padding: "9px 18px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Search</button>
       </form>

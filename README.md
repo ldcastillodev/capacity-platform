@@ -27,7 +27,7 @@ Squad capacity planning and delivery tracking. Tracks staffing gaps, retainer bu
 | `/simulator` | Model staffing changes and forecast impact |
 | `/reports` | Configurable hour-consumption reports for clients, persons, and squads |
 | `/management` | CRUD for squads, persons, clients, and Jira component mappings |
-| `/sync` | Manually trigger Jira/Tempo data sync and analytics refresh |
+| `/sync` | Manually trigger Jira data sync and analytics refresh |
 
 ## Reports tab
 
@@ -91,7 +91,7 @@ Filename format: `report-{clients|persons|squads}-{from}-{to}.xlsx`
 
 All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squads use raw SQL (`prisma.$queryRaw`) for the aggregation; clients use the Prisma ORM.
 
-> **Note:** `HourRecord` and `NonBillableEntry` are populated by the Tempo/Jira sync jobs. If no sync has run, person and squad reports will return rows with zero hours. Client reports rely on `MonthlyConsumptionSummary`, which is populated by the analytics-refresh cron job.
+> **Note:** `HourRecord` and `NonBillableEntry` are populated by the Jira sync jobs. If no sync has run, person and squad reports will return rows with zero hours. Client reports rely on `MonthlyConsumptionSummary`, which is populated by the analytics-refresh cron job.
 
 ---
 
@@ -103,7 +103,7 @@ All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squ
 
 **Squads** — name, lead person, active member count. Archiving ends all open squad memberships.
 
-**Persons** — name, email, employment type, weekly capacity hours, Tempo account ID, squad assignment with allocation %. Archiving ends memberships and removes the person as squad lead on any squad they lead.
+**Persons** — name, email, employment type, weekly capacity hours, squad assignment with allocation %. Archiving ends memberships and removes the person as squad lead on any squad they lead.
 
 **Clients** — name, region (NA/EMEA), currency (USD/GBP/EUR). Archiving closes all active retainer contracts.
 
@@ -159,27 +159,13 @@ Three sub-tabs:
 
 ---
 
-### Config tab
-
-Four sub-tabs:
-
-**Holiday Calendars** — named calendars by region. A nested modal manages individual holiday entries (date + name) with create, edit, and delete.
-
-**Person Calendar Assignments** — assign a person to a holiday calendar with an effective date range. Edit only updates `effectiveTo`; person and calendar are immutable after creation. At most one open-ended assignment per person is enforced by a partial unique index.
-
-**Role Cascade Rules** — define that one role type triggers a dependent role at a given ratio. Optionally scoped to a client; `null` client = global rule. Create and delete only.
-
-**Tempo Mappings** — map a Tempo account key to a client with an effective date range. Create and delete only.
-
----
-
 ### Non-Billable tab
 
 Three sub-tabs:
 
 **Categories** — NB category name, type (`internal_ceremony` / `learning_and_development` / `admin` / `other`), description. Archive deactivates (sets `deactivatedAt`); no delete.
 
-**Source Mappings** — map a Tempo/Jira NA identifier (account key, component, or project key) to an NB category. Create and delete only.
+**Source Mappings** — map a Jira NA identifier (account key, component, or project key) to an NB category. Create and delete only.
 
 **Entries** — read-only view of NB hour entries by person, category, month, hours, and source. Searchable by person name and month.
 
@@ -221,19 +207,19 @@ Each ledger row stores a full snapshot of the parent record at the time of chang
 
 ---
 
-API routes live under `/api/management/{squads,persons,clients,components,billing-rates,cost-rates,te-billing-configs,client-person-access,retainer-contracts,contract-extensions,change-orders,sme-engagements,declarations,squad-memberships,person-roles,squad-capacity-configs,holiday-calendars,holiday-entries,person-calendar-assignments,role-cascade-rules,tempo-mappings,nonbillable-categories,nonbillable-source-mappings,nonbillable-entries}/`.
+API routes live under `/api/management/{squads,persons,clients,components,billing-rates,cost-rates,te-billing-configs,client-person-access,retainer-contracts,contract-extensions,change-orders,sme-engagements,declarations,squad-memberships,person-roles,squad-capacity-configs,holiday-calendars,holiday-entries,person-calendar-assignments,role-cascade-rules,nonbillable-categories,nonbillable-source-mappings,nonbillable-entries}/`.
 
 ---
 
 ## Sync tab
 
-`/sync` lets you manually trigger data sync from Jira/Tempo and analytics refresh without needing a cron secret or curl command.
+`/sync` lets you manually trigger data sync from Jira and analytics refresh without needing a cron secret or curl command.
 
 ### Controls
 
 **Date Range** — shared `from` / `to` date picker. Defaults to last 30 days. Used by both operations below.
 
-**Data Sync** — independent checkboxes for Tempo and Jira NA. Triggers `POST /api/admin/jobs/sync` with `source`, `date_from`, and `date_to`. Always runs in `full` mode.
+**Data Sync** — independent checkboxes for Jira NA. Triggers `POST /api/admin/jobs/sync` with `source`, `date_from`, and `date_to`. Always runs in `full` mode.
 
 **Analytics Refresh** — derives the month list from the selected date range (one entry per calendar month between `from` and `to`). Triggers `POST /api/admin/jobs/analytics-refresh`.
 
@@ -241,7 +227,7 @@ Both buttons disable while the job runs and show an inline success/error banner 
 
 ### Last Sync Status
 
-A status card at the top of the page shows the most recent sync log per source (Tempo, Jira NA). Each entry displays:
+A status card at the top of the page shows the most recent sync log per source (Jira NA). Each entry displays:
 
 - Date and time the sync started
 - Sync type (`full` / `delta`)
@@ -406,7 +392,7 @@ Cron routes live under `/api/admin/jobs/`. No auth header is required — use th
 
 | Route | Method | Body | Purpose |
 |---|---|---|---|
-| `/api/admin/jobs/sync` | `POST` | `{ source?: "tempo"\|"jira_na"\|"all", date_from?: string, date_to?: string }` | Pulls data from Jira / Tempo. Defaults: source=`all`, last 30 days. Always runs in `full` mode. |
+| `/api/admin/jobs/sync` | `POST` | `{ source?: "jira_na"\|"all", date_from?: string, date_to?: string }` | Pulls data from Jira. Defaults: source=`all`, last 30 days. Always runs in `full` mode. |
 | `/api/admin/jobs/sync` | `GET` | — | Returns the latest `SyncLog` entry per source. |
 | `/api/admin/jobs/analytics-refresh` | `POST` | `{ months?: string[] }` | Recomputes analytics for the given months (ISO date strings, first of month). Defaults to current + prior month. |
 

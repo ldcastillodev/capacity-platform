@@ -115,10 +115,10 @@ Next.js 15 App Router. No Tailwind — uses CSS variables (`src/app/globals.css`
 | `/simulator` | Model staffing changes and forecast impact |
 | `/reports` | Hour-consumption reports (clients/persons/squads), XLSX export |
 | `/management` | Admin CRUD for squads, persons, clients, mappings, contracts, billing rates |
-| `/sync` | Manually trigger Jira/Tempo sync and analytics refresh |
+| `/sync` | Manually trigger Jira sync and analytics refresh |
 
 **Data flow:**
-1. Cron jobs (`/api/admin/jobs/sync`) pull raw hours from Jira/Tempo into `HourRecord` and `NonBillableEntry`
+1. Cron jobs (`/api/admin/jobs/sync`) pull raw hours from Jira into `HourRecord` and `NonBillableEntry`
 2. Analytics refresh (`/api/admin/jobs/analytics-refresh`) computes derived aggregates: `MonthlyConsumptionSummary`, `MonthlyNonBillableSummary`, `StaffingGapSnapshot`, `BurnSnapshot`, `AnomalyFlag`
 3. Pages fetch analytics via TanStack Query → Axios → `/api/analytics/*` routes
 4. Management CRUD goes through `/api/management/*`
@@ -133,7 +133,6 @@ Next.js 15 App Router. No Tailwind — uses CSS variables (`src/app/globals.css`
 **Key source files:**
 - `src/lib/prisma.ts` — singleton PrismaClient
 - `src/lib/client.ts` — Axios instance + all client-side fetch functions
-- `src/lib/integrations/tempo.ts` — TempoConnector (Tempo API sync)
 - `src/lib/integrations/jira-na.ts` — JiraNAConnector (Jira NA sync)
 - `src/lib/analytics/refresh.ts` — analytics computation engine
 - `src/app/layout.tsx` — root layout with sidebar nav and QueryClientProvider

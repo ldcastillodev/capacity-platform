@@ -17,7 +17,7 @@ export async function PATCH(
       },
       select: {
         id: true, name: true, type: true, description: true,
-        isActive: true, deactivatedAt: true,
+        isActive: true,
       },
     });
     return NextResponse.json(row);

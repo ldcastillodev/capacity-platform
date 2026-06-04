@@ -66,7 +66,7 @@ function defaultFilters(type: "clients" | "persons" | "squads"): Record<string, 
   const now = new Date();
   const def = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
   if (type === "clients") return { from: def, to: def, clientId: "", roleType: "" };
-  if (type === "persons") return { from: def, to: def, squadId: "", employmentType: "" };
+  if (type === "persons") return { from: def, to: def, squadId: "" };
   return { from: def, to: def, squadId: "", roleType: "" };
 }
 
@@ -254,21 +254,6 @@ export default function ReportsFilterPanel(props: Props) {
                     {props.squadOptions.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
-                  </select>
-                </div>
-              )}
-
-              {props.type === "persons" && (
-                <div>
-                  <label style={labelStyle}>Employment Type</label>
-                  <select
-                    style={inputStyle}
-                    value={local.employmentType ?? ""}
-                    onChange={(e) => set("employmentType", e.target.value)}
-                  >
-                    <option value="">All types</option>
-                    <option value="dedicated">Dedicated</option>
-                    <option value="shared">Shared</option>
                   </select>
                 </div>
               )}

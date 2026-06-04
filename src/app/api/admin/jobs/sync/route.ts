@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TempoConnector } from "@/lib/integrations/tempo";
 import { JiraNAConnector } from "@/lib/integrations/jira-na";
 import { runAnalyticsRefresh } from "@/lib/analytics/refresh";
 import prisma from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as {
-    source?: "tempo" | "jira_na" | "all";
+    source?: "jira_na";
     date_from?: string;
     date_to?: string;
   };
@@ -20,11 +19,6 @@ export async function POST(req: NextRequest) {
   const dateTo = body.date_to ?? new Date().toISOString().split("T")[0];
 
   const results: Record<string, unknown> = {};
-
-  if (source === "tempo" || source === "all") {
-    const connector = new TempoConnector();
-    results.tempo = await connector.sync(dateFrom, dateTo, "full");
-  }
 
   if (source === "jira_na" || source === "all") {
     const connector = new JiraNAConnector();

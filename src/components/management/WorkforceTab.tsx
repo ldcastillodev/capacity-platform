@@ -182,7 +182,7 @@ const SENIORITIES = ["L1","L2","L3","L4","L5"];
 
 interface RoleRow {
   id: number; personId: number; roleType: string; seniority: string | null;
-  isPrimary: boolean; effectiveFrom: string; effectiveTo: string | null;
+  effectiveFrom: string; effectiveTo: string | null;
   person: { id: number; name: string };
 }
 
@@ -190,7 +190,7 @@ function PersonRolesSection() {
   const qc = useQueryClient();
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<RoleRow | null>(null);
-  const [form, setForm] = useState({ person_id: "", role_type: "frontend_dev", seniority: "", is_primary: true, effective_from: new Date().toISOString().split("T")[0], effective_to: "" });
+  const [form, setForm] = useState({ person_id: "", role_type: "frontend_dev", seniority: "", effective_from: new Date().toISOString().split("T")[0], effective_to: "" });
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -201,12 +201,12 @@ function PersonRolesSection() {
   const { data: persons = [] } = useQuery({ queryKey: ["mgmt-persons-active"], queryFn: () => api.get<PersonOption[]>("/management/persons").then(r => r.data) });
 
   const createMutation = useMutation({
-    mutationFn: (f: typeof form) => api.post("/management/person-roles", { person_id: Number(f.person_id), role_type: f.role_type, seniority: f.seniority || undefined, is_primary: f.is_primary, effective_from: f.effective_from }).then(r => r.data),
+    mutationFn: (f: typeof form) => api.post("/management/person-roles", { person_id: Number(f.person_id), role_type: f.role_type, seniority: f.seniority || undefined, effective_from: f.effective_from }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-person-roles"] }); closeModal(); },
     onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/person-roles/${id}`, { seniority: f.seniority || null, is_primary: f.is_primary, effective_to: f.effective_to || null }).then(r => r.data),
+    mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/person-roles/${id}`, { seniority: f.seniority || null, effective_to: f.effective_to || null }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-person-roles"] }); closeModal(); },
     onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
   });
@@ -215,8 +215,8 @@ function PersonRolesSection() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-person-roles"] }); setDeleteId(null); },
   });
 
-  function openCreate() { setForm({ person_id: "", role_type: "frontend_dev", seniority: "", is_primary: true, effective_from: new Date().toISOString().split("T")[0], effective_to: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
-  function openEdit(row: RoleRow) { setForm({ person_id: row.personId.toString(), role_type: row.roleType, seniority: row.seniority ?? "", is_primary: row.isPrimary, effective_from: row.effectiveFrom.split("T")[0], effective_to: row.effectiveTo ? row.effectiveTo.split("T")[0] : "" }); setEditing(row); setApiError(null); setModalMode("edit"); }
+  function openCreate() { setForm({ person_id: "", role_type: "frontend_dev", seniority: "", effective_from: new Date().toISOString().split("T")[0], effective_to: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
+  function openEdit(row: RoleRow) { setForm({ person_id: row.personId.toString(), role_type: row.roleType, seniority: row.seniority ?? "", effective_from: row.effectiveFrom.split("T")[0], effective_to: row.effectiveTo ? row.effectiveTo.split("T")[0] : "" }); setEditing(row); setApiError(null); setModalMode("edit"); }
   function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
   function handleSubmit(e: React.FormEvent) { e.preventDefault(); setApiError(null); if (modalMode === "create") createMutation.mutate(form); else if (editing) updateMutation.mutate({ id: editing.id, f: form }); }
   const isPending = createMutation.isPending || updateMutation.isPending;
@@ -233,7 +233,6 @@ function PersonRolesSection() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr>
                 <th style={thStyle}>Person</th><th style={thStyle}>Role</th><th style={thStyle}>Seniority</th>
-                <th style={{ ...thStyle, textAlign: "center" }}>Primary</th>
                 <th style={thStyle}>From</th><th style={thStyle}>To</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
               </tr></thead>
@@ -242,9 +241,6 @@ function PersonRolesSection() {
                   <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.person.name}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.roleType.replace(/_/g, " ")}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.seniority ?? "—"}</td>
-                  <td style={{ padding: "11px 14px", textAlign: "center" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: row.isPrimary ? "var(--safe-bg)" : "var(--border)", color: row.isPrimary ? "var(--safe)" : "var(--text-muted)" }}>{row.isPrimary ? "Yes" : "No"}</span>
-                  </td>
                   <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.effectiveFrom.split("T")[0]}</td>
                   <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.effectiveTo ? row.effectiveTo.split("T")[0] : "—"}</td>
                   <td style={{ padding: "11px 14px", textAlign: "right" }}>
@@ -281,11 +277,6 @@ function PersonRolesSection() {
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 18 }}>
-            <div><label style={labelStyle}>Primary</label>
-              <select style={inputStyle} value={form.is_primary ? "true" : "false"} onChange={e => setForm({ ...form, is_primary: e.target.value === "true" })}>
-                <option value="true">Yes</option><option value="false">No</option>
-              </select>
-            </div>
             <div><label style={labelStyle}>From *</label><input style={inputStyle} type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} disabled={modalMode === "edit"} /></div>
             <div><label style={labelStyle}>To</label><input style={inputStyle} type="date" value={form.effective_to} onChange={e => setForm({ ...form, effective_to: e.target.value })} /></div>
           </div>

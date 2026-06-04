@@ -315,7 +315,7 @@ export default function HelpPage() {
               },
               {
                 type: "Zero hours",
-                rule: "No hours logged at all past week 2 of the month. Likely a missing Tempo mapping or timesheet gap.",
+                rule: "No hours logged at all past week 2 of the month.",
               },
               {
                 type: "Spike",
@@ -344,9 +344,7 @@ export default function HelpPage() {
 
         <p style={pStyle}>
           A worklog is classified as non-billable when it is logged against a Jira
-          ticket whose <strong>Tempo account key</strong> appears in the non-billable
-          key list (e.g. <code>CAAS-HN-NB</code>, <code>CAAS-WS-NB</code>), or when
-          the ticket belongs to an internal Jira project (LC-*).
+          Non billable component
         </p>
 
         <div style={h3Style}>Utilisation thresholds</div>
@@ -493,12 +491,6 @@ export default function HelpPage() {
             </tr>
           </thead>
           <tbody>
-            <tr style={{ background: "var(--surface)" }}>
-              <td style={tdCell}><strong>EMEA</strong></td>
-              <td style={tdCell}>Tempo (e2x.atlassian.net)</td>
-              <td style={tdCell}>Tempo account key (e.g. <code>CAAS-WS-DEL</code>)</td>
-              <td style={tdCell}>Full sync daily at 02:00; delta every hour</td>
-            </tr>
             <tr style={{ background: "var(--bg)" }}>
               <td style={tdCell}><strong>NA</strong></td>
               <td style={tdCell}>Jira native worklogs (applydigital.atlassian.net)</td>
@@ -564,16 +556,6 @@ export default function HelpPage() {
           </thead>
           <tbody>
             {[
-              {
-                job: "Full sync",
-                sched: "Daily at 02:00",
-                what: "Fetches all worklogs from Tempo and Jira NA for the current and prior month.",
-              },
-              {
-                job: "Delta sync",
-                sched: "Every hour",
-                what: "Fetches worklogs modified in the last 2 days only — keeps hours current throughout the day.",
-              },
               {
                 job: "Burn snapshots",
                 sched: "Daily at 02:30 (after full sync)",
@@ -704,7 +686,6 @@ export default function HelpPage() {
               ["Expected cumulative", "The straight-line target: pool_hours × (days_elapsed ÷ days_in_month). Reaches pool on the last day."],
               ["Hard buffer", "Capacity withheld from client work (default 15%). Covers overhead, internal ceremonies, and scope surprises."],
               ["Net gap hours", "Spare capacity after buffer and committed hours. Negative = understaffed."],
-              ["Tempo account key", "The identifier used in Tempo to tag worklogs to a client (EMEA). Format: CAAS-XXX-YYY."],
               ["Jira component", "The Jira issue component used to tag worklogs to a client (NA)."],
               ["Unmapped ref", "A worklog whose key is not in any mapping table — it is skipped during sync."],
             ].map(([term, def], i) => (
@@ -729,7 +710,7 @@ export default function HelpPage() {
           </tr></thead>
           <tbody>{[
             ["Squad Membership", "Yes", "Allocation %, effectiveTo", "Hard delete", "P2002 guard: unique person+squad+effectiveFrom"],
-            ["Person Role", "Yes", "Seniority, isPrimary, effectiveTo", "Hard delete", "Role type immutable after creation"],
+            ["Person Role", "Yes", "Seniority, effectiveTo", "Hard delete", "Role type immutable after creation"],
             ["Squad Capacity Config", "Yes", "hardBufferPct, softBufferPct", "Hard delete", "P2002 guard: unique squad+roleType"],
           ].map(([m,c,e,d,n], i) => (
             <tr key={m} style={{ background: i%2===0 ? "var(--surface)" : "var(--bg)" }}>
@@ -808,7 +789,6 @@ export default function HelpPage() {
             ["Holiday Entry", "Full CRUD via calendar entries panel."],
             ["Person Calendar Assignment", "Full CRUD. One open-ended row per person enforced."],
             ["Role Cascade Rule", "Create + delete. P2002 guard: unique client+fromRole+toRole."],
-            ["Tempo Account Mapping", "Create + delete. Jira component mappings are on the Components tab."],
           ].map(([m,w], i) => (
             <tr key={m} style={{ background: i%2===0 ? "var(--surface)" : "var(--bg)" }}>
               <td style={{...tdCell,fontWeight:600}}>{m}</td><td style={{...tdCell,color:"var(--text-muted)"}}>{w}</td>
