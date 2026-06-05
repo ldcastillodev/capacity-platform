@@ -6,12 +6,7 @@ import type { ClientFilters } from "./ClientsReport";
 import type { PersonFilters } from "./PersonsReport";
 import type { SquadFilters } from "./SquadsReport";
 
-const ROLE_TYPES = [
-  "frontend_dev", "backend_dev", "fullstack_dev", "devops", "qa",
-  "ux_designer", "product_manager", "project_manager", "tech_lead",
-  "solutions_architect", "data_engineer", "scrum_master", "business_analyst",
-  "seo", "content_author", "client_services",
-];
+const ROLE_TYPES = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
 
 interface BaseProps {
   open: boolean;

@@ -1,36 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  try {
-    const row = await prisma.squadCapacityConfig.update({
-      where: { id: Number(id) },
-      data: {
-      },
-      select: {
-        id: true, squadId: true, roleType: true,
-        squad: { select: { id: true, name: true } },
-      },
-    });
-    return NextResponse.json(row);
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+import { NextResponse } from "next/server";
+export async function PATCH() {
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
 }
-
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  try {
-    await prisma.squadCapacityConfig.delete({ where: { id: Number(id) } });
-    return NextResponse.json({ deleted: true });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+export async function DELETE() {
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
 }

@@ -6,7 +6,7 @@ import { api } from "@/lib/client";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 
-type SubTab = "clients" | "sows" | "contracts" | "extensions";
+type SubTab = "clients" | "sows" | "contracts";
 
 const thStyle: React.CSSProperties = {
   padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12,
@@ -413,7 +413,9 @@ function ContractsSection() {
             </div>
             <div><label style={labelStyle}>Contract Type *</label>
               <select style={inputStyle} value={form.type} onChange={e => setForm({ ...form, type: e.target.value as "base" | "change_order" })}>
-                <option value="base">Base</option><option value="change_order">Change Order</option>
+                <option value="base">Base</option>
+                <option value="change_order">Change Order</option>
+                <option value="extension">Extension</option>
               </select>
             </div>
           </div>
@@ -439,137 +441,7 @@ function ContractsSection() {
           <div style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28, width: 400, maxWidth: "90vw" }}>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>Delete Contract?</div>
             {apiError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{apiError}</p>}
-            <p style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>Cannot delete if extensions or declarations exist.</p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setDeleteId(null)} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-              <button onClick={() => deleteMutation.mutate(deleteId!)} disabled={deleteMutation.isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--critical)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: deleteMutation.isPending ? "not-allowed" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1 }}>{deleteMutation.isPending ? "Deleting…" : "Delete"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Extensions Section ────────────────────────────────────────────────────────
-
-interface ExtensionRecord {
-  id: number; contractId: number; hours: string; reason: string | null; targetMonth: string;
-  contract: { id: number; name: string; sow: { id: number; name: string; client: { id: number; name: string } } };
-}
-interface ContractOption { id: number; name: string; sow: { id: number; name: string; client: { id: number; name: string } }; }
-interface ExtensionFormState { contract_id: string; hours: string; target_month: string; reason: string; }
-
-function ExtensionsSection() {
-  const qc = useQueryClient();
-  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
-  const [editing, setEditing] = useState<ExtensionRecord | null>(null);
-  const [form, setForm] = useState<ExtensionFormState>({ contract_id: "", hours: "", target_month: new Date().toISOString().slice(0, 7) + "-01", reason: "" });
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  const { data: extensions = [], isLoading } = useQuery({
-    queryKey: ["mgmt-extensions"],
-    queryFn: () => api.get<ExtensionRecord[]>("/management/extensions").then(r => r.data),
-  });
-  const { data: allContracts = [] } = useQuery({
-    queryKey: ["mgmt-contracts-for-ext"],
-    queryFn: () => api.get<ContractOption[]>("/management/contracts").then(r => r.data),
-  });
-
-  const takenContractIds = new Set(extensions.map(e => e.contractId));
-  const availableContracts = allContracts.filter(c => !takenContractIds.has(c.id));
-
-  const createMutation = useMutation({
-    mutationFn: (f: ExtensionFormState) => api.post("/management/extensions", { contract_id: Number(f.contract_id), hours: parseFloat(f.hours), target_month: f.target_month, reason: f.reason || undefined }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-extensions"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
-  });
-  const updateMutation = useMutation({
-    mutationFn: ({ id, f }: { id: number; f: ExtensionFormState }) => api.patch(`/management/extensions/${id}`, { hours: parseFloat(f.hours), target_month: f.target_month, reason: f.reason || null }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-extensions"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
-  });
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/management/extensions/${id}`).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-extensions"] }); setDeleteId(null); },
-  });
-
-  function openCreate() { setForm({ contract_id: "", hours: "", target_month: new Date().toISOString().slice(0, 7) + "-01", reason: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
-  function openEdit(ex: ExtensionRecord) { setForm({ contract_id: ex.contractId.toString(), hours: ex.hours, target_month: fmtDate(ex.targetMonth), reason: ex.reason ?? "" }); setEditing(ex); setApiError(null); setModalMode("edit"); }
-  function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
-  function handleSubmit(e: React.FormEvent) { e.preventDefault(); setApiError(null); if (modalMode === "create") createMutation.mutate(form); else if (editing) updateMutation.mutate({ id: editing.id, f: form }); }
-  const isPending = createMutation.isPending || updateMutation.isPending;
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={openCreate} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ Add Extension</button>
-      </div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : extensions.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No extensions found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Contract</th><th style={thStyle}>Client</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Hours</th>
-                <th style={thStyle}>Target Month</th><th style={thStyle}>Reason</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr></thead>
-              <tbody>{extensions.map((ex, i) => (
-                <tr key={ex.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{ex.contract.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{ex.contract.sow.client.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, textAlign: "right" }}>{parseFloat(ex.hours).toFixed(0)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{fmtDate(ex.targetMonth).slice(0, 7)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{ex.reason ?? "—"}</td>
-                  <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => openEdit(ex)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                      <button onClick={() => setDeleteId(ex.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--critical)", background: "transparent", color: "var(--critical)", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
-      <ManagementModal isOpen={modalMode !== null} onClose={closeModal} title={modalMode === "create" ? "Add Extension" : `Edit Extension`}>
-        <form onSubmit={handleSubmit}>
-          {apiError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{apiError}</p>}
-          <div style={fieldStyle}><label style={labelStyle}>Contract *</label>
-            {modalMode === "create" ? (
-              <>
-                <select style={inputStyle} required value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value })}>
-                  <option value="">— Select contract —</option>
-                  {availableContracts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.sow.client.name})</option>)}
-                </select>
-                {availableContracts.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>All contracts already have extensions.</p>}
-              </>
-            ) : (
-              <input style={{ ...inputStyle, background: "var(--bg)", color: "var(--text-muted)" }} type="text" value={editing?.contract.name ?? ""} disabled />
-            )}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-            <div><label style={labelStyle}>Hours *</label><input style={inputStyle} type="number" min="0" step="0.5" required value={form.hours} onChange={e => setForm({ ...form, hours: e.target.value })} /></div>
-            <div><label style={labelStyle}>Target Month *</label><input style={inputStyle} type="date" required value={form.target_month} onChange={e => setForm({ ...form, target_month: e.target.value })} /></div>
-          </div>
-          <div style={fieldStyle}><label style={labelStyle}>Reason</label>
-            <input style={inputStyle} type="text" value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} placeholder="Optional" />
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-            <button type="button" onClick={closeModal} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-            <button type="submit" disabled={isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.7 : 1 }}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</button>
-          </div>
-        </form>
-      </ManagementModal>
-      {deleteId !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={() => setDeleteId(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-          <div style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28, width: 380, maxWidth: "90vw" }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>Delete extension?</div>
-            <p style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>This is permanent.</p>
+            <p style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>Cannot delete if declarations exist.</p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setDeleteId(null)} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
               <button onClick={() => deleteMutation.mutate(deleteId!)} disabled={deleteMutation.isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--critical)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: deleteMutation.isPending ? "not-allowed" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1 }}>{deleteMutation.isPending ? "Deleting…" : "Delete"}</button>
@@ -589,7 +461,6 @@ export function ClientsTab() {
     { id: "clients", label: "Clients" },
     { id: "sows", label: "Statements of Work" },
     { id: "contracts", label: "Contracts" },
-    { id: "extensions", label: "Extensions" },
   ];
   return (
     <div>
@@ -601,7 +472,6 @@ export function ClientsTab() {
       {sub === "clients" && <ClientsSection />}
       {sub === "sows" && <SowsSection />}
       {sub === "contracts" && <ContractsSection />}
-      {sub === "extensions" && <ExtensionsSection />}
     </div>
   );
 }

@@ -8,56 +8,12 @@ export const api = axios.create({
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type RoleType =
-  | "frontend_dev" | "backend_dev" | "fullstack_dev"
-  | "qa" | "devops" | "pm" | "ux" | "ux_designer"
-  | "data_engineer" | "tech_lead" | "sme"
-  | "product_manager" | "project_manager"
-  | "seo" | "content_author" | "client_services"
-  | "scrum_master" | "solutions_architect" | "business_analyst";
-
-export interface StaffingGap {
-  squadId: number;
-  squad_id: number;
-  roleType: string;
-  role_type: string;
-  month: string;
-  totalAvailableHours: number;
-  total_available_hours: number;
-  hardBufferHours: number;
-  hard_buffer_hours: number;
-  committedHours: number;
-  committed_hours: number;
-  actualHours: number;
-  actual_hours: number;
-  unplannedHours: number;
-  unplanned_hours: number;
-  actualNbHours: number;
-  actual_nb_hours: number;
-  netGapHours: number;
-  net_gap_hours: number;
-  commitmentRatio: number;
-  commitment_ratio: number;
-  isUnderstaffed: boolean;
-  is_understaffed: boolean;
-  isOverstaffed: boolean;
-  is_overstaffed: boolean;
-}
-
-export interface ConsumptionSummary {
-  clientId: number;
-  client_id: number;
-  month: string;
-  roleType: string | null;
-  role_type: string | null;
-  declaredHours: number;
-  declared_hours: number;
-  consumedHours: number;
-  consumed_hours: number;
-  remainingHours: number;
-  remaining_hours: number;
-  utilizationPct: number;
-  utilization_pct: number;
-}
+  | "dev"
+  | "qa" | "devops"
+  | "data" | "tl" 
+  | "product" | "project"
+  | "seo" | "content" |
+   "sre" | "design";
 
 export interface Client {
   id: number;
@@ -166,12 +122,6 @@ function norm<T>(data: T): T {
   return data;
 }
 
-export const fetchStaffingGaps = (params?: { squad_id?: number; month?: string }) =>
-  api.get<StaffingGap[]>("/analytics/staffing", { params }).then((r) => norm(r.data));
-
-export const fetchConsumption = (params?: { client_id?: number; month?: string }) =>
-  api.get<ConsumptionSummary[]>("/analytics/consumption", { params }).then((r) => norm(r.data));
-
 export const fetchClients = () =>
   api.get<Client[]>("/clients").then((r) => norm(r.data));
 
@@ -219,22 +169,6 @@ export const fetchDashboard = (month?: string) =>
 // ─── Burn snapshots ───────────────────────────────────────────────────────────
 
 export type AlertLevel = "safe" | "watch" | "warning" | "critical";
-
-export interface BurnSnapshot {
-  client_id: number;
-  week_start: string;
-  role_type: RoleType | null;
-  cumulative_hours: number;
-  expected_cumulative: number;
-  burn_rate_ratio: number;
-  projected_eom_hours: number;
-  pool_hours: number;
-  alert_level: AlertLevel;
-  projected_exhaustion_date: string | null;
-}
-
-export const fetchBurnSnapshots = (params?: { client_id?: number; month?: string }) =>
-  api.get<BurnSnapshot[]>("/analytics/burn", { params }).then((r) => norm(r.data));
 
 export interface BurnByContractRow {
   contract_id: number;

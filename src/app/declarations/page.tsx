@@ -17,21 +17,17 @@ import MonthNavigator from "@/components/MonthNavigator";
 import { useMonth, formatMonthDisplay, shiftMonth } from "@/hooks/useMonth";
 
 const ROLE_LABELS: Record<string, string> = {
-  frontend_dev: "Frontend Dev",
-  backend_dev: "Backend Dev",
-  fullstack_dev: "Fullstack Dev",
+  dev: "Dev",
   qa: "QA",
   devops: "DevOps",
-  ux_designer: "UX Designer",
-  product_manager: "Product Manager",
-  project_manager: "Project Manager",
-  tech_lead: "Tech Lead",
-  solutions_architect: "Solutions Architect",
-  data_engineer: "Data Engineer",
-  scrum_master: "Scrum Master",
+  design: "UX Designer",
+  product: "Product Manager",
+  project: "Project Manager",
+  tl: "Tech Lead",
+  sre: "Site Reliability Engineer",
+  data: "Data Engineer",
   business_analyst: "Business Analyst",
-  seo: "SEO",
-  content_author: "Content Author",
+  seo: "SEO"
 };
 
 const STATUS_STYLES: Record<DeclarationStatus, { background: string; color: string; label: string }> = {

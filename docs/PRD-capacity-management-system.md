@@ -9,7 +9,7 @@
 
 ## 1. Problem Statement
 
-A managed services agency with multiple multidisciplinary squads is flying blind on capacity. Each squad supports several clients under a retainer model (buckets of hours per month per role type, no rollover). Roles can be dedicated to one squad or shared across squads. Developers are typed (frontend / backend). People have access-controlled visibility into specific clients only.
+A managed services agency with multiple multidisciplinary squads is flying blind on capacity. Each squad supports several clients under a retainer model (buckets of hours per month per role type, no rollover). Roles can be dedicated to one squad or shared across squads. 
 
 The agency has no centralized system to answer the following questions with confidence:
 
@@ -77,10 +77,10 @@ Owns retainer contract accuracy. Needs to know which clients are under- or over-
 ### MVP (Phase 1) — Must ship to deliver core value
 
 **F1: Role and People Registry**
-Define and maintain the roster of people, their role types (frontend dev, backend dev, designer, PM, QA, etc.), their squad assignment(s) (dedicated or shared with split percentage), and their client access list.
+Define and maintain the roster of people, their role types (dev, designer, PM, QA, etc.), their squad assignment(s) (dedicated or shared with split percentage), and their client access list.
 
 **F2: Client and Retainer Contract Registry**
-Define and maintain clients, their assigned squad(s), and their monthly retainer buckets per role type (e.g., Client A: 40h frontend dev, 20h PM, 10h QA). Support multiple role buckets per client. Store contract effective dates and version history.
+Define and maintain clients, their assigned squad(s), and their monthly retainer buckets per role type (e.g., Client A: 40h dev, 20h PM, 10h QA). Support multiple role buckets per client. Store contract effective dates and version history.
 
 **F3: Hours Ingestion and Mapping**
 Accept logged hours (via integration with a time-tracking tool or CSV import). Map each logged entry to: person, role type, client, squad, and month. Hours logged against a client by a person not in that client's access list must be flagged, not silently accepted.

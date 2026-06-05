@@ -177,7 +177,7 @@ function MembershipsSection() {
 
 // ── Person Roles ─────────────────────────────────────────────────────────────
 
-const ROLE_TYPES = ["frontend_dev","backend_dev","fullstack_dev","devops","qa","ux_designer","product_manager","project_manager","tech_lead","solutions_architect","data_engineer","scrum_master","business_analyst","seo","content_author","client_services"];
+const ROLE_TYPES = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
 const SENIORITIES = ["L1","L2","L3","L4","L5"];
 
 interface RoleRow {
@@ -190,7 +190,7 @@ function PersonRolesSection() {
   const qc = useQueryClient();
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<RoleRow | null>(null);
-  const [form, setForm] = useState({ person_id: "", role_type: "frontend_dev", seniority: "", effective_from: new Date().toISOString().split("T")[0], effective_to: "" });
+  const [form, setForm] = useState({ person_id: "", role_type: "dev", seniority: "", effective_from: new Date().toISOString().split("T")[0], effective_to: "" });
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -215,7 +215,7 @@ function PersonRolesSection() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-person-roles"] }); setDeleteId(null); },
   });
 
-  function openCreate() { setForm({ person_id: "", role_type: "frontend_dev", seniority: "", effective_from: new Date().toISOString().split("T")[0], effective_to: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
+  function openCreate() { setForm({ person_id: "", role_type: "dev", seniority: "", effective_from: new Date().toISOString().split("T")[0], effective_to: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
   function openEdit(row: RoleRow) { setForm({ person_id: row.personId.toString(), role_type: row.roleType, seniority: row.seniority ?? "", effective_from: row.effectiveFrom.split("T")[0], effective_to: row.effectiveTo ? row.effectiveTo.split("T")[0] : "" }); setEditing(row); setApiError(null); setModalMode("edit"); }
   function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
   function handleSubmit(e: React.FormEvent) { e.preventDefault(); setApiError(null); if (modalMode === "create") createMutation.mutate(form); else if (editing) updateMutation.mutate({ id: editing.id, f: form }); }
@@ -315,7 +315,7 @@ function CapacityConfigSection() {
   const qc = useQueryClient();
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<CapacityRow | null>(null);
-  const [form, setForm] = useState({ squad_id: "", role_type: "frontend_dev", hard_buffer_pct: "15", soft_buffer_pct: "10" });
+  const [form, setForm] = useState({ squad_id: "", role_type: "dev", hard_buffer_pct: "15", soft_buffer_pct: "10" });
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -337,7 +337,7 @@ function CapacityConfigSection() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-capacity-configs"] }); setDeleteId(null); },
   });
 
-  function openCreate() { setForm({ squad_id: "", role_type: "frontend_dev", hard_buffer_pct: "15", soft_buffer_pct: "10" }); setEditing(null); setApiError(null); setModalMode("create"); }
+  function openCreate() { setForm({ squad_id: "", role_type: "dev", hard_buffer_pct: "15", soft_buffer_pct: "10" }); setEditing(null); setApiError(null); setModalMode("create"); }
   function openEdit(row: CapacityRow) { setForm({ squad_id: row.squadId.toString(), role_type: row.roleType, hard_buffer_pct: (parseFloat(row.hardBufferPct) * 100).toFixed(1), soft_buffer_pct: (parseFloat(row.softBufferPct) * 100).toFixed(1) }); setEditing(row); setApiError(null); setModalMode("edit"); }
   function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
   function handleSubmit(e: React.FormEvent) { e.preventDefault(); setApiError(null); if (modalMode === "create") createMutation.mutate(form); else if (editing) updateMutation.mutate({ id: editing.id, f: form }); }

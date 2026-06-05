@@ -9,7 +9,7 @@ export async function PATCH(
   const body = await req.json() as {
     name?: string;
     hour_type?: "monthly" | "total";
-    type?: "base" | "change_order";
+    type?: "base" | "change_order" | "extension";
     assigned_hours?: number;
     start_date?: string;
     end_date?: string | null;
@@ -56,14 +56,11 @@ export async function DELETE(
   const { id } = await params;
   const contractId = Number(id);
 
-  const [extensionCount, declarationCount] = await Promise.all([
-    prisma.extension.count({ where: { contractId } }),
-    prisma.monthlyRoleDeclaration.count({ where: { contractId } }),
-  ]);
+  const declarationCount = await prisma.monthlyRoleDeclaration.count({ where: { contractId } });
 
-  if (extensionCount > 0 || declarationCount > 0) {
+  if (declarationCount > 0) {
     return NextResponse.json(
-      { error: "Cannot delete a contract that has extensions or declarations." },
+      { error: "Cannot delete a contract that has declarations." },
       { status: 400 },
     );
   }

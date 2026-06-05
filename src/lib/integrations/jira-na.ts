@@ -7,6 +7,12 @@ type JiraMappingWithContract = {
   contract: { sow: { clientId: number } };
 };
 
+type ContractWithExtension = {
+  id: number;
+  assignedHours: number;
+  childContract: { id: number; type: string } | null;
+};
+
 interface JiraWorklog {
   id: string;
   author: { accountId: string, emailAddress: string };
@@ -37,6 +43,8 @@ interface WorklogLookupContext {
   personRoles: PersonRole[];
   squadMemberships: SquadMembership[];
   existingRefs: Set<string | null>;
+  contractById: Map<number, ContractWithExtension>;
+  consumedByContract: Map<number, number>;
 }
 
 export class JiraNAConnector {
@@ -81,7 +89,6 @@ export class JiraNAConnector {
       }
 
       // Pre-fetch all lookup data in parallel
-      const now = new Date();
       const [
         persons,
         nonBillableSourceMappings,
@@ -89,6 +96,8 @@ export class JiraNAConnector {
         personRoles,
         squadMemberships,
         existingHourRecords,
+        allContracts,
+        consumedRows,
       ] = await Promise.all([
         prisma.person.findMany(),
         prisma.nonBillableSourceMapping.findMany({ where: { source: "jira_na" } }),
@@ -99,6 +108,18 @@ export class JiraNAConnector {
           where: { externalRef: { in: allExternalRefs } },
           select: { externalRef: true },
         }),
+        prisma.contract.findMany({
+          select: {
+            id: true,
+            assignedHours: true,
+            childContract: { select: { id: true, type: true } },
+          },
+        }),
+        prisma.hourRecord.groupBy({
+          by: ["contractId"],
+          _sum: { hours: true },
+          where: { contractId: { not: null } },
+        }),
       ]);
 
       // Build lookup maps
@@ -107,6 +128,14 @@ export class JiraNAConnector {
         nonBillableSourceMappings.map(m => [m.identifierValue, m]),
       );
       const existingRefs = new Set(existingHourRecords.map(r => r.externalRef));
+      const contractById = new Map(
+        allContracts.map(c => [c.id, { ...c, assignedHours: parseFloat(c.assignedHours.toString()) }]),
+      );
+      const consumedByContract = new Map(
+        consumedRows
+          .filter(r => r.contractId !== null)
+          .map(r => [r.contractId!, parseFloat((r._sum.hours ?? 0).toString())]),
+      );
 
       const ctx: WorklogLookupContext = {
         personByEmail,
@@ -115,6 +144,8 @@ export class JiraNAConnector {
         personRoles,
         squadMemberships,
         existingRefs,
+        contractById,
+        consumedByContract,
       };
 
       await this.processWorklogs(issues, ctx, result);
@@ -229,6 +260,17 @@ export class JiraNAConnector {
             continue;
           }
 
+          // Route to extension contract if base has exhausted its assignedHours
+          const baseContractId = clientMapping.contractId;
+          let contractId = baseContractId;
+          const baseContract = ctx.contractById.get(baseContractId);
+          if (baseContract?.childContract?.type === "extension") {
+            const consumed = ctx.consumedByContract.get(baseContractId) ?? 0;
+            if (consumed >= baseContract.assignedHours) {
+              contractId = baseContract.childContract.id;
+            }
+          }
+
           hourRecordsToCreate.push({
             personId: person.id,
             squadId: squadMembership.squadId,
@@ -239,7 +281,7 @@ export class JiraNAConnector {
             source: "jira_na" as const,
             externalRef,
             issueKey: issue.key,
-            contractId: clientMapping.contractId,
+            contractId,
           });
           result.created++;
         } catch (err) {

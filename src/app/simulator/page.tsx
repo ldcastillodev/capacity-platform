@@ -5,11 +5,19 @@ import { useMutation } from "@tanstack/react-query";
 import { PlusCircle, Trash2 } from "lucide-react";
 import { runSimulation, type RoleType, type SimulationResult } from "@/lib/client";
 
-const ROLES: RoleType[] = ["frontend_dev","backend_dev","fullstack_dev","qa","devops","pm","ux","data_engineer","tech_lead","sme"];
-const ROLE_LABELS: Partial<Record<RoleType, string>> = {
-  frontend_dev: "Frontend Dev", backend_dev: "Backend Dev", fullstack_dev: "Fullstack Dev",
-  qa: "QA", devops: "DevOps", pm: "PM", ux: "UX", data_engineer: "Data Engineer",
-  tech_lead: "Tech Lead", sme: "SME",
+const ROLES: RoleType[] = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
+const ROLE_LABELS: Record<string, string> = {
+  dev: "Dev",
+  qa: "QA",
+  devops: "DevOps",
+  design: "UX Designer",
+  product: "Product Manager",
+  project: "Project Manager",
+  tl: "Tech Lead",
+  sre: "Site Reliability Engineer",
+  data: "Data Engineer",
+  content: "Content Author",
+  seo: "SEO"
 };
 const ACTION_COLOR: Record<string, string> = { available: "var(--safe)", redistribute: "var(--watch)", hire_needed: "var(--critical)" };
 
@@ -28,7 +36,7 @@ export default function SimulatorPage() {
   const [name, setName] = useState("");
   const [startMonth, setStartMonth] = useState("");
   const [poolHours, setPoolHours] = useState("");
-  const [roles, setRoles] = useState<{ role_type: RoleType; hours: string }[]>([{ role_type: "backend_dev", hours: "" }]);
+  const [roles, setRoles] = useState<{ role_type: RoleType; hours: string }[]>([{ role_type: "dev", hours: "" }]);
   const [result, setResult] = useState<SimulationResult | null>(null);
 
   const { mutate, isPending } = useMutation({ mutationFn: runSimulation, onSuccess: (data) => setResult(data) });

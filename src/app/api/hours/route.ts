@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as {
     person_id: number;
     client_id: number;
+    squad_id: number;
     date: string;
     hours: number;
     role_type: string;
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     data: {
       personId: body.person_id,
       clientId: body.client_id,
+      squadId: body.squad_id,
       date: new Date(body.date),
       hours: body.hours,
       roleType: body.role_type as never,

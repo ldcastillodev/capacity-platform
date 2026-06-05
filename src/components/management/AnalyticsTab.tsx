@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
 
-type SubTab = "consumption" | "burn" | "staffing" | "anomalies" | "suggestions" | "nb-summaries";
+type SubTab = "anomalies" | "suggestions";
 
 const thStyle: React.CSSProperties = {
   padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12,
@@ -36,154 +36,6 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_COLORS[status] ?? { bg: "var(--border)", color: "var(--text-muted)" };
   return <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: s.bg, color: s.color, whiteSpace: "nowrap" }}>{status.replace(/_/g, " ")}</span>;
-}
-
-// ─── Consumption ──────────────────────────────────────────────────────────────
-
-interface ConsumptionRow {
-  id: number; clientId: number; month: string; roleType: string;
-  declaredHours: string; consumedHours: string; remainingHours: string; utilizationPct: string;
-  client: { id: number; name: string };
-}
-
-function ConsumptionSection() {
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-consumption"],
-    queryFn: () => api.get<ConsumptionRow[]>("/management/analytics/consumption").then(r => r.data),
-  });
-
-  return (
-    <div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No consumption data found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Client</th>
-                <th style={thStyle}>Month</th>
-                <th style={thStyle}>Role</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Declared Hrs</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Consumed Hrs</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Remaining Hrs</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Utilization %</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.client.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.month.split("T")[0].slice(0, 7)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)" }}>{row.roleType?.replace(/_/g, " ") ?? "—"}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.declaredHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.consumedHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.remainingHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{row.utilizationPct ? (parseFloat(row.utilizationPct) * 100).toFixed(1) + "%" : "—"}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Burn ─────────────────────────────────────────────────────────────────────
-
-interface BurnRow {
-  id: number; clientId: number; weekStart: string; roleType: string | null;
-  cumulativeHours: string; expectedCumulative: string; burnRateRatio: string;
-  projectedEomHours: string; poolHours: string; alertLevel: string;
-  client: { id: number; name: string };
-}
-
-function BurnSection() {
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-burn"],
-    queryFn: () => api.get<BurnRow[]>("/management/analytics/burn").then(r => r.data),
-  });
-
-  return (
-    <div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No burn snapshots found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Client</th>
-                <th style={thStyle}>Week</th>
-                <th style={thStyle}>Role</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Cumulative</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Expected</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Burn Ratio</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Proj EOM</th>
-                <th style={thStyle}>Alert</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.client.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.weekStart.split("T")[0]}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)" }}>{row.roleType ? row.roleType.replace(/_/g," ") : "—"}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.cumulativeHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.expectedCumulative).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.burnRateRatio).toFixed(2)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.projectedEomHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 12 }}>{row.alertLevel}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Staffing ─────────────────────────────────────────────────────────────────
-
-interface StaffingRow {
-  id: number; squadId: number; month: string; roleType: string;
-  totalAvailableHours: string; committedHours: string; netGapHours: string;
-  isUnderstaffed: boolean; isOverstaffed: boolean;
-  squad: { id: number; name: string };
-}
-
-function StaffingSection() {
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-staffing"],
-    queryFn: () => api.get<StaffingRow[]>("/management/analytics/staffing").then(r => r.data),
-  });
-
-  return (
-    <div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No staffing data found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Squad</th>
-                <th style={thStyle}>Month</th>
-                <th style={thStyle}>Role</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Available Hrs</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Committed Hrs</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Net Gap</th>
-                <th style={thStyle}>Status</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.squad.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.month.split("T")[0].slice(0, 7)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)" }}>{row.roleType?.replace(/_/g, " ") ?? "—"}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.totalAvailableHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.committedHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.netGapHours).toFixed(1)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 12 }}>{row.isUnderstaffed ? <span style={{ color: "var(--critical)" }}>Under</span> : row.isOverstaffed ? <span style={{ color: "var(--watch)" }}>Over</span> : <span style={{ color: "var(--safe)" }}>OK</span>}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
-    </div>
-  );
 }
 
 // ─── Anomaly Flags ────────────────────────────────────────────────────────────
@@ -420,71 +272,22 @@ function SuggestionsSection() {
   );
 }
 
-// ─── NB Summaries ─────────────────────────────────────────────────────────────
-
-interface NBSummaryRow {
-  id: number; personId: number | null; squadId: number; month: string;
-  categoryType: string; totalHours: string; nonbillablePct: string;
-  person: { id: number; name: string } | null;
-  squad: { id: number; name: string };
-}
-
-function NBSummariesSection() {
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-nb-summaries"],
-    queryFn: () => api.get<NBSummaryRow[]>("/management/analytics/nb-summaries").then(r => r.data),
-  });
-
-  return (
-    <div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No non-billable summary data found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Person</th>
-                <th style={thStyle}>Squad</th>
-                <th style={thStyle}>Month</th>
-                <th style={thStyle}>Category Type</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Total Hours</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.person?.name ?? "—"}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.squad.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.month.split("T")[0].slice(0, 7)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)" }}>{row.categoryType?.replace(/_/g," ") ?? "—"}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.totalHours).toFixed(1)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function AnalyticsTab() {
-  const [subTab, setSubTab] = useState<SubTab>("consumption");
+  const [subTab, setSubTab] = useState<SubTab>("anomalies");
 
   return (
     <div>
       <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: 20 }}>
-        {(["consumption", "burn", "staffing", "anomalies", "suggestions", "nb-summaries"] as SubTab[]).map(t => (
+        {(["anomalies", "suggestions"] as SubTab[]).map(t => (
           <button key={t} style={subTabBtn(subTab === t)} onClick={() => setSubTab(t)}>
-            {t === "consumption" ? "Consumption" : t === "burn" ? "Burn" : t === "staffing" ? "Staffing" : t === "anomalies" ? "Anomaly Flags" : t === "suggestions" ? "Suggestions" : "NB Summaries"}
+            {t === "anomalies" ? "Anomaly Flags" : "Suggestions"}
           </button>
         ))}
       </div>
-      {subTab === "consumption" && <ConsumptionSection />}
-      {subTab === "burn" && <BurnSection />}
-      {subTab === "staffing" && <StaffingSection />}
       {subTab === "anomalies" && <AnomalyFlagsSection />}
       {subTab === "suggestions" && <SuggestionsSection />}
-      {subTab === "nb-summaries" && <NBSummariesSection />}
     </div>
   );
 }

@@ -50,7 +50,7 @@ function errMsg(e: unknown) {
   return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e);
 }
 
-const ROLE_TYPES = ["frontend_dev","backend_dev","fullstack_dev","devops","qa","ux_designer","product_manager","project_manager","tech_lead","solutions_architect","data_engineer","scrum_master","business_analyst","seo","content_author","client_services"];
+const ROLE_TYPES = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
 
 interface ClientOption { id: number; name: string }
 interface SquadOption  { id: number; name: string }
@@ -70,7 +70,7 @@ function DeclarationsSection() {
   const qc = useQueryClient();
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<DeclarationRow | null>(null);
-  const [form, setForm] = useState({ client_id: "", squad_id: "", month: "", role_type: "frontend_dev", declared_hours: "", contract_id: "", override_reason: "" });
+  const [form, setForm] = useState({ client_id: "", squad_id: "", month: "", role_type: "dev", declared_hours: "", contract_id: "", override_reason: "" });
   const [apiError, setApiError] = useState<string | null>(null);
   const [actionRow, setActionRow] = useState<DeclarationRow | null>(null);
   const [actionType, setActionType] = useState<"confirm" | "lock" | null>(null);
@@ -103,7 +103,7 @@ function DeclarationsSection() {
     onError: (e: unknown) => setActionError(errMsg(e)),
   });
 
-  function openCreate() { setForm({ client_id: "", squad_id: "", month: "", role_type: "frontend_dev", declared_hours: "", contract_id: "", override_reason: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
+  function openCreate() { setForm({ client_id: "", squad_id: "", month: "", role_type: "dev", declared_hours: "", contract_id: "", override_reason: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
   function openEdit(row: DeclarationRow) { setForm({ client_id: row.clientId.toString(), squad_id: row.squadId.toString(), month: row.month.split("T")[0].slice(0,7), role_type: row.roleType, declared_hours: parseFloat(row.declaredHours).toFixed(0), contract_id: row.contractId?.toString() ?? "", override_reason: "" }); setEditing(row); setApiError(null); setModalMode("edit"); }
   function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
   function closeAction() { setActionRow(null); setActionType(null); setActionError(null); setActionForm({ submitted_by: "" }); }

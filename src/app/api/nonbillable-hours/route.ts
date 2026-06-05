@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
     person_id: number;
+    squad_id: number;
     date: string;
     hours: number;
     category_id: number;
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
   const entry = await prisma.hourRecord.create({
     data: {
       personId: body.person_id,
+      squadId: body.squad_id,
       clientId: null,
       date: new Date(body.date),
       hours: body.hours,
