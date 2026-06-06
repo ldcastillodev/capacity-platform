@@ -1,29 +1,86 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --bg: #FFF6F4;
-  --surface: #FDFDFD;
-  --border: #e4e7ec;
-  --text: #282A33;
-  --text-muted: #667085;
-  --primary: #FF481A;
-  --primary-light: #FFF6F4;
-  --safe: #16a34a;
-  --safe-bg: #f0fdf4;
-  --watch: #d97706;
-  --watch-bg: #fffbeb;
-  --warning: #ea580c;
-  --warning-bg: #fff7ed;
-  --critical: #dc2626;
-  --critical-bg: #fef2f2;
-  --nav-width: 220px;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
-  color: var(--text);
-  background: var(--bg);
+@layer base {
+  :root {
+    /* shadcn — light (brand: orange on warm off-white) */
+    --background: 11 100% 98%;
+    --foreground: 229 12% 18%;
+    --card: 0 0% 99%;
+    --card-foreground: 229 12% 18%;
+    --popover: 0 0% 99%;
+    --popover-foreground: 229 12% 18%;
+    --primary: 12 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 229 12% 18%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 221 13% 46%;
+    --accent: 11 100% 98%;
+    --accent-foreground: 12 100% 55%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 17% 91%;
+    --input: 217 17% 91%;
+    --ring: 12 100% 55%;
+    --radius: 0.75rem;
+
+    /* legacy tokens — kept until per-page migration completes */
+    --legacy-primary: #FF481A;
+    --legacy-border: #e4e7ec;
+    --bg: #FFF6F4;
+    --surface: #FDFDFD;
+    --text: #282A33;
+    --text-muted: #667085;
+    --primary-light: #FFF6F4;
+    --safe: #16a34a;
+    --safe-bg: #f0fdf4;
+    --watch: #d97706;
+    --watch-bg: #fffbeb;
+    --warning: #ea580c;
+    --warning-bg: #fff7ed;
+    --critical: #dc2626;
+    --critical-bg: #fef2f2;
+    --nav-width: 220px;
+  }
+
+  .dark {
+    --background: 229 12% 10%;
+    --foreground: 0 0% 98%;
+    --card: 229 12% 13%;
+    --card-foreground: 0 0% 98%;
+    --popover: 229 12% 13%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 12 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 229 12% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 229 12% 18%;
+    --muted-foreground: 221 13% 65%;
+    --accent: 229 12% 18%;
+    --accent-foreground: 12 100% 65%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 229 12% 20%;
+    --input: 229 12% 20%;
+    --ring: 12 100% 55%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  button { cursor: pointer; font-family: inherit; }
 }
-
-body { min-height: 100vh; }
-
-a { color: inherit; text-decoration: none; }
-button { cursor: pointer; font-family: inherit; }

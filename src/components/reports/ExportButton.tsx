@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import type { ColumnDef } from "./ReportTable";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   fetchAll: () => Promise<Record<string, unknown>[]>;
@@ -19,7 +20,6 @@ export default function ExportButton({ fetchAll, columnDefs, visibleColumns, fil
       const XLSX = await import("xlsx");
       const rows = await fetchAll();
       const visible = columnDefs.filter((c) => visibleColumns.has(c.key));
-
       const sheetData = rows.map((row) => {
         const out: Record<string, unknown> = {};
         for (const col of visible) {
@@ -28,7 +28,6 @@ export default function ExportButton({ fetchAll, columnDefs, visibleColumns, fil
         }
         return out;
       });
-
       const ws = XLSX.utils.json_to_sheet(sheetData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Report");
@@ -39,22 +38,8 @@ export default function ExportButton({ fetchAll, columnDefs, visibleColumns, fil
   }
 
   return (
-    <button
-      onClick={handleExport}
-      disabled={loading}
-      style={{
-        padding: "7px 16px",
-        borderRadius: 8,
-        border: "1px solid var(--border)",
-        background: loading ? "var(--bg)" : "var(--primary)",
-        color: loading ? "var(--text-muted)" : "#FDFDFD",
-        fontSize: 13,
-        fontWeight: 500,
-        cursor: loading ? "not-allowed" : "pointer",
-        transition: "background 0.15s",
-      }}
-    >
+    <Button variant="outline" onClick={handleExport} disabled={loading}>
       {loading ? "Exporting…" : "Export XLSX"}
-    </button>
+    </Button>
   );
 }

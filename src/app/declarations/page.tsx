@@ -13,29 +13,46 @@ import {
   type Declaration,
   type DeclarationStatus,
 } from "@/lib/client";
-import MonthNavigator from "@/components/MonthNavigator";
+import { MonthNavigator } from "@/components/app/MonthNavigator";
+import { PageHeader } from "@/components/app/PageHeader";
 import { useMonth, formatMonthDisplay, shiftMonth } from "@/hooks/useMonth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const ROLE_LABELS: Record<string, string> = {
-  dev: "Dev",
-  qa: "QA",
-  devops: "DevOps",
-  design: "UX Designer",
-  product: "Product Manager",
-  project: "Project Manager",
-  tl: "Tech Lead",
-  sre: "Site Reliability Engineer",
-  data: "Data Engineer",
-  business_analyst: "Business Analyst",
-  seo: "SEO"
+  dev: "Dev", qa: "QA", devops: "DevOps", design: "UX Designer",
+  product: "Product Manager", project: "Project Manager", tl: "Tech Lead",
+  sre: "Site Reliability Engineer", data: "Data Engineer",
+  business_analyst: "Business Analyst", seo: "SEO",
 };
 
-const STATUS_STYLES: Record<DeclarationStatus, { background: string; color: string; label: string }> = {
-  derived:   { background: "#fff8e1", color: "#b45309", label: "⚡ Derived" },
-  draft:     { background: "#eff6ff", color: "#1d4ed8", label: "Draft" },
-  confirmed: { background: "#f0fdf4", color: "#15803d", label: "✓ Confirmed" },
-  locked:    { background: "var(--bg)", color: "var(--text-muted)", label: "🔒 Locked" },
+const STATUS_CFG: Record<DeclarationStatus, { label: string; className: string }> = {
+  derived:   { label: "⚡ Derived",    className: "bg-amber-50 text-amber-700 border-amber-200" },
+  draft:     { label: "Draft",         className: "bg-blue-50 text-blue-700 border-blue-200" },
+  confirmed: { label: "✓ Confirmed",   className: "bg-green-50 text-green-700 border-green-200" },
+  locked:    { label: "🔒 Locked",     className: "bg-muted text-muted-foreground border-border" },
 };
+
+function DeclarationBadge({ status }: { status: DeclarationStatus }) {
+  const cfg = STATUS_CFG[status];
+  return (
+    <Badge variant="outline" className={cn("text-xs font-semibold whitespace-nowrap", cfg.className)}>
+      {cfg.label}
+    </Badge>
+  );
+}
 
 function EditableHours({ declaration, onSaved }: { declaration: Declaration; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
@@ -55,30 +72,24 @@ function EditableHours({ declaration, onSaved }: { declaration: Declaration; onS
     if (e.key === "Escape") setEditing(false);
   };
 
-  if (saving) return <span style={{ color: "var(--text-muted)", fontSize: 12 }}>Saving…</span>;
+  if (saving) return <span className="text-xs text-muted-foreground">Saving…</span>;
 
   if (editing) return (
-    <input
+    <Input
       type="number" min="0" step="0.5" value={inputVal}
       onChange={(e) => setInputVal(e.target.value)}
       onBlur={handleSave} onKeyDown={handleKeyDown} autoFocus
-      style={{ width: 80, padding: "4px 8px", border: "1px solid var(--primary)", borderRadius: 4, fontSize: 13 }}
+      className="w-20 h-7 text-sm"
     />
   );
 
   return (
-    <span onClick={() => { setInputVal(declaration.declared_hours); setEditing(true); }} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <span
+      onClick={() => { setInputVal(declaration.declared_hours); setEditing(true); }}
+      className="cursor-pointer inline-flex items-center gap-1"
+    >
       {parseFloat(declaration.declared_hours).toFixed(1)}h
-      <Pencil size={11} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-    </span>
-  );
-}
-
-function StatusBadge({ status }: { status: DeclarationStatus }) {
-  const s = STATUS_STYLES[status];
-  return (
-    <span style={{ background: s.background, color: s.color, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-      {s.label}
+      <Pencil size={11} className="text-muted-foreground flex-shrink-0" />
     </span>
   );
 }
@@ -147,134 +158,145 @@ export default function DeclarationsPage() {
   const allDerived = (declarations ?? []).filter((d) => d.status === "derived");
   const prevMonthDisplay = formatMonthDisplay(shiftMonth(month, -1));
 
-  const thStyle: React.CSSProperties = { padding: "8px 14px", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg)", borderBottom: "1px solid var(--border)", textAlign: "left", whiteSpace: "nowrap" };
-  const tdStyle: React.CSSProperties = { padding: "10px 14px", fontSize: 13, borderBottom: "1px solid var(--border)" };
-
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Declarations</h1>
-          <p style={{ color: "var(--text-muted)", marginTop: 4 }}>{formatMonthDisplay(month)} · Role allocation per squad and client</p>
-        </div>
-        <MonthNavigator month={month} onChange={setMonth} />
-      </div>
+      <PageHeader
+        title="Declarations"
+        description={`${formatMonthDisplay(month)} · Role allocation per squad and client`}
+        actions={<MonthNavigator month={month} onChange={setMonth} />}
+      />
 
-      {isLoading && <p style={{ color: "var(--text-muted)" }}>Loading declarations…</p>}
+      {isLoading && (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
+        </div>
+      )}
 
       {!isLoading && allDerived.length > 0 && (
-        <div style={{ background: "#fff8e1", border: "1px solid #fbbf24", borderRadius: 10, padding: "12px 18px", marginBottom: 20, fontSize: 13, color: "#92400e" }}>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 mb-5 text-sm text-amber-800">
           <strong>{allDerived.length}</strong> declaration{allDerived.length !== 1 ? "s" : ""} auto-derived from <strong>{prevMonthDisplay}</strong>. Review hours and confirm to lock them in.
         </div>
       )}
 
       {!isLoading && (declarations ?? []).length === 0 && (
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 14 }}>
-          No declarations found for this period. Run analytics refresh to generate derived declarations.
-        </div>
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground text-sm">
+            No declarations found for this period. Run analytics refresh to generate derived declarations.
+          </CardContent>
+        </Card>
       )}
 
-      {squadGroups.map(({ squadId, clientGroups }) => {
-        const squadName = squadId != null ? (squadMap[squadId] ?? `Squad ${squadId}`) : "Unassigned";
-        const allDecls = clientGroups.flatMap((cg) => cg.rows);
-        const confirmedCount = allDecls.filter((d) => d.status === "confirmed" || d.status === "locked").length;
-        const derivedInSquad = allDecls.filter((d) => d.status === "derived");
-        const isConfirmingAll = confirmingSquads.has(squadId ?? -1);
+      <div className="space-y-4">
+        {squadGroups.map(({ squadId, clientGroups }) => {
+          const squadName = squadId != null ? (squadMap[squadId] ?? `Squad ${squadId}`) : "Unassigned";
+          const allDecls = clientGroups.flatMap((cg) => cg.rows);
+          const confirmedCount = allDecls.filter((d) => d.status === "confirmed" || d.status === "locked").length;
+          const derivedInSquad = allDecls.filter((d) => d.status === "derived");
+          const isConfirmingAll = confirmingSquads.has(squadId ?? -1);
 
-        return (
-          <div key={squadId ?? "null"} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 16, overflow: "hidden" }}>
-            <div style={{ padding: "14px 20px", background: "var(--bg)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>{squadName}</span>
-                <span style={{ background: "var(--primary-light)", color: "var(--primary)", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>
-                  {confirmedCount}/{allDecls.length} confirmed
-                </span>
-              </div>
-              {derivedInSquad.length > 0 && (
-                <button
-                  onClick={() => handleConfirmAll(squadId ?? -1, derivedInSquad)}
-                  disabled={isConfirmingAll}
-                  style={{ padding: "6px 14px", background: "var(--safe)", color: "#FDFDFD", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: isConfirmingAll ? "not-allowed" : "pointer", opacity: isConfirmingAll ? 0.7 : 1 }}
-                >
-                  {isConfirmingAll ? "Confirming…" : "Confirm All Derived"}
-                </button>
-              )}
-            </div>
-
-            {clientGroups.map(({ clientId, rows }) => {
-              const clientName = clientMap[clientId] ?? `Client ${clientId}`;
-              const poolTotal = rows.reduce((sum, d) => sum + parseFloat(d.declared_hours), 0);
-              const derivedInClient = rows.filter((d) => d.status === "derived");
-              const allConfirmed = rows.every((d) => d.status === "confirmed" || d.status === "locked");
-              const isConfirmingClient = confirmingClients.has(clientId);
-
-              return (
-                <div key={clientId}>
-                  <div style={{ padding: "8px 16px", background: "var(--surface)", fontSize: 13, color: "var(--text-muted)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <span style={{ fontWeight: 600, color: "var(--text)" }}>{clientName}</span>
-                      <span>Pool: {poolTotal.toFixed(0)}h</span>
-                      {allConfirmed ? (
-                        <span style={{ color: "#15803d", background: "#f0fdf4", borderRadius: 6, padding: "1px 7px", fontSize: 11, fontWeight: 600 }}>✓ All confirmed</span>
-                      ) : derivedInClient.length > 0 ? (
-                        <span style={{ color: "#b45309", background: "#fff8e1", borderRadius: 6, padding: "1px 7px", fontSize: 11, fontWeight: 600 }}>{derivedInClient.length} derived</span>
-                      ) : null}
-                    </div>
-                    {derivedInClient.length > 0 && (
-                      <button
-                        onClick={() => handleConfirmClient(clientId, derivedInClient)}
-                        disabled={isConfirmingClient}
-                        style={{ padding: "4px 12px", background: "transparent", color: "var(--safe)", border: "1px solid var(--safe)", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: isConfirmingClient ? "not-allowed" : "pointer", opacity: isConfirmingClient ? 0.7 : 1, whiteSpace: "nowrap" }}
-                      >
-                        {isConfirmingClient ? "Confirming…" : "Confirm All"}
-                      </button>
-                    )}
-                  </div>
-
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr>
-                        <th style={thStyle}>Role</th>
-                        <th style={thStyle}>Hours</th>
-                        <th style={thStyle}>Status</th>
-                        <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((decl) => {
-                        const roleLabel = ROLE_LABELS[decl.role_type] ?? decl.role_type;
-                        const isEditable = decl.status !== "locked";
-                        return (
-                          <tr key={decl.id}>
-                            <td style={tdStyle}>{roleLabel}</td>
-                            <td style={tdStyle}>
-                              {isEditable
-                                ? <EditableHours declaration={decl} onSaved={handleInvalidate} />
-                                : <span>{parseFloat(decl.declared_hours).toFixed(1)}h</span>}
-                            </td>
-                            <td style={tdStyle}><StatusBadge status={decl.status} /></td>
-                            <td style={{ ...tdStyle, textAlign: "right" }}>
-                              {(decl.status === "derived" || decl.status === "draft") && (
-                                <button
-                                  onClick={() => confirmMutation.mutate(decl.id)}
-                                  disabled={confirmMutation.isPending}
-                                  style={{ padding: "4px 12px", border: "1px solid var(--safe)", background: "transparent", color: "var(--safe)", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                                >
-                                  Confirm
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+          return (
+            <Card key={squadId ?? "null"} className="overflow-hidden">
+              <CardHeader className="py-3 px-5 bg-muted/40 border-b flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="font-bold text-base">{squadName}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {confirmedCount}/{allDecls.length} confirmed
+                  </Badge>
                 </div>
-              );
-            })}
-          </div>
-        );
-      })}
+                {derivedInSquad.length > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleConfirmAll(squadId ?? -1, derivedInSquad)}
+                    disabled={isConfirmingAll}
+                    className="bg-[var(--safe)] hover:bg-[var(--safe)]/90 text-white text-xs"
+                  >
+                    {isConfirmingAll ? "Confirming…" : "Confirm All Derived"}
+                  </Button>
+                )}
+              </CardHeader>
+
+              <CardContent className="p-0">
+                {clientGroups.map(({ clientId, rows }) => {
+                  const clientName = clientMap[clientId] ?? `Client ${clientId}`;
+                  const poolTotal = rows.reduce((sum, d) => sum + parseFloat(d.declared_hours), 0);
+                  const derivedInClient = rows.filter((d) => d.status === "derived");
+                  const allConfirmed = rows.every((d) => d.status === "confirmed" || d.status === "locked");
+                  const isConfirmingClient = confirmingClients.has(clientId);
+
+                  return (
+                    <div key={clientId}>
+                      <div className="flex items-center justify-between gap-3 px-4 py-2 bg-muted/20 border-b text-sm flex-wrap">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-semibold">{clientName}</span>
+                          <span className="text-muted-foreground">Pool: {poolTotal.toFixed(0)}h</span>
+                          {allConfirmed
+                            ? <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">✓ All confirmed</Badge>
+                            : derivedInClient.length > 0
+                              ? <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">{derivedInClient.length} derived</Badge>
+                              : null
+                          }
+                        </div>
+                        {derivedInClient.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleConfirmClient(clientId, derivedInClient)}
+                            disabled={isConfirmingClient}
+                            className="text-[var(--safe)] border-[var(--safe)] hover:bg-[var(--safe-bg)] text-xs"
+                          >
+                            {isConfirmingClient ? "Confirming…" : "Confirm All"}
+                          </Button>
+                        )}
+                      </div>
+
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Hours</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rows.map((decl) => {
+                            const roleLabel = ROLE_LABELS[decl.role_type] ?? decl.role_type;
+                            const isEditable = decl.status !== "locked";
+                            return (
+                              <TableRow key={decl.id}>
+                                <TableCell>{roleLabel}</TableCell>
+                                <TableCell>
+                                  {isEditable
+                                    ? <EditableHours declaration={decl} onSaved={handleInvalidate} />
+                                    : <span>{parseFloat(decl.declared_hours).toFixed(1)}h</span>}
+                                </TableCell>
+                                <TableCell><DeclarationBadge status={decl.status} /></TableCell>
+                                <TableCell className="text-right">
+                                  {(decl.status === "derived" || decl.status === "draft") && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => confirmMutation.mutate(decl.id)}
+                                      disabled={confirmMutation.isPending}
+                                      className="text-[var(--safe)] border-[var(--safe)] hover:bg-[var(--safe-bg)] text-xs"
+                                    >
+                                      Confirm
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

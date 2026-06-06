@@ -6,43 +6,35 @@ import { api } from "@/lib/client";
 import { ManagementModal } from "./ManagementModal";
 import { SquadsTab } from "./SquadsTab";
 import { PersonsTab } from "./PersonsTab";
+import { ConfirmDialog } from "@/components/app/ConfirmDialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 
-type SubTab = "squads" | "persons" | "memberships" | "roles" | "capacity";
+function errMsg(e: unknown) { return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e); }
 
-const thStyle: React.CSSProperties = {
-  padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12,
-  color: "var(--text-muted)", borderBottom: "1px solid var(--border)",
-  background: "var(--bg)", whiteSpace: "nowrap",
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", borderRadius: 6,
-  border: "1px solid var(--border)", fontSize: 14,
-  background: "var(--surface)", color: "var(--text)", outline: "none", boxSizing: "border-box",
-};
-const fieldStyle: React.CSSProperties = { marginBottom: 18 };
-const labelStyle: React.CSSProperties = { display: "block", marginBottom: 6, fontWeight: 500, fontSize: 13 };
+const ROLE_TYPES = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
+const SENIORITIES = ["L1","L2","L3","L4","L5"];
 
-function subTabBtn(active: boolean): React.CSSProperties {
-  return {
-    padding: "7px 16px", border: "none", background: "transparent", fontSize: 13,
-    fontWeight: active ? 600 : 400,
-    color: active ? "var(--primary)" : "var(--text-muted)",
-    cursor: "pointer",
-    borderBottom: `2px solid ${active ? "var(--primary)" : "transparent"}`,
-    marginBottom: -1, borderRadius: 0,
-  };
-}
-
-// ── Memberships ──────────────────────────────────────────────────────────────
-
-interface MembershipRow {
-  id: number; personId: number; squadId: number;
-  allocationPct: string; effectiveFrom: string; effectiveTo: string | null;
-  person: { id: number; name: string };
-  squad: { id: number; name: string };
-}
 interface SquadOption { id: number; name: string }
 interface PersonOption { id: number; name: string }
+
+// ── Memberships ───────────────────────────────────────────────────────────────
+
+interface MembershipRow {
+  id: number; personId: number; squadId: number; allocationPct: string;
+  effectiveFrom: string; effectiveTo: string | null;
+  person: { id: number; name: string }; squad: { id: number; name: string };
+}
 
 function MembershipsSection() {
   const qc = useQueryClient();
@@ -52,29 +44,19 @@ function MembershipsSection() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-memberships"],
-    queryFn: () => api.get<MembershipRow[]>("/management/squad-memberships").then(r => r.data),
-  });
+  const { data: rows = [], isLoading } = useQuery({ queryKey: ["mgmt-memberships"], queryFn: () => api.get<MembershipRow[]>("/management/squad-memberships").then(r => r.data) });
   const { data: squads = [] } = useQuery({ queryKey: ["mgmt-squads-active"], queryFn: () => api.get<SquadOption[]>("/management/squads").then(r => r.data) });
   const { data: persons = [] } = useQuery({ queryKey: ["mgmt-persons-active"], queryFn: () => api.get<PersonOption[]>("/management/persons").then(r => r.data) });
 
   const createMutation = useMutation({
-    mutationFn: (f: typeof form) => api.post("/management/squad-memberships", {
-      person_id: Number(f.person_id), squad_id: Number(f.squad_id),
-      allocation_pct: parseFloat(f.allocation_pct) / 100,
-      effective_from: f.effective_from,
-    }).then(r => r.data),
+    mutationFn: (f: typeof form) => api.post("/management/squad-memberships", { person_id: Number(f.person_id), squad_id: Number(f.squad_id), allocation_pct: parseFloat(f.allocation_pct) / 100, effective_from: f.effective_from }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-memberships"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
+    onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/squad-memberships/${id}`, {
-      allocation_pct: parseFloat(f.allocation_pct) / 100,
-      effective_to: f.effective_to || null,
-    }).then(r => r.data),
+    mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/squad-memberships/${id}`, { allocation_pct: parseFloat(f.allocation_pct) / 100, effective_to: f.effective_to || null }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-memberships"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
+    onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/management/squad-memberships/${id}`).then(r => r.data),
@@ -82,103 +64,72 @@ function MembershipsSection() {
   });
 
   function openCreate() { setForm({ person_id: "", squad_id: "", allocation_pct: "100", effective_from: new Date().toISOString().split("T")[0], effective_to: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
-  function openEdit(row: MembershipRow) {
-    setForm({ person_id: row.personId.toString(), squad_id: row.squadId.toString(), allocation_pct: (parseFloat(row.allocationPct) * 100).toFixed(0), effective_from: row.effectiveFrom.split("T")[0], effective_to: row.effectiveTo ? row.effectiveTo.split("T")[0] : "" });
-    setEditing(row); setApiError(null); setModalMode("edit");
-  }
+  function openEdit(row: MembershipRow) { setForm({ person_id: row.personId.toString(), squad_id: row.squadId.toString(), allocation_pct: (parseFloat(row.allocationPct) * 100).toFixed(0), effective_from: row.effectiveFrom.split("T")[0], effective_to: row.effectiveTo ? row.effectiveTo.split("T")[0] : "" }); setEditing(row); setApiError(null); setModalMode("edit"); }
   function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setApiError(null);
-    if (modalMode === "create") createMutation.mutate(form);
-    else if (editing) updateMutation.mutate({ id: editing.id, f: form });
-  }
+  function handleSubmit(e: React.FormEvent) { e.preventDefault(); setApiError(null); if (modalMode === "create") createMutation.mutate(form); else if (editing) updateMutation.mutate({ id: editing.id, f: form }); }
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={openCreate} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ Add Membership</button>
-      </div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No memberships found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Person</th><th style={thStyle}>Squad</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Allocation %</th>
-                <th style={thStyle}>From</th><th style={thStyle}>To</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.person.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, color: "var(--text-muted)" }}>{row.squad.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{(parseFloat(row.allocationPct) * 100).toFixed(0)}%</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.effectiveFrom.split("T")[0]}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.effectiveTo ? row.effectiveTo.split("T")[0] : "—"}</td>
-                  <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => openEdit(row)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                      <button onClick={() => setDeleteId(row.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--critical)", background: "transparent", color: "var(--critical)", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
-
+    <div className="space-y-4">
+      <div className="flex justify-end"><Button size="sm" onClick={openCreate}>+ Add Membership</Button></div>
+      <Card><CardContent className="p-0">
+        {isLoading
+          ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
+          : rows.length === 0
+            ? <p className="p-6 text-sm text-muted-foreground">No memberships found.</p>
+            : <div className="overflow-x-auto"><Table><TableHeader><TableRow>
+                <TableHead>Person</TableHead><TableHead>Squad</TableHead>
+                <TableHead className="text-right">Allocation %</TableHead>
+                <TableHead>From</TableHead><TableHead>To</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader><TableBody>
+                {rows.map(row => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium text-sm">{row.person.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.squad.name}</TableCell>
+                    <TableCell className="text-sm text-right">{(parseFloat(row.allocationPct) * 100).toFixed(0)}%</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.effectiveFrom.split("T")[0]}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.effectiveTo ? row.effectiveTo.split("T")[0] : "—"}</TableCell>
+                    <TableCell className="text-right"><div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(row)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(row.id)}>Delete</Button>
+                    </div></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody></Table></div>
+        }
+      </CardContent></Card>
       <ManagementModal isOpen={modalMode !== null} onClose={closeModal} title={modalMode === "create" ? "Add Membership" : "Edit Membership"}>
-        <form onSubmit={handleSubmit}>
-          {apiError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{apiError}</p>}
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Person *</label>
-            <select style={inputStyle} required value={form.person_id} onChange={e => setForm({ ...form, person_id: e.target.value })} disabled={modalMode === "edit"}>
-              <option value="">— Select person —</option>
-              {persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {apiError && <p className="text-sm text-destructive">{apiError}</p>}
+          <div className="space-y-1.5"><Label>Person *</Label>
+            <Select required value={form.person_id || "none"} onValueChange={v => setForm({ ...form, person_id: v === "none" ? "" : v })} disabled={modalMode === "edit"}>
+              <SelectTrigger><SelectValue placeholder="— Select person —" /></SelectTrigger>
+              <SelectContent><SelectItem value="none">— Select person —</SelectItem>{persons.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Squad *</label>
-            <select style={inputStyle} required value={form.squad_id} onChange={e => setForm({ ...form, squad_id: e.target.value })} disabled={modalMode === "edit"}>
-              <option value="">— Select squad —</option>
-              {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+          <div className="space-y-1.5"><Label>Squad *</Label>
+            <Select required value={form.squad_id || "none"} onValueChange={v => setForm({ ...form, squad_id: v === "none" ? "" : v })} disabled={modalMode === "edit"}>
+              <SelectTrigger><SelectValue placeholder="— Select squad —" /></SelectTrigger>
+              <SelectContent><SelectItem value="none">— Select squad —</SelectItem>{squads.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 18 }}>
-            <div><label style={labelStyle}>Allocation %</label><input style={inputStyle} type="number" min="1" max="100" step="1" value={form.allocation_pct} onChange={e => setForm({ ...form, allocation_pct: e.target.value })} /></div>
-            <div><label style={labelStyle}>From *</label><input style={inputStyle} type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} disabled={modalMode === "edit"} /></div>
-            <div><label style={labelStyle}>To</label><input style={inputStyle} type="date" value={form.effective_to} onChange={e => setForm({ ...form, effective_to: e.target.value })} /></div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5"><Label>Allocation %</Label><Input type="number" min="1" max="100" step="1" value={form.allocation_pct} onChange={e => setForm({ ...form, allocation_pct: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>From *</Label><Input type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} disabled={modalMode === "edit"} /></div>
+            <div className="space-y-1.5"><Label>To</Label><Input type="date" value={form.effective_to} onChange={e => setForm({ ...form, effective_to: e.target.value })} /></div>
           </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-            <button type="button" onClick={closeModal} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-            <button type="submit" disabled={isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.7 : 1 }}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</button>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
+            <Button type="submit" disabled={isPending}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</Button>
           </div>
         </form>
       </ManagementModal>
-
-      {deleteId !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={() => setDeleteId(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-          <div style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28, width: 380, maxWidth: "90vw" }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>Delete membership?</div>
-            <p style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>This action is permanent and cannot be undone.</p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setDeleteId(null)} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-              <button onClick={() => deleteMutation.mutate(deleteId!)} disabled={deleteMutation.isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--critical)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: deleteMutation.isPending ? "not-allowed" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1 }}>{deleteMutation.isPending ? "Deleting…" : "Delete"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog open={deleteId !== null} onOpenChange={v => { if (!v) setDeleteId(null); }} title="Delete membership?" description="This action is permanent and cannot be undone." confirmLabel="Delete" destructive onConfirm={() => deleteId !== null && deleteMutation.mutate(deleteId)} />
     </div>
   );
 }
 
-// ── Person Roles ─────────────────────────────────────────────────────────────
-
-const ROLE_TYPES = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
-const SENIORITIES = ["L1","L2","L3","L4","L5"];
+// ── Person Roles ──────────────────────────────────────────────────────────────
 
 interface RoleRow {
   id: number; personId: number; roleType: string; seniority: string | null;
@@ -194,21 +145,18 @@ function PersonRolesSection() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-person-roles"],
-    queryFn: () => api.get<RoleRow[]>("/management/person-roles").then(r => r.data),
-  });
+  const { data: rows = [], isLoading } = useQuery({ queryKey: ["mgmt-person-roles"], queryFn: () => api.get<RoleRow[]>("/management/person-roles").then(r => r.data) });
   const { data: persons = [] } = useQuery({ queryKey: ["mgmt-persons-active"], queryFn: () => api.get<PersonOption[]>("/management/persons").then(r => r.data) });
 
   const createMutation = useMutation({
     mutationFn: (f: typeof form) => api.post("/management/person-roles", { person_id: Number(f.person_id), role_type: f.role_type, seniority: f.seniority || undefined, effective_from: f.effective_from }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-person-roles"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
+    onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/person-roles/${id}`, { seniority: f.seniority || null, effective_to: f.effective_to || null }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-person-roles"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
+    onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/management/person-roles/${id}`).then(r => r.data),
@@ -222,83 +170,67 @@ function PersonRolesSection() {
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={openCreate} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ Add Role</button>
-      </div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No roles found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Person</th><th style={thStyle}>Role</th><th style={thStyle}>Seniority</th>
-                <th style={thStyle}>From</th><th style={thStyle}>To</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.person.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.roleType.replace(/_/g, " ")}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.seniority ?? "—"}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.effectiveFrom.split("T")[0]}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.effectiveTo ? row.effectiveTo.split("T")[0] : "—"}</td>
-                  <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => openEdit(row)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                      <button onClick={() => setDeleteId(row.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--critical)", background: "transparent", color: "var(--critical)", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
+    <div className="space-y-4">
+      <div className="flex justify-end"><Button size="sm" onClick={openCreate}>+ Add Role</Button></div>
+      <Card><CardContent className="p-0">
+        {isLoading
+          ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
+          : rows.length === 0
+            ? <p className="p-6 text-sm text-muted-foreground">No roles found.</p>
+            : <div className="overflow-x-auto"><Table><TableHeader><TableRow>
+                <TableHead>Person</TableHead><TableHead>Role</TableHead><TableHead>Seniority</TableHead>
+                <TableHead>From</TableHead><TableHead>To</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader><TableBody>
+                {rows.map(row => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium text-sm">{row.person.name}</TableCell>
+                    <TableCell className="text-sm">{row.roleType.replace(/_/g, " ")}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.seniority ?? "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.effectiveFrom.split("T")[0]}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.effectiveTo ? row.effectiveTo.split("T")[0] : "—"}</TableCell>
+                    <TableCell className="text-right"><div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(row)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(row.id)}>Delete</Button>
+                    </div></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody></Table></div>
+        }
+      </CardContent></Card>
       <ManagementModal isOpen={modalMode !== null} onClose={closeModal} title={modalMode === "create" ? "Add Person Role" : "Edit Person Role"}>
-        <form onSubmit={handleSubmit}>
-          {apiError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{apiError}</p>}
-          <div style={fieldStyle}><label style={labelStyle}>Person *</label>
-            <select style={inputStyle} required value={form.person_id} onChange={e => setForm({ ...form, person_id: e.target.value })} disabled={modalMode === "edit"}>
-              <option value="">— Select person —</option>
-              {persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {apiError && <p className="text-sm text-destructive">{apiError}</p>}
+          <div className="space-y-1.5"><Label>Person *</Label>
+            <Select required value={form.person_id || "none"} onValueChange={v => setForm({ ...form, person_id: v === "none" ? "" : v })} disabled={modalMode === "edit"}>
+              <SelectTrigger><SelectValue placeholder="— Select person —" /></SelectTrigger>
+              <SelectContent><SelectItem value="none">— Select person —</SelectItem>{persons.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-            <div><label style={labelStyle}>Role Type *</label>
-              <select style={inputStyle} value={form.role_type} onChange={e => setForm({ ...form, role_type: e.target.value })} disabled={modalMode === "edit"}>
-                {ROLE_TYPES.map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
-              </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Role Type *</Label>
+              <Select value={form.role_type} onValueChange={v => setForm({ ...form, role_type: v })} disabled={modalMode === "edit"}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{ROLE_TYPES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-            <div><label style={labelStyle}>Seniority</label>
-              <select style={inputStyle} value={form.seniority} onChange={e => setForm({ ...form, seniority: e.target.value })}>
-                <option value="">—</option>
-                {SENIORITIES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+            <div className="space-y-1.5"><Label>Seniority</Label>
+              <Select value={form.seniority || "none"} onValueChange={v => setForm({ ...form, seniority: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent><SelectItem value="none">—</SelectItem>{SENIORITIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 18 }}>
-            <div><label style={labelStyle}>From *</label><input style={inputStyle} type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} disabled={modalMode === "edit"} /></div>
-            <div><label style={labelStyle}>To</label><input style={inputStyle} type="date" value={form.effective_to} onChange={e => setForm({ ...form, effective_to: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>From *</Label><Input type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} disabled={modalMode === "edit"} /></div>
+            <div className="space-y-1.5"><Label>To</Label><Input type="date" value={form.effective_to} onChange={e => setForm({ ...form, effective_to: e.target.value })} /></div>
           </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-            <button type="button" onClick={closeModal} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-            <button type="submit" disabled={isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.7 : 1 }}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</button>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
+            <Button type="submit" disabled={isPending}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</Button>
           </div>
         </form>
       </ManagementModal>
-      {deleteId !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={() => setDeleteId(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-          <div style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28, width: 380, maxWidth: "90vw" }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>Delete role?</div>
-            <p style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>This is permanent.</p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setDeleteId(null)} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-              <button onClick={() => deleteMutation.mutate(deleteId!)} disabled={deleteMutation.isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--critical)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: deleteMutation.isPending ? "not-allowed" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1 }}>{deleteMutation.isPending ? "Deleting…" : "Delete"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog open={deleteId !== null} onOpenChange={v => { if (!v) setDeleteId(null); }} title="Delete role?" description="This is permanent." confirmLabel="Delete" destructive onConfirm={() => deleteId !== null && deleteMutation.mutate(deleteId)} />
     </div>
   );
 }
@@ -325,12 +257,12 @@ function CapacityConfigSection() {
   const createMutation = useMutation({
     mutationFn: (f: typeof form) => api.post("/management/squad-capacity-configs", { squad_id: Number(f.squad_id), role_type: f.role_type, hard_buffer_pct: parseFloat(f.hard_buffer_pct) / 100, soft_buffer_pct: parseFloat(f.soft_buffer_pct) / 100 }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-capacity-configs"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
+    onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/squad-capacity-configs/${id}`, { hard_buffer_pct: parseFloat(f.hard_buffer_pct) / 100, soft_buffer_pct: parseFloat(f.soft_buffer_pct) / 100 }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-capacity-configs"] }); closeModal(); },
-    onError: (e: unknown) => setApiError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e)),
+    onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/management/squad-capacity-configs/${id}`).then(r => r.data),
@@ -344,75 +276,60 @@ function CapacityConfigSection() {
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={openCreate} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ Add Config</button>
-      </div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No capacity configs found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Squad</th><th style={thStyle}>Role</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Hard Buffer %</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Soft Buffer %</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => (
-                <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.squad.name}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.roleType.replace(/_/g, " ")}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{(parseFloat(row.hardBufferPct) * 100).toFixed(1)}%</td>
-                  <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{(parseFloat(row.softBufferPct) * 100).toFixed(1)}%</td>
-                  <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => openEdit(row)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                      <button onClick={() => setDeleteId(row.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--critical)", background: "transparent", color: "var(--critical)", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )}
-      </div>
+    <div className="space-y-4">
+      <div className="flex justify-end"><Button size="sm" onClick={openCreate}>+ Add Config</Button></div>
+      <Card><CardContent className="p-0">
+        {isLoading
+          ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
+          : rows.length === 0
+            ? <p className="p-6 text-sm text-muted-foreground">No capacity configs found.</p>
+            : <div className="overflow-x-auto"><Table><TableHeader><TableRow>
+                <TableHead>Squad</TableHead><TableHead>Role</TableHead>
+                <TableHead className="text-right">Hard Buffer %</TableHead>
+                <TableHead className="text-right">Soft Buffer %</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader><TableBody>
+                {rows.map(row => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium text-sm">{row.squad.name}</TableCell>
+                    <TableCell className="text-sm">{row.roleType.replace(/_/g, " ")}</TableCell>
+                    <TableCell className="text-sm text-right">{(parseFloat(row.hardBufferPct) * 100).toFixed(1)}%</TableCell>
+                    <TableCell className="text-sm text-right">{(parseFloat(row.softBufferPct) * 100).toFixed(1)}%</TableCell>
+                    <TableCell className="text-right"><div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(row)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(row.id)}>Delete</Button>
+                    </div></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody></Table></div>
+        }
+      </CardContent></Card>
       <ManagementModal isOpen={modalMode !== null} onClose={closeModal} title={modalMode === "create" ? "Add Capacity Config" : "Edit Capacity Config"}>
-        <form onSubmit={handleSubmit}>
-          {apiError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{apiError}</p>}
-          <div style={fieldStyle}><label style={labelStyle}>Squad *</label>
-            <select style={inputStyle} required value={form.squad_id} onChange={e => setForm({ ...form, squad_id: e.target.value })} disabled={modalMode === "edit"}>
-              <option value="">— Select squad —</option>
-              {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {apiError && <p className="text-sm text-destructive">{apiError}</p>}
+          <div className="space-y-1.5"><Label>Squad *</Label>
+            <Select required value={form.squad_id || "none"} onValueChange={v => setForm({ ...form, squad_id: v === "none" ? "" : v })} disabled={modalMode === "edit"}>
+              <SelectTrigger><SelectValue placeholder="— Select squad —" /></SelectTrigger>
+              <SelectContent><SelectItem value="none">— Select squad —</SelectItem>{squads.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <div style={fieldStyle}><label style={labelStyle}>Role Type *</label>
-            <select style={inputStyle} value={form.role_type} onChange={e => setForm({ ...form, role_type: e.target.value })} disabled={modalMode === "edit"}>
-              {ROLE_TYPES.map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
-            </select>
+          <div className="space-y-1.5"><Label>Role Type *</Label>
+            <Select value={form.role_type} onValueChange={v => setForm({ ...form, role_type: v })} disabled={modalMode === "edit"}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{ROLE_TYPES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-            <div><label style={labelStyle}>Hard Buffer %</label><input style={inputStyle} type="number" min="0" max="100" step="0.5" value={form.hard_buffer_pct} onChange={e => setForm({ ...form, hard_buffer_pct: e.target.value })} /></div>
-            <div><label style={labelStyle}>Soft Buffer %</label><input style={inputStyle} type="number" min="0" max="100" step="0.5" value={form.soft_buffer_pct} onChange={e => setForm({ ...form, soft_buffer_pct: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Hard Buffer %</Label><Input type="number" min="0" max="100" step="0.5" value={form.hard_buffer_pct} onChange={e => setForm({ ...form, hard_buffer_pct: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Soft Buffer %</Label><Input type="number" min="0" max="100" step="0.5" value={form.soft_buffer_pct} onChange={e => setForm({ ...form, soft_buffer_pct: e.target.value })} /></div>
           </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-            <button type="button" onClick={closeModal} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-            <button type="submit" disabled={isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.7 : 1 }}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</button>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
+            <Button type="submit" disabled={isPending}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</Button>
           </div>
         </form>
       </ManagementModal>
-      {deleteId !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={() => setDeleteId(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-          <div style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28, width: 380, maxWidth: "90vw" }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>Delete config?</div>
-            <p style={{ color: "var(--text-muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>This is permanent.</p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setDeleteId(null)} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-              <button onClick={() => deleteMutation.mutate(deleteId!)} disabled={deleteMutation.isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--critical)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: deleteMutation.isPending ? "not-allowed" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1 }}>{deleteMutation.isPending ? "Deleting…" : "Delete"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog open={deleteId !== null} onOpenChange={v => { if (!v) setDeleteId(null); }} title="Delete config?" description="This is permanent." confirmLabel="Delete" destructive onConfirm={() => deleteId !== null && deleteMutation.mutate(deleteId)} />
     </div>
   );
 }
@@ -420,26 +337,20 @@ function CapacityConfigSection() {
 // ── Main Export ───────────────────────────────────────────────────────────────
 
 export function WorkforceTab() {
-  const [sub, setSub] = useState<SubTab>("squads");
-  const SUB_TABS: { id: SubTab; label: string }[] = [
-    { id: "squads", label: "Squads" },
-    { id: "persons", label: "Persons" },
-    { id: "memberships", label: "Squad Memberships" },
-    { id: "roles", label: "Person Roles" },
-    { id: "capacity", label: "Capacity Configs" },
-  ];
   return (
-    <div>
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", marginBottom: 24 }}>
-        {SUB_TABS.map(t => (
-          <button key={t.id} onClick={() => setSub(t.id)} style={subTabBtn(sub === t.id)}>{t.label}</button>
-        ))}
-      </div>
-      {sub === "squads" && <SquadsTab />}
-      {sub === "persons" && <PersonsTab />}
-      {sub === "memberships" && <MembershipsSection />}
-      {sub === "roles" && <PersonRolesSection />}
-      {sub === "capacity" && <CapacityConfigSection />}
-    </div>
+    <Tabs defaultValue="squads">
+      <TabsList className="mb-5 flex-wrap h-auto">
+        <TabsTrigger value="squads">Squads</TabsTrigger>
+        <TabsTrigger value="persons">Persons</TabsTrigger>
+        <TabsTrigger value="memberships">Squad Memberships</TabsTrigger>
+        <TabsTrigger value="roles">Person Roles</TabsTrigger>
+        <TabsTrigger value="capacity">Capacity Configs</TabsTrigger>
+      </TabsList>
+      <TabsContent value="squads"><SquadsTab /></TabsContent>
+      <TabsContent value="persons"><PersonsTab /></TabsContent>
+      <TabsContent value="memberships"><MembershipsSection /></TabsContent>
+      <TabsContent value="roles"><PersonRolesSection /></TabsContent>
+      <TabsContent value="capacity"><CapacityConfigSection /></TabsContent>
+    </Tabs>
   );
 }

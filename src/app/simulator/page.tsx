@@ -1,9 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { PlusCircle, Trash2 } from "lucide-react";
 import { runSimulation, type RoleType, type SimulationResult } from "@/lib/client";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const ROLES: RoleType[] = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
 const ROLE_LABELS: Record<string, string> = {
@@ -19,111 +41,171 @@ const ROLE_LABELS: Record<string, string> = {
   content: "Content Author",
   seo: "SEO"
 };
-const ACTION_COLOR: Record<string, string> = { available: "var(--safe)", redistribute: "var(--watch)", hire_needed: "var(--critical)" };
+const ACTION_COLOR: Record<string, string> = {
+  available: "var(--safe)",
+  redistribute: "var(--watch)",
+  hire_needed: "var(--critical)",
+};
 
-const inputStyle: React.CSSProperties = { padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, outline: "none", width: "100%", background: "var(--bg)" };
+const schema = z.object({
+  name: z.string().min(1, "Required"),
+  startMonth: z.string().min(1, "Required"),
+  poolHours: z.coerce.number().positive("Must be positive"),
+  roles: z.array(z.object({
+    role_type: z.string(),
+    hours: z.coerce.number().positive("Must be positive"),
+  })).min(1),
+});
 
-function Field({ label, children }: { label: string; children: React.ReactElement<{ style?: React.CSSProperties }> }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <label style={{ display: "block", fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>{label}</label>
-      {React.cloneElement(children, { style: { ...inputStyle, ...children.props.style } })}
-    </div>
-  );
-}
+type FormValues = z.infer<typeof schema>;
 
 export default function SimulatorPage() {
-  const [name, setName] = useState("");
-  const [startMonth, setStartMonth] = useState("");
-  const [poolHours, setPoolHours] = useState("");
-  const [roles, setRoles] = useState<{ role_type: RoleType; hours: string }[]>([{ role_type: "dev", hours: "" }]);
-  const [result, setResult] = useState<SimulationResult | null>(null);
+  const { register, control, handleSubmit, setValue, watch, formState: { isValid } } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", startMonth: "", poolHours: undefined, roles: [{ role_type: "dev", hours: undefined }] },
+    mode: "onChange",
+  });
 
-  const { mutate, isPending } = useMutation({ mutationFn: runSimulation, onSuccess: (data) => setResult(data) });
+  const { fields, append, remove } = useFieldArray({ control, name: "roles" });
+  const roleValues = watch("roles");
 
-  const addRole = () => setRoles((prev) => [...prev, { role_type: "qa", hours: "" }]);
-  const removeRole = (i: number) => setRoles((prev) => prev.filter((_, idx) => idx !== i));
-
-  const submit = () => {
-    mutate({
-      proposed_client_name: name,
-      proposed_start_month: startMonth + "-01",
-      proposed_pool_hours: +poolHours,
-      role_breakdown: roles.filter((r) => r.hours).map((r) => ({ role_type: r.role_type, hours_per_month: +r.hours })),
-    });
-  };
-
-  const valid = name && startMonth && poolHours && roles.some((r) => r.hours);
+  const { mutate, isPending, data: result } = useMutation<SimulationResult, Error, FormValues>({
+    mutationFn: (vals) => runSimulation({
+      proposed_client_name: vals.name,
+      proposed_start_month: vals.startMonth + "-01",
+      proposed_pool_hours: vals.poolHours,
+      role_breakdown: vals.roles.map((r) => ({ role_type: r.role_type as RoleType, hours_per_month: r.hours })),
+    }),
+  });
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>New Client Simulator</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: 4 }}>Check if current capacity can absorb a new client — before committing</p>
-      </div>
+      <PageHeader
+        title="New Client Simulator"
+        description="Check if current capacity can absorb a new client — before committing"
+      />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 900 }}>
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 24 }}>
-          <p style={{ fontWeight: 600, marginBottom: 16 }}>Proposed client details</p>
-          <Field label="Client name"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" /></Field>
-          <Field label="Start month"><input type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} /></Field>
-          <Field label="Monthly pool hours"><input type="number" value={poolHours} onChange={(e) => setPoolHours(e.target.value)} placeholder="120" /></Field>
-
-          <p style={{ fontWeight: 600, margin: "20px 0 12px" }}>Role breakdown</p>
-          {roles.map((r, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-              <select value={r.role_type} onChange={(e) => setRoles((prev) => prev.map((x, idx) => idx === i ? { ...x, role_type: e.target.value as RoleType } : x))} style={inputStyle}>
-                {ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
-              </select>
-              <input type="number" placeholder="hrs" value={r.hours} onChange={(e) => setRoles((prev) => prev.map((x, idx) => idx === i ? { ...x, hours: e.target.value } : x))} style={{ ...inputStyle, width: 72 }} />
-              <button onClick={() => removeRole(i)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}><Trash2 size={15} /></button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Proposed client details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Client name</Label>
+              <Input {...register("name")} placeholder="Acme Corp" />
             </div>
-          ))}
-          <button onClick={addRole} style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--primary)", background: "none", border: "none", fontSize: 13, marginTop: 4, cursor: "pointer" }}>
-            <PlusCircle size={14} /> Add role
-          </button>
+            <div className="space-y-1.5">
+              <Label>Start month</Label>
+              <Input type="month" {...register("startMonth")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Monthly pool hours</Label>
+              <Input type="number" {...register("poolHours")} placeholder="120" />
+            </div>
 
-          <button disabled={!valid || isPending} onClick={submit} style={{ marginTop: 24, width: "100%", padding: "10px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#FDFDFD", fontWeight: 600, fontSize: 14, opacity: valid && !isPending ? 1 : 0.5, cursor: "pointer" }}>
-            {isPending ? "Simulating…" : "Run simulation"}
-          </button>
-        </div>
+            <div>
+              <p className="font-semibold text-sm mb-3">Role breakdown</p>
+              <div className="space-y-2">
+                {fields.map((field, i) => (
+                  <div key={field.id} className="flex gap-2 items-center">
+                    <Select
+                      value={roleValues[i]?.role_type ?? "dev"}
+                      onValueChange={(val) => setValue(`roles.${i}.role_type`, val)}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLES.map((role) => (
+                          <SelectItem key={role} value={role}>{ROLE_LABELS[role]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      placeholder="hrs"
+                      className="w-20"
+                      {...register(`roles.${i}.hours`)}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => remove(i)}
+                      className="text-muted-foreground"
+                    >
+                      <Trash2 size={15} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => append({ role_type: "qa", hours: undefined as unknown as number })}
+                className="mt-2 text-primary gap-1.5"
+              >
+                <PlusCircle size={14} /> Add role
+              </Button>
+            </div>
+
+            <Button
+              className="w-full mt-2"
+              disabled={!isValid || isPending}
+              onClick={handleSubmit((vals) => mutate(vals))}
+            >
+              {isPending ? "Simulating…" : "Run simulation"}
+            </Button>
+          </CardContent>
+        </Card>
 
         {result && (
-          <div style={{ background: "var(--surface)", border: `2px solid ${result.feasible ? "var(--safe)" : "var(--critical)"}`, borderRadius: 12, padding: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: result.feasible ? "var(--safe)" : "var(--critical)" }}>
+          <Card className={result.feasible ? "border-[var(--safe)] border-2" : "border-[var(--critical)] border-2"}>
+            <CardHeader>
+              <CardTitle
+                className="text-lg"
+                style={{ color: result.feasible ? "var(--safe)" : "var(--critical)" }}
+              >
                 {result.feasible ? "✓ Feasible" : "✗ Hiring required"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {result.bottleneck_role && (
+                <div className="rounded-md p-3 text-sm bg-[var(--critical-bg)] text-[var(--critical)]">
+                  Bottleneck: <strong>{ROLE_LABELS[result.bottleneck_role]}</strong>
+                </div>
+              )}
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {["Role", "Requested", "Available", "Action"].map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.line_items.map((li) => (
+                      <TableRow key={li.role_type}>
+                        <TableCell className="font-medium">{ROLE_LABELS[li.role_type]}</TableCell>
+                        <TableCell>{li.requested_hours}h</TableCell>
+                        <TableCell>{li.available_hours}h</TableCell>
+                        <TableCell>
+                          <span className="text-xs font-semibold" style={{ color: ACTION_COLOR[li.action] ?? undefined }}>
+                            {li.action === "available" ? "Available"
+                              : li.action === "redistribute" ? "Redistribute"
+                              : `Hire ${li.ftes_to_hire} FTE`}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            </div>
-            {result.bottleneck_role && (
-              <div style={{ background: "var(--critical-bg)", color: "var(--critical)", borderRadius: 8, padding: "8px 12px", fontSize: 13, marginBottom: 16 }}>
-                Bottleneck: <strong>{ROLE_LABELS[result.bottleneck_role]}</strong>
-              </div>
-            )}
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  {["Role","Requested","Available","Action"].map((h) => (
-                    <th key={h} style={{ textAlign: "left", fontSize: 12, color: "var(--text-muted)", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {result.line_items.map((li) => (
-                  <tr key={li.role_type} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "10px 8px", fontWeight: 500 }}>{ROLE_LABELS[li.role_type]}</td>
-                    <td style={{ padding: "10px 8px" }}>{li.requested_hours}h</td>
-                    <td style={{ padding: "10px 8px" }}>{li.available_hours}h</td>
-                    <td style={{ padding: "10px 8px" }}>
-                      <span style={{ color: ACTION_COLOR[li.action] ?? "var(--text)", fontWeight: 600, fontSize: 12 }}>
-                        {li.action === "available" ? "Available" : li.action === "redistribute" ? "Redistribute" : `Hire ${li.ftes_to_hire} FTE`}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

@@ -3,39 +3,38 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
-
-type SubTab = "anomalies" | "suggestions";
-
-const thStyle: React.CSSProperties = {
-  padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12,
-  color: "var(--text-muted)", borderBottom: "1px solid var(--border)",
-  background: "var(--bg)", whiteSpace: "nowrap",
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", borderRadius: 6,
-  border: "1px solid var(--border)", fontSize: 14,
-  background: "var(--surface)", color: "var(--text)", outline: "none", boxSizing: "border-box",
-};
-const fieldStyle: React.CSSProperties = { marginBottom: 18 };
-const labelStyle: React.CSSProperties = { display: "block", marginBottom: 6, fontWeight: 500, fontSize: 13 };
-
-function subTabBtn(active: boolean): React.CSSProperties {
-  return { padding: "7px 16px", border: "none", background: "transparent", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "var(--primary)" : "var(--text-muted)", cursor: "pointer", borderBottom: `2px solid ${active ? "var(--primary)" : "transparent"}`, marginBottom: -1, borderRadius: 0 };
-}
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function errMsg(e: unknown) { return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e); }
 
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  active: { bg: "var(--safe-bg)", color: "var(--safe)" },
-  open: { bg: "var(--watch-bg)", color: "var(--watch)" },
-  acknowledged: { bg: "var(--warning-bg)", color: "var(--warning)" },
-  applied: { bg: "var(--safe-bg)", color: "var(--safe)" },
-  dismissed: { bg: "var(--border)", color: "var(--text-muted)" },
+const STATUS_TONE: Record<string, { bg: string; color: string }> = {
+  active:       { bg: "var(--safe-bg)",     color: "var(--safe)" },
+  open:         { bg: "var(--watch-bg)",    color: "var(--watch)" },
+  acknowledged: { bg: "var(--warning-bg)",  color: "var(--warning)" },
+  applied:      { bg: "var(--safe-bg)",     color: "var(--safe)" },
+  dismissed:    { bg: "hsl(var(--muted))",  color: "hsl(var(--muted-foreground))" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_COLORS[status] ?? { bg: "var(--border)", color: "var(--text-muted)" };
-  return <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: s.bg, color: s.color, whiteSpace: "nowrap" }}>{status.replace(/_/g, " ")}</span>;
+  const s = STATUS_TONE[status] ?? { bg: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" };
+  return (
+    <span className="text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: s.bg, color: s.color }}>
+      {status.replace(/_/g, " ")}
+    </span>
+  );
 }
 
 // ─── Anomaly Flags ────────────────────────────────────────────────────────────
@@ -65,17 +64,11 @@ function AnomalyFlagsSection() {
   });
 
   function openResolve(row: AnomalyRow) {
-    setResolveRow(row);
-    setResolveForm({ resolved_by: "", resolution_notes: "" });
-    setResolveError(null);
+    setResolveRow(row); setResolveForm({ resolved_by: "", resolution_notes: "" }); setResolveError(null);
   }
-
   function closeResolve() {
-    setResolveRow(null);
-    setResolveForm({ resolved_by: "", resolution_notes: "" });
-    setResolveError(null);
+    setResolveRow(null); setResolveForm({ resolved_by: "", resolution_notes: "" }); setResolveError(null);
   }
-
   function handleResolve(e: React.FormEvent) {
     e.preventDefault();
     if (!resolveRow) return;
@@ -86,97 +79,99 @@ function AnomalyFlagsSection() {
   }
 
   return (
-    <div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No anomaly flags found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Client</th>
-                <th style={thStyle}>Month</th>
-                <th style={thStyle}>Role</th>
-                <th style={thStyle}>Flag Type</th>
-                <th style={thStyle}>Severity</th>
-                <th style={thStyle}>Explanation</th>
-                <th style={thStyle}>Detected</th>
-                <th style={thStyle}>Status</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => {
-                const isResolved = row.resolvedAt !== null;
-                return (
-                  <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                    <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.client.name}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.month.split("T")[0].slice(0, 7)}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)" }}>{row.roleType ? row.roleType.replace(/_/g, " ") : "—"}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 12 }}>{row.flagType.replace(/_/g, " ")}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 12 }}>{row.severity}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)", maxWidth: 240 }} title={row.explanation}>
-                      {row.explanation.length > 80 ? row.explanation.slice(0, 80) + "…" : row.explanation}
-                    </td>
-                    <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{row.detectedAt.split("T")[0]}</td>
-                    <td style={{ padding: "11px 14px" }}>
-                      {isResolved
-                        ? <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "var(--safe-bg)", color: "var(--safe)", whiteSpace: "nowrap" }}>Resolved</span>
-                        : <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "var(--watch-bg)", color: "var(--watch)", whiteSpace: "nowrap" }}>Open</span>}
-                    </td>
-                    <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                      {!isResolved && (
-                        <button
-                          onClick={() => openResolve(row)}
-                          style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--warning)", background: "var(--warning-bg)", color: "var(--warning)", fontSize: 12, cursor: "pointer" }}
-                        >
-                          Resolve
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}</tbody>
-            </table>
-          )}
-      </div>
+    <>
+      <Card>
+        <CardContent className="p-0">
+          {isLoading
+            ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
+            : rows.length === 0
+              ? <p className="p-6 text-sm text-muted-foreground">No anomaly flags found.</p>
+              : (
+                <div className="overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Client</TableHead><TableHead>Month</TableHead><TableHead>Role</TableHead>
+                        <TableHead>Flag Type</TableHead><TableHead>Severity</TableHead><TableHead>Explanation</TableHead>
+                        <TableHead>Detected</TableHead><TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((row) => {
+                        const isResolved = row.resolvedAt !== null;
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell className="font-medium text-sm">{row.client.name}</TableCell>
+                            <TableCell className="text-sm">{row.month.split("T")[0].slice(0, 7)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{row.roleType ? row.roleType.replace(/_/g, " ") : "—"}</TableCell>
+                            <TableCell className="text-xs">{row.flagType.replace(/_/g, " ")}</TableCell>
+                            <TableCell className="text-xs">{row.severity}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[240px]" title={row.explanation}>
+                              {row.explanation.length > 80 ? row.explanation.slice(0, 80) + "…" : row.explanation}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{row.detectedAt.split("T")[0]}</TableCell>
+                            <TableCell>
+                              {isResolved
+                                ? <StatusBadge status="Resolved" />
+                                : <StatusBadge status="open" />}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {!isResolved && (
+                                <Button
+                                  size="sm" variant="outline"
+                                  className="text-xs border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning-bg)]"
+                                  onClick={() => openResolve(row)}
+                                >
+                                  Resolve
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
+          }
+        </CardContent>
+      </Card>
 
-      {resolveRow !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={closeResolve} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-          <div style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28, width: 440, maxWidth: "90vw" }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Resolve Anomaly Flag</div>
-            {resolveError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{resolveError}</p>}
-            <form onSubmit={handleResolve}>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Resolved By (Person ID)</label>
-                <input
-                  style={inputStyle}
-                  type="number"
-                  min="1"
-                  value={resolveForm.resolved_by}
-                  onChange={e => setResolveForm({ ...resolveForm, resolved_by: e.target.value })}
-                  placeholder="Optional — person ID"
-                />
-              </div>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Resolution Notes *</label>
-                <textarea
-                  style={{ ...inputStyle, resize: "vertical", minHeight: 80 }}
-                  required
-                  value={resolveForm.resolution_notes}
-                  onChange={e => setResolveForm({ ...resolveForm, resolution_notes: e.target.value })}
-                  placeholder="Describe how this was resolved…"
-                />
-              </div>
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
-                <button type="button" onClick={closeResolve} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-                <button type="submit" disabled={resolveMut.isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--warning)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: resolveMut.isPending ? "not-allowed" : "pointer", opacity: resolveMut.isPending ? 0.7 : 1 }}>
-                  {resolveMut.isPending ? "Resolving…" : "Confirm Resolve"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+      <Dialog open={resolveRow !== null} onOpenChange={(v) => { if (!v) closeResolve(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Resolve Anomaly Flag</DialogTitle></DialogHeader>
+          {resolveError && <p className="text-sm text-destructive">{resolveError}</p>}
+          <form onSubmit={handleResolve} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Resolved By (Person ID)</Label>
+              <Input
+                type="number" min="1"
+                value={resolveForm.resolved_by}
+                onChange={e => setResolveForm({ ...resolveForm, resolved_by: e.target.value })}
+                placeholder="Optional — person ID"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Resolution Notes *</Label>
+              <Textarea
+                required
+                value={resolveForm.resolution_notes}
+                onChange={e => setResolveForm({ ...resolveForm, resolution_notes: e.target.value })}
+                placeholder="Describe how this was resolved…"
+                className="min-h-[80px]"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeResolve}>Cancel</Button>
+              <Button type="submit" disabled={resolveMut.isPending} className="bg-[var(--warning)] text-white hover:bg-[var(--warning)]/90">
+                {resolveMut.isPending ? "Resolving…" : "Confirm Resolve"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -206,88 +201,82 @@ function SuggestionsSection() {
   const TERMINAL = ["applied", "dismissed"];
 
   return (
-    <div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No suggestions found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Person</th>
-                <th style={thStyle}>Squad</th>
-                <th style={thStyle}>Month</th>
-                <th style={thStyle}>Type</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Explanation</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => {
-                const isTerminal = TERMINAL.includes(row.status);
-                return (
-                  <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                    <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.person?.name ?? "—"}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.squad.name}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.month.split("T")[0].slice(0, 7)}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)" }}>{row.suggestionType.replace(/_/g, " ")}</td>
-                    <td style={{ padding: "11px 14px" }}><StatusBadge status={row.status} /></td>
-                    <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--text-muted)", maxWidth: 240 }} title={row.explanation}>
-                      {row.explanation.length > 80 ? row.explanation.slice(0, 80) + "…" : row.explanation}
-                    </td>
-                    <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                      {isTerminal ? null : (
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                          {row.status === "open" && (
-                            <button
-                              onClick={() => statusMut.mutate({ id: row.id, status: "acknowledged" })}
-                              disabled={statusMut.isPending}
-                              style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--watch)", background: "var(--watch-bg)", color: "var(--watch)", fontSize: 12, cursor: "pointer" }}
-                            >
-                              Acknowledge
-                            </button>
-                          )}
-                          <button
-                            onClick={() => statusMut.mutate({ id: row.id, status: "applied" })}
-                            disabled={statusMut.isPending}
-                            style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--safe)", background: "var(--safe-bg)", color: "var(--safe)", fontSize: 12, cursor: "pointer" }}
-                          >
-                            Apply
-                          </button>
-                          <button
-                            onClick={() => statusMut.mutate({ id: row.id, status: "dismissed" })}
-                            disabled={statusMut.isPending}
-                            style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", fontSize: 12, cursor: "pointer" }}
-                          >
-                            Dismiss
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}</tbody>
-            </table>
-          )}
-      </div>
-    </div>
+    <Card>
+      <CardContent className="p-0">
+        {isLoading
+          ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
+          : rows.length === 0
+            ? <p className="p-6 text-sm text-muted-foreground">No suggestions found.</p>
+            : (
+              <div className="overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Person</TableHead><TableHead>Squad</TableHead><TableHead>Month</TableHead>
+                      <TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Explanation</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => {
+                      const isTerminal = TERMINAL.includes(row.status);
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell className="text-sm">{row.person?.name ?? "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{row.squad.name}</TableCell>
+                          <TableCell className="text-sm">{row.month.split("T")[0].slice(0, 7)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{row.suggestionType.replace(/_/g, " ")}</TableCell>
+                          <TableCell><StatusBadge status={row.status} /></TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[240px]" title={row.explanation}>
+                            {row.explanation.length > 80 ? row.explanation.slice(0, 80) + "…" : row.explanation}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {!isTerminal && (
+                              <div className="flex gap-1.5 justify-end flex-wrap">
+                                {row.status === "open" && (
+                                  <Button size="sm" variant="outline" disabled={statusMut.isPending}
+                                    className="text-xs border-[var(--watch)] text-[var(--watch)] hover:bg-[var(--watch-bg)]"
+                                    onClick={() => statusMut.mutate({ id: row.id, status: "acknowledged" })}>
+                                    Acknowledge
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline" disabled={statusMut.isPending}
+                                  className="text-xs border-[var(--safe)] text-[var(--safe)] hover:bg-[var(--safe-bg)]"
+                                  onClick={() => statusMut.mutate({ id: row.id, status: "applied" })}>
+                                  Apply
+                                </Button>
+                                <Button size="sm" variant="outline" disabled={statusMut.isPending}
+                                  className="text-xs text-muted-foreground"
+                                  onClick={() => statusMut.mutate({ id: row.id, status: "dismissed" })}>
+                                  Dismiss
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+        }
+      </CardContent>
+    </Card>
   );
 }
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function AnalyticsTab() {
-  const [subTab, setSubTab] = useState<SubTab>("anomalies");
-
   return (
-    <div>
-      <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: 20 }}>
-        {(["anomalies", "suggestions"] as SubTab[]).map(t => (
-          <button key={t} style={subTabBtn(subTab === t)} onClick={() => setSubTab(t)}>
-            {t === "anomalies" ? "Anomaly Flags" : "Suggestions"}
-          </button>
-        ))}
-      </div>
-      {subTab === "anomalies" && <AnomalyFlagsSection />}
-      {subTab === "suggestions" && <SuggestionsSection />}
-    </div>
+    <Tabs defaultValue="anomalies">
+      <TabsList className="mb-5">
+        <TabsTrigger value="anomalies">Anomaly Flags</TabsTrigger>
+        <TabsTrigger value="suggestions">Suggestions</TabsTrigger>
+      </TabsList>
+      <TabsContent value="anomalies"><AnomalyFlagsSection /></TabsContent>
+      <TabsContent value="suggestions"><SuggestionsSection /></TabsContent>
+    </Tabs>
   );
 }

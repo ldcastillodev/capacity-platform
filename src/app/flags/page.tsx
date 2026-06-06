@@ -4,12 +4,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { fetchClients, fetchFlags, resolveFlag } from "@/lib/client";
+import { PageHeader } from "@/components/app/PageHeader";
+import { StatusBadge } from "@/components/app/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { AlertLevel } from "@/lib/client";
 
-const SEVERITY_COLOR: Record<string, string> = {
-  low: "var(--safe)",
-  medium: "var(--watch)",
-  high: "var(--warning)",
-  critical: "var(--critical)",
+const SEVERITY_TONE: Record<string, AlertLevel> = {
+  low: "safe",
+  medium: "watch",
+  high: "warning",
+  critical: "critical",
 };
 
 const FLAG_LABELS: Record<string, string> = {
@@ -44,80 +51,78 @@ export default function FlagsPage() {
     },
   });
 
-  if (isLoading) return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
-
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>Anomaly Flags</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: 4 }}>
-          {flags?.length ?? 0} open flag{flags?.length !== 1 ? "s" : ""} requiring attention
-        </p>
-      </div>
+      <PageHeader
+        title="Anomaly Flags"
+        description={`${flags?.length ?? 0} open flag${flags?.length !== 1 ? "s" : ""} requiring attention`}
+      />
 
-      {(!flags || flags.length === 0) && (
-        <div style={{ background: "var(--safe-bg)", border: "1px solid #bbf7d0", borderRadius: 12, padding: 24, color: "var(--safe)", fontWeight: 500 }}>
+      {isLoading && (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+        </div>
+      )}
+
+      {!isLoading && (!flags || flags.length === 0) && (
+        <div className="rounded-lg border border-green-200 bg-[var(--safe-bg)] p-6 text-[var(--safe)] font-medium">
           All clear — no open flags this month.
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="flex flex-col gap-3">
         {(flags ?? []).map((f) => (
-          <div key={f.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <span style={{
-                    background: SEVERITY_COLOR[f.severity] + "20",
-                    color: SEVERITY_COLOR[f.severity],
-                    padding: "2px 10px",
-                    borderRadius: 99,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                  }}>
-                    {f.severity}
-                  </span>
-                  <span style={{ fontWeight: 600 }}>{FLAG_LABELS[f.flag_type] ?? f.flag_type}</span>
+          <Card key={f.id}>
+            <CardContent className="p-5">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2.5 mb-1.5">
+                    <StatusBadge
+                      tone={SEVERITY_TONE[f.severity] ?? "default"}
+                      label={f.severity.toUpperCase()}
+                    />
+                    <span className="font-semibold">{FLAG_LABELS[f.flag_type] ?? f.flag_type}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mb-1">
+                    {clientMap[f.client_id] ?? `Client ${f.client_id}`}
+                    {f.role_type && ` · ${f.role_type}`}
+                    {" · "}
+                    {new Date(f.detected_at).toLocaleDateString()}
+                  </div>
+                  {f.explanation && (
+                    <div className="text-sm mt-1.5">{f.explanation}</div>
+                  )}
                 </div>
-                <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 4 }}>
-                  {clientMap[f.client_id] ?? `Client ${f.client_id}`}
-                  {f.role_type && ` · ${f.role_type}`}
-                  {" · "}
-                  {new Date(f.detected_at).toLocaleDateString()}
-                </div>
-                {f.explanation && (
-                  <div style={{ fontSize: 13, color: "var(--text)", marginTop: 6 }}>{f.explanation}</div>
-                )}
-              </div>
 
-              <button
-                onClick={() => setResolving(resolving === f.id ? null : f.id)}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }}
-              >
-                <CheckCircle size={14} />
-                Resolve
-              </button>
-            </div>
-
-            {resolving === f.id && (
-              <div style={{ marginTop: 14, padding: 14, background: "var(--bg)", borderRadius: 8, display: "flex", gap: 10 }}>
-                <input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Resolution note…"
-                  style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, outline: "none" }}
-                />
-                <button
-                  disabled={!note.trim()}
-                  onClick={() => resolve({ id: f.id, note })}
-                  style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, opacity: note.trim() ? 1 : 0.5, cursor: "pointer" }}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setResolving(resolving === f.id ? null : f.id)}
+                  className="ml-4 gap-1.5"
                 >
-                  Confirm
-                </button>
+                  <CheckCircle size={14} />
+                  Resolve
+                </Button>
               </div>
-            )}
-          </div>
+
+              {resolving === f.id && (
+                <div className="mt-4 pt-4 border-t flex gap-2">
+                  <Input
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Resolution note…"
+                    className="flex-1"
+                  />
+                  <Button
+                    disabled={!note.trim()}
+                    onClick={() => resolve({ id: f.id, note })}
+                  >
+                    Confirm
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>

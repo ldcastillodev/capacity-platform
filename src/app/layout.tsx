@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, AlertTriangle, BarChart2, BookOpen, ClipboardList, Clock, FileText, LayoutDashboard, PieChart, RefreshCw, Settings, Zap } from "lucide-react";
+import { Toaster } from "@/components/ui/sonner";
+import { cn } from "@/lib/utils";
 import "./globals.css";
 
 const nav = [
@@ -33,52 +35,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
-      <body style={{ minHeight: "100vh" }}>
+      <body className="min-h-screen bg-background text-foreground">
         <QueryClientProvider client={queryClient}>
-          <div style={{ display: "flex", minHeight: "100vh" }}>
+          <div className="flex min-h-screen">
             {/* Sidebar */}
             <nav
-              style={{
-                width: "var(--nav-width)",
-                background: "var(--surface)",
-                borderRight: "1px solid var(--border)",
-                display: "flex",
-                flexDirection: "column",
-                padding: "24px 0",
-                position: "fixed",
-                top: 0,
-                left: 0,
-                bottom: 0,
-              }}
+              className="fixed top-0 left-0 bottom-0 flex flex-col bg-card border-r border-border"
+              style={{ width: "var(--nav-width)" }}
             >
-              <div style={{ padding: "0 20px 24px", borderBottom: "1px solid var(--border)" }}>
-                <img src="/favicon.svg" alt="MgS" style={{ height: 36, display: "block" }} />
-                <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 4 }}>
-                  Capacity Platform
-                </div>
+              <div className="px-5 pt-6 pb-6 border-b border-border">
+                <img src="/favicon.svg" alt="MgS" className="h-9 block" />
+                <div className="text-xs text-muted-foreground mt-1">Capacity Platform</div>
               </div>
 
-              <div style={{ padding: "16px 12px", flex: 1 }}>
+              <div className="flex-1 px-3 py-4">
                 {nav.map(({ href, icon: Icon, label }) => {
                   const isActive = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
                   return (
                     <Link
                       key={href}
                       href={href}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "9px 12px",
-                        borderRadius: 8,
-                        marginBottom: 2,
-                        fontWeight: isActive ? 600 : 400,
-                        background: isActive ? "var(--primary-light)" : "transparent",
-                        color: isActive ? "var(--primary)" : "var(--text-muted)",
-                        transition: "all 0.15s",
-                        textDecoration: "none",
-                        fontSize: 14,
-                      }}
+                      className={cn(
+                        "flex items-center gap-2.5 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors",
+                        isActive
+                          ? "font-semibold bg-accent text-accent-foreground"
+                          : "font-normal text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
                     >
                       <Icon size={16} />
                       {label}
@@ -89,18 +71,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
 
             {/* Main content */}
-            <main
-              style={{
-                marginLeft: "var(--nav-width)",
-                flex: 1,
-                padding: "32px",
-                maxWidth: "calc(100vw - var(--nav-width))",
-              }}
-            >
+            <main className="flex-1 p-8" style={{ marginLeft: "var(--nav-width)" }}>
               {children}
             </main>
           </div>
         </QueryClientProvider>
+        <Toaster />
       </body>
     </html>
   );

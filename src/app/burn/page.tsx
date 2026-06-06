@@ -14,20 +14,16 @@ import {
   YAxis,
 } from "recharts";
 import { fetchBurnByContractWeekly } from "@/lib/client";
-import AlertBadge from "@/components/AlertBadge";
-import MonthNavigator from "@/components/MonthNavigator";
+import { MonthNavigator } from "@/components/app/MonthNavigator";
+import { PageHeader } from "@/components/app/PageHeader";
+import { StatusBadge } from "@/components/app/StatusBadge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
+import type { AlertLevel } from "@/lib/client";
+import type React from "react";
 
 type View = "by_contract";
-
-const thStyle: React.CSSProperties = {
-  padding: "10px 14px", textAlign: "left", fontWeight: 600, fontSize: 13,
-  color: "var(--text-muted)", borderBottom: "1px solid var(--border)",
-  background: "var(--bg)", whiteSpace: "nowrap",
-};
-const tdStyle: React.CSSProperties = { padding: "11px 14px", borderBottom: "1px solid var(--border)", fontSize: 14 };
-
-import type React from "react";
 
 export default function BurnPage() {
   const [month, setMonth] = useMonth();
@@ -40,24 +36,24 @@ export default function BurnPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Burn Rate</h1>
-          <p style={{ color: "var(--text-muted)", marginTop: 4 }}>
-            {formatMonthDisplay(month)} · Cumulative hours vs expected pace
-          </p>
-        </div>
-        <MonthNavigator month={month} onChange={setMonth} />
-      </div>
+      <PageHeader
+        title="Burn Rate"
+        description={`${formatMonthDisplay(month)} · Cumulative hours vs expected pace`}
+        actions={<MonthNavigator month={month} onChange={setMonth} />}
+      />
 
-      {isLoading && <p style={{ color: "var(--text-muted)" }}>Loading…</p>}
+      {isLoading && (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
+        </div>
+      )}
 
       {!isLoading && view === "by_contract" && (
         <>
           {(contractWeekly ?? []).length === 0 && (
-            <p style={{ color: "var(--text-muted)" }}>No active contracts with hours this month.</p>
+            <p className="text-muted-foreground">No active contracts with hours this month.</p>
           )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div className="flex flex-col gap-6">
             {(contractWeekly ?? []).map((contract) => {
               const chartData = contract.weeks.map((w) => ({
                 week: new Date(w.week_start.slice(0, 10) + "T12:00:00").toLocaleDateString("default", { month: "short", day: "numeric" }),
@@ -66,34 +62,43 @@ export default function BurnPage() {
                 pool: w.pool_hours,
               }));
               return (
-                <div key={contract.contract_id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 24 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 16 }}>{contract.contract_name}</div>
-                      <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 2 }}>{contract.client_name}</div>
-                      <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>
-                        {contract.consumed_hours.toFixed(1)}h consumed of {contract.pool_hours.toFixed(1)}h pool
+                <Card key={contract.contract_id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-base">{contract.contract_name}</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-0.5">{contract.client_name}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {contract.consumed_hours.toFixed(1)}h consumed of {contract.pool_hours.toFixed(1)}h pool
+                        </p>
                       </div>
+                      <StatusBadge tone={contract.alert_level as AlertLevel} label={
+                        contract.alert_level === "safe" ? "On Track"
+                          : contract.alert_level === "watch" ? "Watch"
+                          : contract.alert_level === "warning" ? "Warning"
+                          : "Critical"
+                      } />
                     </div>
-                    <AlertBadge level={contract.alert_level as import("@/lib/client").AlertLevel} />
-                  </div>
-                  {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis dataKey="week" tick={{ fontSize: 12 }} />
-                        <YAxis tick={{ fontSize: 12 }} />
-                        <Tooltip />
-                        <Legend />
-                        <ReferenceLine y={chartData[0]?.pool} stroke="var(--critical)" strokeDasharray="4 4" label={{ value: "Pool limit", fill: "var(--critical)", fontSize: 11 }} />
-                        <Line type="monotone" dataKey="actual" stroke="var(--primary)" strokeWidth={2} dot={false} name="Actual" />
-                        <Line type="monotone" dataKey="expected" stroke="var(--text-muted)" strokeWidth={1.5} strokeDasharray="5 5" dot={false} name="Expected pace" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <p style={{ color: "var(--text-muted)", fontSize: 13 }}>No weekly data available yet.</p>
-                  )}
-                </div>
+                  </CardHeader>
+                  <CardContent>
+                    {chartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="week" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip />
+                          <Legend />
+                          <ReferenceLine y={chartData[0]?.pool} stroke="var(--critical)" strokeDasharray="4 4" label={{ value: "Pool limit", fill: "var(--critical)", fontSize: 11 }} />
+                          <Line type="monotone" dataKey="actual" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Actual" />
+                          <Line type="monotone" dataKey="expected" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 5" dot={false} name="Expected pace" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No weekly data available yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
               );
             })}
           </div>

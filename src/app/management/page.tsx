@@ -1,6 +1,5 @@
 "use client";
 
-import React, { useState } from "react";
 import { ClientsTab }    from "@/components/management/ClientsTab";
 import { ComponentsTab } from "@/components/management/ComponentsTab";
 import { WorkforceTab }  from "@/components/management/WorkforceTab";
@@ -8,67 +7,32 @@ import { ContractsTab }  from "@/components/management/ContractsTab";
 import { NonBillableTab } from "@/components/management/NonBillableTab";
 import { AnalyticsTab }  from "@/components/management/AnalyticsTab";
 import { AuditTab }      from "@/components/management/AuditTab";
-
-type Tab = "clients" | "components" | "workforce" | "contracts" | "nonbillable" | "analytics"  | "audit";
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "clients",     label: "Clients" },
-  { id: "components",  label: "Components" },
-  { id: "workforce",   label: "Workforce" },
-  { id: "contracts",   label: "Contracts" },
-  { id: "nonbillable", label: "Non-Billable" },
-  { id: "analytics",   label: "Analytics" },
-  { id: "audit",       label: "Audit" },
-];
+import { PageHeader } from "@/components/app/PageHeader";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function ManagementPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("clients");
-
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>Management</h1>
-      </div>
+      <PageHeader title="Management" />
 
-      <div
-        style={{
-          display: "flex",
-          gap: 0,
-          borderBottom: "1px solid var(--border)",
-          marginBottom: 28,
-          flexWrap: "wrap",
-        }}
-      >
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "9px 22px",
-              border: "none",
-              background: "transparent",
-              fontSize: 14,
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? "var(--primary)" : "var(--text-muted)",
-              cursor: "pointer",
-              borderBottom: `2px solid ${activeTab === tab.id ? "var(--primary)" : "transparent"}`,
-              marginBottom: -1,
-              borderRadius: 0,
-              transition: "color 0.15s",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "clients"     && <ClientsTab />}
-      {activeTab === "components"  && <ComponentsTab />}
-      {activeTab === "workforce"   && <WorkforceTab />}
-      {activeTab === "contracts"   && <ContractsTab />}
-      {activeTab === "nonbillable" && <NonBillableTab />}
-      {activeTab === "analytics"   && <AnalyticsTab />}
-      {activeTab === "audit"       && <AuditTab />}
+      <Tabs defaultValue="clients">
+        <TabsList className="mb-7 flex-wrap h-auto">
+          <TabsTrigger value="clients">Clients</TabsTrigger>
+          <TabsTrigger value="components">Components</TabsTrigger>
+          <TabsTrigger value="workforce">Workforce</TabsTrigger>
+          <TabsTrigger value="contracts">Contracts</TabsTrigger>
+          <TabsTrigger value="nonbillable">Non-Billable</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="audit">Audit</TabsTrigger>
+        </TabsList>
+        <TabsContent value="clients"><ClientsTab /></TabsContent>
+        <TabsContent value="components"><ComponentsTab /></TabsContent>
+        <TabsContent value="workforce"><WorkforceTab /></TabsContent>
+        <TabsContent value="contracts"><ContractsTab /></TabsContent>
+        <TabsContent value="nonbillable"><NonBillableTab /></TabsContent>
+        <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+        <TabsContent value="audit"><AuditTab /></TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -13,9 +13,24 @@ import {
   type NonBillableSummary,
   type NbEntryGroup,
 } from "@/lib/client";
-import { StatCard } from "@/components/StatCard";
-import MonthNavigator from "@/components/MonthNavigator";
+import { StatCard } from "@/components/app/StatCard";
+import { MetricCardGrid } from "@/components/app/MetricCardGrid";
+import { MonthNavigator } from "@/components/app/MonthNavigator";
+import { PageHeader } from "@/components/app/PageHeader";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type CatType = "leave" | "internal_meeting" | "training" | "shared_ceremony" | "company";
 
@@ -71,8 +86,7 @@ function buildRollup(rows: NonBillableSummary[]): PersonRollup[] {
     const totalHours = parseFloat(String(total.total_hours ?? total.totalHours ?? 0));
     if (totalHours === 0) continue;
     results.push({
-      personId,
-      totalHours,
+      personId, totalHours,
       capacityHours: parseFloat(String(total.capacity_hours ?? total.capacityHours ?? 0)),
       nbPct: parseFloat(String(total.nonbillable_pct ?? total.nonbillablePct ?? 0)),
       momDelta: total.month_over_month_delta != null ? parseFloat(String(total.month_over_month_delta ?? total.monthOverMonthDelta ?? 0)) : null,
@@ -83,10 +97,10 @@ function buildRollup(rows: NonBillableSummary[]): PersonRollup[] {
 }
 
 function StackedNbBar({ byCategory, capacityHours }: { byCategory: Partial<Record<CatType, number>>; capacityHours: number }): React.ReactElement {
-  if (capacityHours <= 0) return <div style={{ height: 8, width: "100%", background: "var(--border)", borderRadius: 99 }} />;
+  if (capacityHours <= 0) return <div className="h-2 w-full bg-border rounded-full" />;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ flex: 1, height: 8, background: "var(--border)", borderRadius: 99, overflow: "hidden", display: "flex", minWidth: 80 }}>
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-2 bg-border rounded-full overflow-hidden flex min-w-[80px]">
         {CAT_ORDER.filter((c) => byCategory[c]).map((cat) => {
           const h = byCategory[cat] ?? 0;
           const w = Math.min((h / capacityHours) * 100, 100);
@@ -100,8 +114,8 @@ function StackedNbBar({ byCategory, capacityHours }: { byCategory: Partial<Recor
 function NbEntryDetail({ personId, month }: { personId: number; month: string }): React.ReactElement {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ["nb-entries", personId, month], queryFn: () => fetchNonBillableEntries(personId, month) });
-  if (isLoading) return <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading entries…</p>;
-  if (!data || data.length === 0) return <p style={{ color: "var(--text-muted)", fontSize: 13 }}>No entries found.</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading entries…</p>;
+  if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">No entries found.</p>;
   const byCatType: Partial<Record<CatType, NbEntryGroup[]>> = {};
   for (const g of data) { const ct = g.category_type as CatType; if (!byCatType[ct]) byCatType[ct] = []; byCatType[ct]!.push(g); }
 
@@ -110,12 +124,9 @@ function NbEntryDetail({ personId, month }: { personId: number; month: string })
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div className="flex flex-col gap-1.5">
       {allBroad && (
-        <div style={{
-          fontSize: 12, color: "#92400e", background: "rgba(245,158,11,0.08)",
-          border: "1px solid rgba(245,158,11,0.2)", borderRadius: 6, padding: "6px 10px", marginBottom: 4,
-        }}>
+        <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-1">
           ℹ️ This person&apos;s NB time is logged to broad Jira tickets — granular category breakdown not available for NA team.
         </div>
       )}
@@ -124,23 +135,29 @@ function NbEntryDetail({ personId, month }: { personId: number; month: string })
         const meta = CAT_META[catType];
         const catTotal = groups.reduce((s, g) => s + g.total_hours, 0);
         return (
-          <div key={catType} style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: meta.bg, cursor: "pointer" }} onClick={() => setOpenCat(openCat === catType ? null : catType)}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: meta.color }}>{meta.icon} {meta.label}</span>
-              <span style={{ fontSize: 12, color: meta.color, fontWeight: 600, marginLeft: "auto" }}>{catTotal.toFixed(1)}h</span>
-              <span style={{ fontSize: 11, color: meta.color }}>{openCat === catType ? "▾" : "▸"}</span>
+          <div key={catType} className="border border-border rounded-lg overflow-hidden">
+            <div
+              className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+              style={{ background: meta.bg }}
+              onClick={() => setOpenCat(openCat === catType ? null : catType)}
+            >
+              <span className="text-xs font-bold" style={{ color: meta.color }}>{meta.icon} {meta.label}</span>
+              <span className="text-xs font-semibold ml-auto" style={{ color: meta.color }}>{catTotal.toFixed(1)}h</span>
+              <span className="text-xs" style={{ color: meta.color }}>{openCat === catType ? "▾" : "▸"}</span>
             </div>
             {openCat === catType && (
-              <div style={{ background: "var(--surface)" }}>
+              <div className="bg-card">
                 {groups.map((group) => (
                   <div key={group.category_name}>
-                    <div style={{ padding: "5px 12px 2px 24px", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg)", borderTop: "1px solid var(--border)" }}>{group.category_name} · {group.total_hours.toFixed(1)}h</div>
+                    <div className="px-4 py-1 text-xs font-semibold text-muted-foreground bg-muted/30 border-t border-border">
+                      {group.category_name} · {group.total_hours.toFixed(1)}h
+                    </div>
                     {group.entries.map((e, i) => (
-                      <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 50px 1fr 140px", gap: 12, padding: "5px 12px 5px 24px", fontSize: 12, borderTop: "1px solid var(--border)", alignItems: "center", background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                        <span style={{ color: "var(--text-muted)" }}>{e.date}</span>
-                        <span style={{ fontWeight: 600 }}>{e.hours.toFixed(1)}h</span>
-                        <span style={{ color: "var(--text-muted)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.notes ?? "—"}</span>
-                        {e.external_ref && <span style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "right", fontFamily: "monospace" }}>{e.external_ref}</span>}
+                      <div key={i} className="grid gap-3 px-4 py-1 text-xs border-t border-border items-center" style={{ gridTemplateColumns: "90px 50px 1fr 140px" }}>
+                        <span className="text-muted-foreground">{e.date}</span>
+                        <span className="font-semibold">{e.hours.toFixed(1)}h</span>
+                        <span className="text-muted-foreground truncate">{e.notes ?? "—"}</span>
+                        {e.external_ref && <span className="text-right font-mono text-muted-foreground">{e.external_ref}</span>}
                       </div>
                     ))}
                   </div>
@@ -154,18 +171,15 @@ function NbEntryDetail({ personId, month }: { personId: number; month: string })
   );
 }
 
-type NbView = "by_person" | "by_squad";
-
 export default function NonBillablePage() {
   const [month, setMonth] = useMonth();
   const queryClient = useQueryClient();
   const [expandedPerson, setExpandedPerson] = useState<number | null>(null);
-  const [view, setView] = useState<NbView>("by_person");
 
   const { data: summaryRaw, isLoading } = useQuery({ queryKey: ["nonbillable", month], queryFn: () => fetchNonBillableSummary({ month }) });
   const { data: people } = useQuery({ queryKey: ["people"], queryFn: fetchPeople });
   const { data: suggestions, isLoading: loadingSuggestions } = useQuery({ queryKey: ["suggestions", month, "open"], queryFn: () => fetchSuggestions({ month, status: "open" }) });
-  const { data: nbBySquad, isLoading: squadLoading } = useQuery({ queryKey: ["nb-by-squad", month], queryFn: () => fetchNbBySquad({ month }), enabled: view === "by_squad" });
+  const { data: nbBySquad, isLoading: squadLoading } = useQuery({ queryKey: ["nb-by-squad", month], queryFn: () => fetchNbBySquad({ month }) });
 
   const dismissMutation = useMutation({ mutationFn: (id: number) => dismissSuggestion(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suggestions"] }) });
 
@@ -185,213 +199,224 @@ export default function NonBillablePage() {
   const avgNbPct = rollup.length > 0 ? rollup.reduce((s, r) => s + r.nbPct, 0) / rollup.length : 0;
   const openSuggestions = (suggestions ?? []).filter((s) => s.status === "open");
 
-  const thStyle: React.CSSProperties = { padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12, color: "var(--text-muted)", borderBottom: "1px solid var(--border)", background: "var(--bg)", whiteSpace: "nowrap" };
-  const thR: React.CSSProperties = { ...thStyle, textAlign: "right" };
-  const tdStyle: React.CSSProperties = { padding: "11px 14px", borderBottom: "1px solid var(--border)", fontSize: 14 };
-  const tdR: React.CSSProperties = { ...tdStyle, textAlign: "right" };
-
-  if (isLoading && view === "by_person") return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
-  if (squadLoading && view === "by_squad") return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
-
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Non-Billable Hours</h1>
-          <p style={{ color: "var(--text-muted)", marginTop: 4 }}>{formatMonthDisplay(month)} · % shown as share of each person's total logged hours</p>
-        </div>
-        <MonthNavigator month={month} onChange={setMonth} />
-      </div>
+      <PageHeader
+        title="Non-Billable Hours"
+        description={`${formatMonthDisplay(month)} · % shown as share of each person's total logged hours`}
+        actions={<MonthNavigator month={month} onChange={setMonth} />}
+      />
 
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", marginBottom: 24 }}>
-        {(["by_person", "by_squad"] as NbView[]).map((v) => {
-          const labels: Record<NbView, string> = { by_person: "By Person", by_squad: "By Squad" };
-          const active = view === v;
-          return (
-            <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", border: "none", background: "transparent", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "var(--primary)" : "var(--text-muted)", cursor: "pointer", borderBottom: `2px solid ${active ? "var(--primary)" : "transparent"}`, marginBottom: -1, borderRadius: 0 }}>
-              {labels[v]}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, marginBottom: 32 }}>
+      <MetricCardGrid className="mb-8">
         <StatCard label="Total NB Hours" value={grandTotalNb.toFixed(1) + "h"} />
-        <StatCard
-          label="Avg NB %"
-          value={(avgNbPct * 100).toFixed(1) + "%"}
-          color={avgNbPct > 0.30 ? "var(--critical)" : avgNbPct > 0.20 ? "var(--warning)" : avgNbPct >= 0.15 ? "var(--watch)" : undefined}
-        />
-        <StatCard
-          label="People Flagged"
-          value={flagged}
-          sub="NB% > 25% of logged time"
-          color={flagged > 0 ? "var(--critical)" : undefined}
-        />
-        <StatCard
-          label="Open Suggestions"
-          value={openSuggestions.length}
-          color={openSuggestions.length > 0 ? "var(--warning)" : undefined}
-        />
-      </div>
+        <StatCard label="Avg NB %" value={(avgNbPct * 100).toFixed(1) + "%"}
+          valueColor={avgNbPct > 0.30 ? "var(--critical)" : avgNbPct > 0.20 ? "var(--warning)" : avgNbPct >= 0.15 ? "var(--watch)" : undefined} />
+        <StatCard label="People Flagged" value={flagged} subtitle="NB% > 25% of logged time"
+          valueColor={flagged > 0 ? "var(--critical)" : undefined} />
+        <StatCard label="Open Suggestions" value={openSuggestions.length}
+          valueColor={openSuggestions.length > 0 ? "var(--warning)" : undefined} />
+      </MetricCardGrid>
 
-      {view === "by_squad" && (
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", fontWeight: 600, fontSize: 15 }}>By Squad</div>
-          {squadLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-            : (nbBySquad ?? []).length === 0
-              ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No data for this period. Run analytics refresh to populate.</p>
-              : (
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={thStyle}>Squad</th>
-                      <th style={thR}>NB Hours</th>
-                      <th style={{ ...thStyle, minWidth: 180 }}>NB % of capacity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(nbBySquad ?? []).map((row, i) => {
-                      const color = riskColor(row.nb_pct);
-                      const clampedPct = Math.min(row.nb_pct, 1);
-                      return (
-                        <tr key={row.squad_id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                          <td style={{ ...tdStyle, fontWeight: 500 }}>{row.squad_name}</td>
-                          <td style={tdR}>{row.total_hours.toFixed(1)}h</td>
-                          <td style={tdStyle}>
-                            {row.capacity_hours > 0 ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div style={{ flex: 1, height: 8, background: "var(--border)", borderRadius: 99, overflow: "hidden", minWidth: 80 }}>
-                                  <div style={{ width: `${(clampedPct * 100).toFixed(1)}%`, height: "100%", background: color, borderRadius: 99 }} />
-                                </div>
-                                <span style={{ fontSize: 13, fontWeight: 600, color, minWidth: 42, textAlign: "right" }}>{(row.nb_pct * 100).toFixed(1)}%</span>
-                              </div>
-                            ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-        </div>
-      )}
+      <Tabs defaultValue="by_person" className="mb-8">
+        <TabsList className="mb-6">
+          <TabsTrigger value="by_person">By Person</TabsTrigger>
+          <TabsTrigger value="by_squad">By Squad</TabsTrigger>
+        </TabsList>
 
-      {view === "by_person" && <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>Where is non-billable time going?</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {CAT_ORDER.filter((c) => catTotals[c]).map((cat) => {
-            const h = catTotals[cat] ?? 0;
-            const share = grandTotalNb > 0 ? h / grandTotalNb : 0;
-            const meta = CAT_META[cat];
-            return (
-              <div key={cat} style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 60px", alignItems: "center", gap: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: meta.bg, color: meta.color }}>{meta.icon} {meta.label}</span>
-                </div>
-                <div style={{ height: 10, background: "var(--border)", borderRadius: 99, overflow: "hidden" }}>
-                  <div style={{ width: `${(share * 100).toFixed(1)}%`, height: "100%", background: meta.color, borderRadius: 99 }} />
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>{h.toFixed(0)}h</span>
-                <span style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "right" }}>{(share * 100).toFixed(0)}%</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>}
+        <TabsContent value="by_person">
+          {isLoading && <div className="space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-12 w-full"/>)}</div>}
+          {!isLoading && (
+            <>
+              <Card className="mb-6">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Where is non-billable time going?</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {CAT_ORDER.filter((c) => catTotals[c]).map((cat) => {
+                    const h = catTotals[cat] ?? 0;
+                    const share = grandTotalNb > 0 ? h / grandTotalNb : 0;
+                    const meta = CAT_META[cat];
+                    return (
+                      <div key={cat} className="grid items-center gap-3" style={{ gridTemplateColumns: "180px 1fr 60px 60px" }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: meta.bg, color: meta.color }}>{meta.icon} {meta.label}</span>
+                        </div>
+                        <div className="h-2.5 bg-border rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(share * 100).toFixed(1)}%`, background: meta.color }} />
+                        </div>
+                        <span className="text-sm font-semibold text-right">{h.toFixed(0)}h</span>
+                        <span className="text-xs text-muted-foreground text-right">{(share * 100).toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
 
-      {view === "by_person" && <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", fontWeight: 600, fontSize: 15 }}>By Person</div>
-        {rollup.length === 0
-          ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No data for this period.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Person</th>
-                  <th style={{ ...thStyle, textAlign: "right" }}>NB Hours</th>
-                  <th style={{ ...thStyle, minWidth: 180 }}>NB % of logged</th>
-                  <th style={{ ...thStyle, textAlign: "right" }}>vs last month</th>
-                  <th style={{ ...thStyle, textAlign: "center" }}>Risk</th>
-                  <th style={thStyle}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rollup.map((row, i) => {
-                  const isExpanded = expandedPerson === row.personId;
-                  const color = riskColor(row.nbPct);
-                  const hasBreakdown = Object.keys(row.byCategory).length > 0;
-                  return (
-                    <React.Fragment key={row.personId}>
-                      <tr
-                        style={{ background: isExpanded ? "var(--primary-light)" : i % 2 === 0 ? "var(--surface)" : "var(--bg)", cursor: hasBreakdown ? "pointer" : "default" }}
-                        onClick={() => hasBreakdown && setExpandedPerson(isExpanded ? null : row.personId)}
-                      >
-                        <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>
-                          {hasBreakdown && <span style={{ marginRight: 6, color: "var(--text-muted)", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>}
-                          {personMap[row.personId] ?? `Person ${row.personId}`}
-                        </td>
-                        <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{row.totalHours.toFixed(1)}h</td>
-                        <td style={{ padding: "11px 14px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ flex: 1, minWidth: 80 }}><StackedNbBar byCategory={row.byCategory} capacityHours={row.capacityHours} /></div>
-                            <span style={{ fontSize: 13, fontWeight: 600, color, minWidth: 42, textAlign: "right" }}>{(row.nbPct * 100).toFixed(1)}%</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: "11px 14px", fontSize: 13, textAlign: "right", color: row.momDelta == null ? "var(--text-muted)" : row.momDelta > 0 ? "var(--critical)" : "var(--safe)" }}>
-                          {row.momDelta == null ? "—" : `${row.momDelta > 0 ? "+" : ""}${row.momDelta.toFixed(1)}h`}
-                        </td>
-                        <td style={{ padding: "11px 14px", textAlign: "center" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: color + "22", color }}>{riskLabel(row.nbPct)}</span>
-                        </td>
-                        <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                          {hasBreakdown && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{isExpanded ? "collapse" : "details"}</span>}
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr key={`${row.personId}-expand`}>
-                          <td colSpan={6} style={{ padding: 0, background: "var(--bg)" }}>
-                            <div style={{ padding: "16px 24px 16px 44px", borderBottom: "1px solid var(--border)" }}>
-                              <NbEntryDetail personId={row.personId} month={month} />
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+              <Card className="overflow-hidden">
+                <CardHeader className="py-3 px-5 border-b">
+                  <CardTitle className="text-base">By Person</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {rollup.length === 0
+                    ? <p className="p-6 text-muted-foreground">No data for this period.</p>
+                    : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Person</TableHead>
+                              <TableHead className="text-right">NB Hours</TableHead>
+                              <TableHead className="min-w-[180px]">NB % of logged</TableHead>
+                              <TableHead className="text-right">vs last month</TableHead>
+                              <TableHead className="text-center">Risk</TableHead>
+                              <TableHead></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {rollup.map((row) => {
+                              const isExpanded = expandedPerson === row.personId;
+                              const color = riskColor(row.nbPct);
+                              const hasBreakdown = Object.keys(row.byCategory).length > 0;
+                              return (
+                                <React.Fragment key={row.personId}>
+                                  <TableRow
+                                    className={hasBreakdown ? "cursor-pointer" : undefined}
+                                    onClick={() => hasBreakdown && setExpandedPerson(isExpanded ? null : row.personId)}
+                                  >
+                                    <TableCell className="font-medium">
+                                      {hasBreakdown && <span className="mr-1.5 text-xs text-muted-foreground">{isExpanded ? "▾" : "▸"}</span>}
+                                      {personMap[row.personId] ?? `Person ${row.personId}`}
+                                    </TableCell>
+                                    <TableCell className="text-right">{row.totalHours.toFixed(1)}h</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <div className="flex-1 min-w-[80px]"><StackedNbBar byCategory={row.byCategory} capacityHours={row.capacityHours} /></div>
+                                        <span className="text-xs font-semibold min-w-[42px] text-right" style={{ color }}>{(row.nbPct * 100).toFixed(1)}%</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-right text-sm"
+                                      style={{ color: row.momDelta == null ? undefined : row.momDelta > 0 ? "var(--critical)" : "var(--safe)" }}>
+                                      {row.momDelta == null ? "—" : `${row.momDelta > 0 ? "+" : ""}${row.momDelta.toFixed(1)}h`}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <Badge variant="outline" className="text-xs font-bold" style={{ background: color + "22", color, borderColor: color }}>{riskLabel(row.nbPct)}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right text-xs text-muted-foreground">
+                                      {hasBreakdown && (isExpanded ? "collapse" : "details")}
+                                    </TableCell>
+                                  </TableRow>
+                                  {isExpanded && (
+                                    <TableRow>
+                                      <TableCell colSpan={6} className="p-0 bg-muted/20">
+                                        <div className="py-4 pl-10 pr-4 border-b">
+                                          <NbEntryDetail personId={row.personId} month={month} />
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                </CardContent>
+              </Card>
+            </>
           )}
-      </div>}
+        </TabsContent>
+
+        <TabsContent value="by_squad">
+          {squadLoading && <div className="space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-12 w-full"/>)}</div>}
+          {!squadLoading && (
+            <Card className="overflow-hidden">
+              <CardHeader className="py-3 px-5 border-b">
+                <CardTitle className="text-base">By Squad</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {(nbBySquad ?? []).length === 0
+                  ? <p className="p-6 text-muted-foreground">No data for this period. Run analytics refresh to populate.</p>
+                  : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Squad</TableHead>
+                            <TableHead className="text-right">NB Hours</TableHead>
+                            <TableHead className="min-w-[180px]">NB % of capacity</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(nbBySquad ?? []).map((row) => {
+                            const color = riskColor(row.nb_pct);
+                            const clampedPct = Math.min(row.nb_pct, 1);
+                            return (
+                              <TableRow key={row.squad_id}>
+                                <TableCell className="font-medium">{row.squad_name}</TableCell>
+                                <TableCell className="text-right">{row.total_hours.toFixed(1)}h</TableCell>
+                                <TableCell>
+                                  {row.capacity_hours > 0 ? (
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 h-2 bg-border rounded-full overflow-hidden min-w-[80px]">
+                                        <div className="h-full rounded-full" style={{ width: `${(clampedPct * 100).toFixed(1)}%`, background: color }} />
+                                      </div>
+                                      <span className="text-xs font-semibold min-w-[42px] text-right" style={{ color }}>{(row.nb_pct * 100).toFixed(1)}%</span>
+                                    </div>
+                                  ) : <span className="text-muted-foreground">—</span>}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <div>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>
-          Open Suggestions
-          {openSuggestions.length > 0 && <span style={{ marginLeft: 8, background: "rgba(249,115,22,0.12)", color: "var(--warning)", fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{openSuggestions.length}</span>}
-        </div>
-        {loadingSuggestions ? <p style={{ color: "var(--text-muted)" }}>Loading suggestions…</p>
-          : openSuggestions.length === 0 ? <p style={{ color: "var(--text-muted)" }}>No open suggestions.</p>
-          : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {openSuggestions.map((s) => (
-                <div key={s.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                        <span style={{ fontWeight: 600, fontSize: 14 }}>{personMap[s.person_id ?? s.personId] ?? `Person ${s.person_id ?? s.personId}`}</span>
-                        <span style={{ background: "rgba(249,115,22,0.12)", color: "var(--warning)", fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{formatSuggestionType(s.suggestion_type ?? s.suggestionType ?? "")}</span>
-                        {(s.current_hours ?? s.currentHours) && <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{parseFloat(String(s.current_hours ?? s.currentHours)).toFixed(1)}h logged</span>}
-                      </div>
-                      {s.explanation && <p style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.5 }}>{s.explanation}</p>}
-                      {(s.suggested_action ?? s.suggestedAction) && <p style={{ color: "var(--text)", fontSize: 13, marginTop: 6, lineHeight: 1.5 }}><strong>Suggested action:</strong> {s.suggested_action ?? s.suggestedAction}</p>}
-                    </div>
-                    <button onClick={() => dismissMutation.mutate(s.id)} disabled={dismissMutation.isPending} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text-muted)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Dismiss</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="font-semibold text-base">Open Suggestions</h2>
+          {openSuggestions.length > 0 && (
+            <Badge className="bg-[var(--warning-bg)] text-[var(--warning)] border-0">{openSuggestions.length}</Badge>
           )}
+        </div>
+        {loadingSuggestions
+          ? <p className="text-muted-foreground text-sm">Loading suggestions…</p>
+          : openSuggestions.length === 0
+            ? <p className="text-muted-foreground text-sm">No open suggestions.</p>
+            : (
+              <div className="flex flex-col gap-3">
+                {openSuggestions.map((s) => (
+                  <Card key={s.id}>
+                    <CardContent className="p-5 flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2.5 mb-1.5">
+                          <span className="font-semibold">{personMap[s.person_id ?? s.personId] ?? `Person ${s.person_id ?? s.personId}`}</span>
+                          <Badge className="text-xs bg-[var(--warning-bg)] text-[var(--warning)] border-0">
+                            {formatSuggestionType(s.suggestion_type ?? s.suggestionType ?? "")}
+                          </Badge>
+                          {(s.current_hours ?? s.currentHours) && (
+                            <span className="text-sm text-muted-foreground">{parseFloat(String(s.current_hours ?? s.currentHours)).toFixed(1)}h logged</span>
+                          )}
+                        </div>
+                        {s.explanation && <p className="text-sm text-muted-foreground leading-relaxed">{s.explanation}</p>}
+                        {(s.suggested_action ?? s.suggestedAction) && (
+                          <p className="text-sm mt-1.5 leading-relaxed"><strong>Suggested action:</strong> {s.suggested_action ?? s.suggestedAction}</p>
+                        )}
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => dismissMutation.mutate(s.id)} disabled={dismissMutation.isPending}>
+                        Dismiss
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
       </div>
     </div>
   );

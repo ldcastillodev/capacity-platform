@@ -1,22 +1,21 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
-function todayStr(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
+function todayStr(): string { return new Date().toISOString().split("T")[0]; }
 function thirtyDaysAgoStr(): string {
   const d = new Date();
   d.setDate(d.getDate() - 30);
   return d.toISOString().split("T")[0];
 }
-
-function getSource(jira: boolean): "jira_na" | "all" {
-  if (!jira) return "all";
-  return "jira_na";
-}
-
+function getSource(jira: boolean): "jira_na" | "all" { return jira ? "jira_na" : "all"; }
 function getMonthsArray(dateFrom: string, dateTo: string): string[] {
   const months: string[] = [];
   const d = new Date(dateFrom + "T00:00:00Z");
@@ -28,22 +27,14 @@ function getMonthsArray(dateFrom: string, dateTo: string): string[] {
   }
   return months;
 }
-
 function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  return new Date(iso).toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
-
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric", month: "short", day: "numeric",
-  });
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
 type BannerResult = { ok: boolean; message: string } | null;
-
 interface SyncLogEntry {
   id: number;
   source: "jira_na";
@@ -53,155 +44,16 @@ interface SyncLogEntry {
   dateTo: string | null;
 }
 
-const card: React.CSSProperties = {
-  background: "var(--surface)",
-  border: "1px solid var(--border)",
-  borderRadius: 10,
-  padding: 24,
-  marginBottom: 20,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 500,
-  color: "var(--text-muted)",
-  marginBottom: 6,
-  display: "block",
-};
-
-const dateInput: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: 6,
-  padding: "7px 10px",
-  fontSize: 14,
-  color: "var(--text)",
-  background: "var(--bg)",
-  outline: "none",
-};
-
-function PrimaryButton({
-  onClick,
-  disabled,
-  loading,
-  children,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  loading: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        background: "var(--primary)",
-        color: "#FDFDFD",
-        border: "none",
-        borderRadius: 7,
-        padding: "9px 20px",
-        fontSize: 14,
-        fontWeight: 600,
-        opacity: disabled ? 0.6 : 1,
-        cursor: disabled ? "not-allowed" : "pointer",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      {loading && (
-        <span
-          style={{
-            width: 13,
-            height: 13,
-            border: "2px solid rgba(255,255,255,0.4)",
-            borderTopColor: "#FDFDFD",
-            borderRadius: "50%",
-            display: "inline-block",
-            animation: "spin 0.7s linear infinite",
-          }}
-        />
-      )}
-      {children}
-    </button>
-  );
-}
-
 function Banner({ result }: { result: BannerResult }) {
   if (!result) return null;
   return (
-    <div
-      style={{
-        marginTop: 14,
-        padding: "10px 14px",
-        borderRadius: 7,
-        fontSize: 13,
-        background: result.ok ? "var(--safe-bg)" : "var(--critical-bg)",
-        color: result.ok ? "var(--safe)" : "var(--critical)",
-        border: `1px solid ${result.ok ? "var(--safe)" : "var(--critical)"}`,
-      }}
-    >
+    <div className={cn(
+      "mt-3 rounded-md px-4 py-3 text-sm font-medium",
+      result.ok
+        ? "bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)]"
+        : "bg-[var(--critical-bg)] text-[var(--critical)] border border-[var(--critical)]"
+    )}>
       {result.message}
-    </div>
-  );
-}
-
-function LastSyncStatus({ logs }: { logs: SyncLogEntry[] }) {
-  if (logs.length === 0) return null;
-
-  const sourceLabel: Record<string, string> = { jira_na: "Jira NA" };
-
-  return (
-    <div style={card}>
-      <div style={{ fontWeight: 600, marginBottom: 16 }}>Last Sync Status</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {logs.map((log) => (
-            <div
-              key={log.id}
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                padding: "14px 16px",
-                background: "var(--safe-bg)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>
-                  {sourceLabel[log.source] ?? log.source}
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: "2px 8px",
-                    borderRadius: 4,
-                    background: "var(--safe)",
-                    color: "#FDFDFD",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {log.completedAt ? "Success" : "Running"}
-                </span>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px 16px" }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>Date &amp; Time</div>
-                  <div style={{ fontSize: 13 }}>{fmtDateTime(log.startedAt)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 2 }}>Date Range</div>
-                  <div style={{ fontSize: 13 }}>
-                    {log.dateFrom && log.dateTo
-                      ? `${fmtDate(log.dateFrom)} – ${fmtDate(log.dateTo)}`
-                      : "—"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-      </div>
     </div>
   );
 }
@@ -210,25 +62,17 @@ export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgoStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [jiraChecked, setJiraChecked] = useState(true);
-
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<BannerResult>(null);
-
   const [refreshLoading, setRefreshLoading] = useState(false);
   const [refreshResult, setRefreshResult] = useState<BannerResult>(null);
-
   const [lastLogs, setLastLogs] = useState<SyncLogEntry[]>([]);
 
   async function fetchLastLogs() {
     try {
       const res = await fetch("/api/admin/jobs/sync");
-      if (res.ok) {
-        const data = await res.json();
-        setLastLogs(data.logs ?? []);
-      }
-    } catch {
-      // non-critical — ignore
-    }
+      if (res.ok) { const data = await res.json(); setLastLogs(data.logs ?? []); }
+    } catch { /* non-critical */ }
   }
 
   useEffect(() => { fetchLastLogs(); }, []);
@@ -240,11 +84,7 @@ export default function SyncPage() {
       const res = await fetch("/api/admin/jobs/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: getSource(jiraChecked),
-          date_from: dateFrom,
-          date_to: dateTo,
-        }),
+        body: JSON.stringify({ source: getSource(jiraChecked), date_from: dateFrom, date_to: dateTo }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
@@ -257,9 +97,7 @@ export default function SyncPage() {
       }
     } catch {
       setSyncResult({ ok: false, message: "Network error — sync request failed." });
-    } finally {
-      setSyncLoading(false);
-    }
+    } finally { setSyncLoading(false); }
   }
 
   async function runRefresh() {
@@ -281,104 +119,102 @@ export default function SyncPage() {
       }
     } catch {
       setRefreshResult({ ok: false, message: "Network error — refresh request failed." });
-    } finally {
-      setRefreshLoading(false);
-    }
+    } finally { setRefreshLoading(false); }
   }
 
   const months = getMonthsArray(dateFrom, dateTo);
 
   return (
-    <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div>
+      <PageHeader
+        title="Sync"
+        description="Trigger data sync from Jira and analytics refresh."
+      />
 
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>Sync</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: 4 }}>
-          Trigger data sync from Jira and analytics refresh.
-        </p>
-      </div>
+      {lastLogs.length > 0 && (
+        <Card className="mb-5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Last Sync Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {lastLogs.map((log) => (
+              <div key={log.id} className="rounded-lg border p-4 bg-[var(--safe-bg)]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-sm">{log.source === "jira_na" ? "Jira NA" : log.source}</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--safe)] text-white uppercase tracking-wide">
+                    {log.completedAt ? "Success" : "Running"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-0.5">Date &amp; Time</div>
+                    <div>{fmtDateTime(log.startedAt)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-0.5">Date Range</div>
+                    <div>{log.dateFrom && log.dateTo ? `${fmtDate(log.dateFrom)} – ${fmtDate(log.dateTo)}` : "—"}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
-      <LastSyncStatus logs={lastLogs} />
-
-      {/* Date Range */}
-      <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: 16 }}>Date Range</div>
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-          <div>
-            <label style={labelStyle}>From</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              style={dateInput}
-            />
+      <Card className="mb-5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Date Range</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-6 flex-wrap">
+            <div className="space-y-1.5">
+              <Label>From</Label>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>To</Label>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
+            </div>
           </div>
-          <div>
-            <label style={labelStyle}>To</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={dateInput}
+        </CardContent>
+      </Card>
+
+      <Card className="mb-5">
+        <CardHeader className="pb-1">
+          <CardTitle className="text-base">Data Sync</CardTitle>
+          <p className="text-sm text-muted-foreground">Pull hour records from selected sources into the database.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="jira"
+              checked={jiraChecked}
+              onCheckedChange={(v) => setJiraChecked(Boolean(v))}
             />
+            <Label htmlFor="jira">Jira NA</Label>
           </div>
-        </div>
-      </div>
+          <Button onClick={runSync} disabled={syncLoading || !jiraChecked}>
+            {syncLoading ? "Running…" : "Run Sync"}
+          </Button>
+          <Banner result={syncResult} />
+        </CardContent>
+      </Card>
 
-      {/* Data Sync */}
-      <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>Data Sync</div>
-        <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 16 }}>
-          Pull hour records from selected sources into the database.
-        </div>
-        <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
-          {(
-            [
-              { id: "jira",  label: "Jira NA", checked: jiraChecked,  set: setJiraChecked  },
-            ] as const
-          ).map(({ id, label: lbl, checked, set }) => (
-            <label
-              key={id}
-              style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}
-            >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => set(e.target.checked)}
-                style={{ width: 15, height: 15, accentColor: "var(--primary)" }}
-              />
-              {lbl}
-            </label>
-          ))}
-        </div>
-        <PrimaryButton
-          onClick={runSync}
-          disabled={syncLoading || !jiraChecked}
-          loading={syncLoading}
-        >
-          {syncLoading ? "Running…" : "Run Sync"}
-        </PrimaryButton>
-        <Banner result={syncResult} />
-      </div>
-
-      {/* Analytics Refresh */}
-      <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>Analytics Refresh</div>
-        <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 16 }}>
-          Recalculate consumption summaries, staffing gaps, and anomaly flags.
-          Will refresh <strong>{months.length}</strong> month{months.length !== 1 ? "s" : ""} based
-          on the selected date range.
-        </div>
-        <PrimaryButton
-          onClick={runRefresh}
-          disabled={refreshLoading || months.length === 0}
-          loading={refreshLoading}
-        >
-          {refreshLoading ? "Running…" : "Run Analytics Refresh"}
-        </PrimaryButton>
-        <Banner result={refreshResult} />
-      </div>
-    </>
+      <Card>
+        <CardHeader className="pb-1">
+          <CardTitle className="text-base">Analytics Refresh</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Recalculate consumption summaries, staffing gaps, and anomaly flags.
+            Will refresh <strong>{months.length}</strong> month{months.length !== 1 ? "s" : ""} based on the selected date range.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button onClick={runRefresh} disabled={refreshLoading || months.length === 0}>
+            {refreshLoading ? "Running…" : "Run Analytics Refresh"}
+          </Button>
+          <Banner result={refreshResult} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

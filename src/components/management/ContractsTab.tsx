@@ -4,59 +4,54 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
 import { ManagementModal } from "./ManagementModal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 
-type SubTab = "declarations";
-
-const thStyle: React.CSSProperties = {
-  padding: "9px 14px", textAlign: "left", fontWeight: 600, fontSize: 12,
-  color: "var(--text-muted)", borderBottom: "1px solid var(--border)",
-  background: "var(--bg)", whiteSpace: "nowrap",
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", borderRadius: 6,
-  border: "1px solid var(--border)", fontSize: 14,
-  background: "var(--surface)", color: "var(--text)", outline: "none", boxSizing: "border-box",
-};
-const fieldStyle: React.CSSProperties = { marginBottom: 18 };
-const labelStyle: React.CSSProperties = { display: "block", marginBottom: 6, fontWeight: 500, fontSize: 13 };
-
-
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  active:           { bg: "var(--safe-bg)",     color: "var(--safe)" },
-  confirmed:        { bg: "var(--safe-bg)",     color: "var(--safe)" },
-  approved:         { bg: "var(--safe-bg)",     color: "var(--safe)" },
-  paused:           { bg: "var(--watch-bg)",    color: "var(--watch)" },
-  pending_approval: { bg: "var(--watch-bg)",    color: "var(--watch)" },
-  pending_written:  { bg: "var(--watch-bg)",    color: "var(--watch)" },
-  pending_docusign: { bg: "var(--warning-bg)",  color: "var(--warning)" },
-  requested:        { bg: "var(--warning-bg)",  color: "var(--warning)" },
-  draft:            { bg: "var(--warning-bg)",  color: "var(--warning)" },
-  closed:           { bg: "var(--border)",      color: "var(--text-muted)" },
-  rejected:         { bg: "var(--critical-bg)", color: "var(--critical)" },
-  locked:           { bg: "var(--border)",      color: "var(--text-muted)" },
-  derived:          { bg: "var(--border)",      color: "var(--text-muted)" },
+const STATUS_TONE: Record<string, { bg: string; color: string }> = {
+  active: { bg: "var(--safe-bg)", color: "var(--safe)" },
+  confirmed: { bg: "var(--safe-bg)", color: "var(--safe)" },
+  approved: { bg: "var(--safe-bg)", color: "var(--safe)" },
+  paused: { bg: "var(--watch-bg)", color: "var(--watch)" },
+  pending_approval: { bg: "var(--watch-bg)", color: "var(--watch)" },
+  pending_written: { bg: "var(--watch-bg)", color: "var(--watch)" },
+  pending_docusign: { bg: "var(--warning-bg)", color: "var(--warning)" },
+  requested: { bg: "var(--warning-bg)", color: "var(--warning)" },
+  draft: { bg: "var(--warning-bg)", color: "var(--warning)" },
+  closed: { bg: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" },
+  rejected: { bg: "var(--critical-bg)", color: "var(--critical)" },
+  locked: { bg: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" },
+  derived: { bg: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_COLORS[status] ?? { bg: "var(--border)", color: "var(--text-muted)" };
+  const s = STATUS_TONE[status] ?? { bg: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" };
   return (
-    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: s.bg, color: s.color, whiteSpace: "nowrap" }}>
+    <span className="text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: s.bg, color: s.color }}>
       {status.replace(/_/g, " ")}
     </span>
   );
 }
 
-function errMsg(e: unknown) {
-  return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e);
-}
+function errMsg(e: unknown) { return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e); }
 
 const ROLE_TYPES = ["dev","devops","qa","design","product","project","tl","sre","data","seo","content"];
 
 interface ClientOption { id: number; name: string }
 interface SquadOption  { id: number; name: string }
 interface PersonOption { id: number; name: string }
-
-// ─── Monthly Role Declarations ────────────────────────────────────────────────
 
 interface DeclarationRow {
   id: number; contractId: number | null;
@@ -118,115 +113,162 @@ function DeclarationsSection() {
   const TERMINAL_DECL = ["locked", "derived"];
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={openCreate} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ Add Declaration</button>
-      </div>
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "auto" }}>
-        {isLoading ? <p style={{ padding: 24, color: "var(--text-muted)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ padding: 24, color: "var(--text-muted)" }}>No declarations found.</p>
-          : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>
-                <th style={thStyle}>Client</th><th style={thStyle}>Squad</th>
-                <th style={thStyle}>Month</th><th style={thStyle}>Role</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Hours</th>
-                <th style={thStyle}>Status</th><th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr></thead>
-              <tbody>{rows.map((row, i) => {
-                const isTerminal = TERMINAL_DECL.includes(row.status);
-                return (
-                  <tr key={row.id} style={{ background: i % 2 === 0 ? "var(--surface)" : "var(--bg)" }}>
-                    <td style={{ padding: "11px 14px", fontSize: 14, fontWeight: 500 }}>{row.client.name}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 13, color: "var(--text-muted)" }}>{row.squad.name}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 13 }}>{row.month.split("T")[0].slice(0,7)}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 12 }}>{row.roleType.replace(/_/g," ")}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 14, textAlign: "right" }}>{parseFloat(row.declaredHours).toFixed(0)}</td>
-                    <td style={{ padding: "11px 14px" }}><StatusBadge status={row.status} /></td>
-                    <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                      {isTerminal ? <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Read-only</span> : (
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                          <button onClick={() => openEdit(row)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                          {row.status === "draft" && <button onClick={() => { setActionRow(row); setActionType("confirm"); setActionError(null); setActionForm({ submitted_by: "" }); }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--watch)", background: "var(--watch-bg)", color: "var(--watch)", fontSize: 12, cursor: "pointer" }}>Confirm</button>}
-                          {row.status === "confirmed" && <button onClick={() => { setActionRow(row); setActionType("lock"); setActionError(null); }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--text-muted)", background: "var(--border)", color: "var(--text-muted)", fontSize: 12, cursor: "pointer" }}>Lock</button>}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}</tbody>
-            </table>
-          )}
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={openCreate}>+ Add Declaration</Button>
       </div>
 
+      <Card>
+        <CardContent className="p-0">
+          {isLoading
+            ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
+            : rows.length === 0
+              ? <p className="p-6 text-sm text-muted-foreground">No declarations found.</p>
+              : (
+                <div className="overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Client</TableHead><TableHead>Squad</TableHead><TableHead>Month</TableHead>
+                        <TableHead>Role</TableHead><TableHead className="text-right">Hours</TableHead>
+                        <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((row) => {
+                        const isTerminal = TERMINAL_DECL.includes(row.status);
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell className="font-medium text-sm">{row.client.name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{row.squad.name}</TableCell>
+                            <TableCell className="text-sm">{row.month.split("T")[0].slice(0,7)}</TableCell>
+                            <TableCell className="text-xs">{row.roleType.replace(/_/g," ")}</TableCell>
+                            <TableCell className="text-sm text-right">{parseFloat(row.declaredHours).toFixed(0)}</TableCell>
+                            <TableCell><StatusBadge status={row.status} /></TableCell>
+                            <TableCell className="text-right">
+                              {isTerminal
+                                ? <span className="text-xs text-muted-foreground">Read-only</span>
+                                : (
+                                  <div className="flex gap-1.5 justify-end flex-wrap">
+                                    <Button size="sm" variant="outline" onClick={() => openEdit(row)}>Edit</Button>
+                                    {row.status === "draft" && (
+                                      <Button size="sm" variant="outline" className="border-[var(--watch)] text-[var(--watch)] hover:bg-[var(--watch-bg)]"
+                                        onClick={() => { setActionRow(row); setActionType("confirm"); setActionError(null); setActionForm({ submitted_by: "" }); }}>Confirm</Button>
+                                    )}
+                                    {row.status === "confirmed" && (
+                                      <Button size="sm" variant="outline" className="text-muted-foreground"
+                                        onClick={() => { setActionRow(row); setActionType("lock"); setActionError(null); }}>Lock</Button>
+                                    )}
+                                  </div>
+                                )
+                              }
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
+          }
+        </CardContent>
+      </Card>
+
       <ManagementModal isOpen={modalMode !== null} onClose={closeModal} title={modalMode === "create" ? "New Declaration" : "Edit Declaration"}>
-        <form onSubmit={handleSubmit}>
-          {apiError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{apiError}</p>}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {apiError && <p className="text-sm text-destructive">{apiError}</p>}
           {modalMode === "create" && (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-                <div><label style={labelStyle}>Client *</label>
-                  <select style={inputStyle} required value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
-                    <option value="">— Select client —</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Client *</Label>
+                  <Select required value={form.client_id || "none"} onValueChange={v => setForm({ ...form, client_id: v === "none" ? "" : v })}>
+                    <SelectTrigger><SelectValue placeholder="— Select client —" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Select client —</SelectItem>
+                      {clients.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div><label style={labelStyle}>Squad *</label>
-                  <select style={inputStyle} required value={form.squad_id} onChange={e => setForm({ ...form, squad_id: e.target.value })}>
-                    <option value="">— Select squad —</option>
-                    {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                <div className="space-y-1.5">
+                  <Label>Squad *</Label>
+                  <Select required value={form.squad_id || "none"} onValueChange={v => setForm({ ...form, squad_id: v === "none" ? "" : v })}>
+                    <SelectTrigger><SelectValue placeholder="— Select squad —" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Select squad —</SelectItem>
+                      {squads.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-                <div><label style={labelStyle}>Month *</label><input style={inputStyle} type="month" required value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} /></div>
-                <div><label style={labelStyle}>Role Type *</label>
-                  <select style={inputStyle} required value={form.role_type} onChange={e => setForm({ ...form, role_type: e.target.value })}>
-                    {ROLE_TYPES.map(r => <option key={r} value={r}>{r.replace(/_/g," ")}</option>)}
-                  </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Month *</Label>
+                  <Input type="month" required value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Role Type *</Label>
+                  <Select value={form.role_type} onValueChange={v => setForm({ ...form, role_type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{ROLE_TYPES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g," ")}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div style={{ marginBottom: 18 }}>
-                <div><label style={labelStyle}>Contract ID</label><input style={inputStyle} type="number" min="1" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value })} placeholder="optional" /></div>
+              <div className="space-y-1.5">
+                <Label>Contract ID</Label>
+                <Input type="number" min="1" value={form.contract_id} onChange={e => setForm({ ...form, contract_id: e.target.value })} placeholder="optional" />
               </div>
             </>
           )}
-          <div style={fieldStyle}><label style={labelStyle}>Declared Hours *</label><input style={inputStyle} type="number" min="0" step="0.5" required value={form.declared_hours} onChange={e => setForm({ ...form, declared_hours: e.target.value })} /></div>
-          {modalMode === "edit" && <div style={fieldStyle}><label style={labelStyle}>Override Reason</label><input style={inputStyle} type="text" value={form.override_reason} onChange={e => setForm({ ...form, override_reason: e.target.value })} /></div>}
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-            <button type="button" onClick={closeModal} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-            <button type="submit" disabled={isPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "var(--primary)", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.7 : 1 }}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</button>
+          <div className="space-y-1.5">
+            <Label>Declared Hours *</Label>
+            <Input type="number" min="0" step="0.5" required value={form.declared_hours} onChange={e => setForm({ ...form, declared_hours: e.target.value })} />
+          </div>
+          {modalMode === "edit" && (
+            <div className="space-y-1.5">
+              <Label>Override Reason</Label>
+              <Input type="text" value={form.override_reason} onChange={e => setForm({ ...form, override_reason: e.target.value })} />
+            </div>
+          )}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}
+            </Button>
           </div>
         </form>
       </ManagementModal>
 
-      {actionRow !== null && actionType !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={closeAction} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-          <div style={{ position: "relative", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 28, width: 400, maxWidth: "90vw" }}>
-            {actionError && <p style={{ color: "var(--critical)", fontSize: 13, marginBottom: 14 }}>{actionError}</p>}
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, textTransform: "capitalize" }}>{actionType} declaration?</div>
-            {actionType === "confirm" && (
-              <div style={fieldStyle}><label style={labelStyle}>Submitted By (Person) *</label>
-                <select style={inputStyle} value={actionForm.submitted_by} onChange={e => setActionForm({ submitted_by: e.target.value })}>
-                  <option value="">— Select person —</option>
-                  {persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-            )}
-            {actionType === "lock" && <p style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 24 }}>Declaration will be locked. No further edits possible.</p>}
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={closeAction} style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-              <button onClick={handleAction} disabled={isActionPending} style={{ padding: "8px 18px", borderRadius: 6, border: "none", color: "#FDFDFD", fontSize: 14, fontWeight: 600, cursor: isActionPending ? "not-allowed" : "pointer", opacity: isActionPending ? 0.7 : 1, background: actionType === "lock" ? "var(--text-muted)" : "var(--watch)" }}>{isActionPending ? "Processing…" : "Confirm"}</button>
+      <Dialog open={actionRow !== null && actionType !== null} onOpenChange={v => { if (!v) closeAction(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="capitalize">{actionType} declaration?</DialogTitle>
+          </DialogHeader>
+          {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+          {actionType === "confirm" && (
+            <div className="space-y-1.5">
+              <Label>Submitted By (Person) *</Label>
+              <Select value={actionForm.submitted_by || "none"} onValueChange={v => setActionForm({ submitted_by: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="— Select person —" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Select person —</SelectItem>
+                  {persons.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+          {actionType === "lock" && <p className="text-sm text-muted-foreground">Declaration will be locked. No further edits possible.</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeAction}>Cancel</Button>
+            <Button onClick={handleAction} disabled={isActionPending}>
+              {isActionPending ? "Processing…" : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-// ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function ContractsTab() {
   return <DeclarationsSection />;
