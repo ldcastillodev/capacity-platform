@@ -13,9 +13,8 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month");
   const monthDate = month
     ? new Date(month)
-    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-  const totalDays = monthEnd.getDate();
+    : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
   const contracts = await prisma.contract.findMany({
     where: {
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest) {
     contracts.map(async (contract) => {
       const records = await prisma.hourRecord.findMany({
         where: {
-          clientId: contract.sow.clientId,
+          contractId: contract.id,
           isNonBillable: false,
           date: { gte: monthDate, lte: monthEnd },
         },
@@ -44,16 +43,26 @@ export async function GET(req: NextRequest) {
       }
 
       const pool = Number(contract.assignedHours);
-      const sortedWeeks = [...byWeek.entries()].sort(([a], [b]) => a.localeCompare(b));
+      const totalDaysUTC = monthEnd.getUTCDate();
+
+      // Generate every week-start in the month so the chart always has full x-axis coverage
+      const allWeeks: string[] = [];
+      const firstWeekStr = weekStart(monthDate);
+      let cur = new Date(firstWeekStr + "T00:00:00Z");
+      while (cur <= monthEnd) {
+        allWeeks.push(cur.toISOString().slice(0, 10));
+        cur = new Date(cur.getTime() + 7 * 86400000);
+      }
+
       let cumulative = 0;
-      const weeks = sortedWeeks.map(([week_start, hours]) => {
-        cumulative += hours;
-        const wDate = new Date(week_start + "T12:00:00");
+      const weeks = allWeeks.map((week_start) => {
+        cumulative += byWeek.get(week_start) ?? 0;
+        const wDate = new Date(week_start + "T12:00:00Z");
         const daysElapsed = Math.min(
           Math.round((wDate.getTime() - monthDate.getTime()) / 86400000) + 7,
-          totalDays,
+          totalDaysUTC,
         );
-        const expected_cumulative = pool > 0 ? pool * (daysElapsed / totalDays) : 0;
+        const expected_cumulative = pool > 0 ? pool * (daysElapsed / totalDaysUTC) : 0;
         return { week_start, cumulative_hours: cumulative, expected_cumulative, pool_hours: pool };
       });
 

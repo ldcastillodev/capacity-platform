@@ -6,8 +6,8 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month");
   const monthDate = month
     ? new Date(month)
-    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+    : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
   const contracts = await prisma.contract.findMany({
     where: {
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     contracts.map(async (contract) => {
       const agg = await prisma.hourRecord.aggregate({
         where: {
-          clientId: contract.sow.clientId,
+          contractId: contract.id,
           isNonBillable: false,
           date: { gte: monthDate, lte: monthEnd },
         },

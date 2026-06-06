@@ -13,14 +13,12 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 const FLAG_LABELS: Record<string, string> = {
-  underburn: "Underburn",
-  overburn: "Overburn",
-  pool_near_exhaustion: "Pool Near Exhaustion",
-  qa_ratio_breach: "QA Ratio Breach",
-  late_declaration: "Late Declaration",
+  spike: "Unusual Spike",
+  underuse: "Underuse",
+  pace_risk: "Pace Risk",
+  underburn_risk: "Underburn Risk",
   role_substitution: "Role Substitution",
-  unusual_spike: "Unusual Spike",
-  unusual_drop: "Unusual Drop",
+  missing_data: "Missing Data",
 };
 
 export default function FlagsPage() {

@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "person_id and month required" }, { status: 400 });
   }
 
-  const monthDate = new Date(month + "T00:00:00");
-  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  const monthDate = new Date(month);
+  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
   const entries = await prisma.hourRecord.findMany({
     where: {

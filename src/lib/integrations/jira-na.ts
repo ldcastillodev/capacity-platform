@@ -10,7 +10,7 @@ type JiraMappingWithContract = {
 type ContractWithExtension = {
   id: number;
   assignedHours: number;
-  childContract: { id: number; type: string } | null;
+  childContracts: { id: number; type: string }[] | null;
 };
 
 interface JiraWorklog {
@@ -112,7 +112,7 @@ export class JiraNAConnector {
           select: {
             id: true,
             assignedHours: true,
-            childContract: { select: { id: true, type: true } },
+            childContracts: { select: { id: true, type: true } },
           },
         }),
         prisma.hourRecord.groupBy({
@@ -264,10 +264,10 @@ export class JiraNAConnector {
           const baseContractId = clientMapping.contractId;
           let contractId = baseContractId;
           const baseContract = ctx.contractById.get(baseContractId);
-          if (baseContract?.childContract?.type === "extension") {
+          if (baseContract?.childContracts?.[0]?.type === "extension") {
             const consumed = ctx.consumedByContract.get(baseContractId) ?? 0;
             if (consumed >= baseContract.assignedHours) {
-              contractId = baseContract.childContract.id;
+              contractId = baseContract.childContracts[0].id;
             }
           }
 

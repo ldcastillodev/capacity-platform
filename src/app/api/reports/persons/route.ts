@@ -12,14 +12,14 @@ export async function GET(req: NextRequest) {
 
   const fromDate = from
     ? new Date(from)
-    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const toDate = to ? new Date(to) : fromDate;
+  const toMonthEnd = new Date(Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth() + 1, 0));
 
   const squadFilter = squadIdParam
     ? Prisma.sql`AND sm.squad_id = ${Number(squadIdParam)}`
     : Prisma.empty;
 
-  // CROSS JOIN date_range dr comes before squad_memberships so dr is in scope for WHERE
   const dataRows = await prisma.$queryRaw<
     {
       person_id: number;
@@ -43,11 +43,11 @@ export async function GET(req: NextRequest) {
     ),
     person_months AS (
       SELECT DISTINCT
-        p.id                    AS person_id,
-        p.name                  AS person_name,
-        p.employment_type::text AS employment_type,
+        p.id   AS person_id,
+        p.name AS person_name,
+        ''::text AS employment_type,
         sm.squad_id,
-        s.name                  AS squad_name,
+        s.name AS squad_name,
         dr.month
       FROM persons p
       CROSS JOIN date_range dr
@@ -57,6 +57,33 @@ export async function GET(req: NextRequest) {
         AND sm.effective_from <= (dr.month + INTERVAL '1 month' - INTERVAL '1 day')::date
         AND (sm.effective_to IS NULL OR sm.effective_to >= dr.month)
         ${squadFilter}
+    ),
+    capacity_calc AS (
+      SELECT
+        pm2.person_id,
+        pm2.month,
+        p2.weekly_capacity_hours * (
+          SELECT COUNT(*)::numeric
+          FROM generate_series(
+            pm2.month,
+            (pm2.month + INTERVAL '1 month' - INTERVAL '1 day')::date,
+            '1 day'::interval
+          ) d
+          WHERE EXTRACT(DOW FROM d) NOT IN (0, 6)
+        ) / 5.0 AS capacity_hours
+      FROM (SELECT DISTINCT person_id, month FROM person_months) pm2
+      JOIN persons p2 ON p2.id = pm2.person_id
+    ),
+    nb_hours AS (
+      SELECT
+        hr.person_id,
+        DATE_TRUNC('month', hr.date)::date AS month,
+        SUM(hr.hours) AS total_nb_hours
+      FROM hour_records hr
+      WHERE hr.is_non_billable = true
+        AND hr.date >= ${fromDate}::date
+        AND hr.date <= ${toMonthEnd}::date
+      GROUP BY hr.person_id, DATE_TRUNC('month', hr.date)::date
     )
     SELECT
       pm.person_id,
@@ -65,23 +92,24 @@ export async function GET(req: NextRequest) {
       pm.squad_id,
       pm.squad_name,
       pm.month,
-      COALESCE(SUM(hr.hours), 0)::text     AS billable_hours,
-      COALESCE(nb.total_hours, 0)::text    AS nb_hours,
-      COALESCE(nb.capacity_hours, 0)::text AS capacity_hours,
-      COALESCE(nb.nonbillable_pct, 0)::text AS nb_pct
+      COALESCE(SUM(hr.hours), 0)::text AS billable_hours,
+      COALESCE(nb.total_nb_hours, 0)::text AS nb_hours,
+      COALESCE(cc.capacity_hours, 0)::text AS capacity_hours,
+      CASE WHEN COALESCE(cc.capacity_hours, 0) > 0
+           THEN (COALESCE(nb.total_nb_hours, 0) / cc.capacity_hours)::text
+           ELSE '0'::text
+      END AS nb_pct
     FROM person_months pm
     LEFT JOIN hour_records hr
       ON hr.person_id = pm.person_id
       AND DATE_TRUNC('month', hr.date) = pm.month
-    LEFT JOIN monthly_nonbillable_summaries nb
-      ON nb.person_id = pm.person_id
-      AND nb.squad_id = pm.squad_id
-      AND nb.month = pm.month
-      AND nb.category_type IS NULL
+      AND hr.is_non_billable = false
+    LEFT JOIN capacity_calc cc ON cc.person_id = pm.person_id AND cc.month = pm.month
+    LEFT JOIN nb_hours nb ON nb.person_id = pm.person_id AND nb.month = pm.month
     GROUP BY
       pm.person_id, pm.person_name, pm.employment_type,
       pm.squad_id, pm.squad_name, pm.month,
-      nb.total_hours, nb.capacity_hours, nb.nonbillable_pct
+      cc.capacity_hours, nb.total_nb_hours
     ORDER BY pm.person_name, pm.month
   `);
 

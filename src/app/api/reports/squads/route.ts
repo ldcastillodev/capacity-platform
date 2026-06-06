@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
   const pageSize = Math.min(200, Math.max(1, Number(searchParams.get("pageSize") ?? 25)));
 
-  const fromDate = from ? new Date(from) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const fromDate = from
+    ? new Date(from)
+    : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const toDate = to ? new Date(to) : fromDate;
 
   const squadFilter = squadIdParam

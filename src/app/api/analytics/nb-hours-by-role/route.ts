@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   }
 
   const monthDate = new Date(month);
-  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
   const entries = await prisma.hourRecord.findMany({
     where: {
