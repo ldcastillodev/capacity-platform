@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
-      const [hoursAgg, declAgg] = await Promise.all([
+      const [hoursAgg, declEntries] = await Promise.all([
         prisma.hourRecord.aggregate({
           where: {
             contractId: contract.id,
@@ -29,14 +29,14 @@ export async function GET(req: NextRequest) {
           },
           _sum: { hours: true },
         }),
-        prisma.monthlyRoleDeclaration.aggregate({
-          where: { contractId: contract.id, month: monthDate },
+        prisma.declarationRoleEntry.aggregate({
+          where: { declaration: { contractId: contract.id, month: monthDate } },
           _sum: { declaredHours: true },
         }),
       ]);
 
       const consumed = parseFloat(String(hoursAgg._sum.hours ?? 0));
-      const declared = parseFloat(String(declAgg._sum.declaredHours ?? 0)) || parseFloat(String(contract.assignedHours));
+      const declared = parseFloat(String(declEntries._sum.declaredHours ?? 0)) || parseFloat(String(contract.assignedHours));
       const remaining = Math.max(declared - consumed, 0);
       return {
         contract_id: contract.id,

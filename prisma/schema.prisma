@@ -51,8 +51,6 @@ enum ContractStatus {
 enum DeclarationStatus {
   draft
   confirmed
-  locked
-  derived
 }
 
 enum HourType {
@@ -258,32 +256,37 @@ model Contract {
 }
 
 model MonthlyRoleDeclaration {
-  id                    Int               @id @default(autoincrement())
-  contractId            Int?              @map("contract_id")
-  clientId              Int               @map("client_id")
-  squadId               Int               @map("squad_id")
-  month                 DateTime          @db.Date
-  roleType              RoleType          @map("role_type")
-  declaredHours         Decimal           @map("declared_hours") @db.Decimal(8, 2)
-  status                DeclarationStatus @default(draft)
-  submittedAt           DateTime?         @map("submitted_at")
-  submittedBy           Int?              @map("submitted_by")
-  changeFromPriorHours  Decimal?          @map("change_from_prior_hours") @db.Decimal(8, 2)
-  significantChangeFlag Boolean           @default(false) @map("significant_change_flag")
-  lateChangeFlag        Boolean           @default(false) @map("late_change_flag")
-  overrideReason        String?           @map("override_reason")
-  overrideBy            Int?              @map("override_by")
-  updatedAt             DateTime          @default(now()) @updatedAt @map("updated_at")
+  id         Int               @id @default(autoincrement())
+  contractId Int?              @map("contract_id")
+  clientId   Int               @map("client_id")
+  squadId    Int               @map("squad_id")
+  month      DateTime          @db.Date
+  status     DeclarationStatus @default(draft)
+  updatedAt  DateTime          @default(now()) @updatedAt @map("updated_at")
 
-  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  client   Client    @relation(fields: [clientId], references: [id])
-  squad    Squad     @relation(fields: [squadId], references: [id])
+  contract Contract?            @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  client   Client               @relation(fields: [clientId], references: [id])
+  squad    Squad                @relation(fields: [squadId], references: [id])
+  roles    DeclarationRoleEntry[]
 
+  @@unique([contractId, month])
   @@index([clientId, month])
   @@index([squadId, month])
-  @@index([contractId, month, roleType])
   @@index([clientId, month, status])
   @@map("monthly_role_declarations")
+}
+
+model DeclarationRoleEntry {
+  id            Int      @id @default(autoincrement())
+  declarationId Int      @map("declaration_id")
+  roleType      RoleType @map("role_type")
+  declaredHours Decimal  @map("declared_hours") @db.Decimal(8, 2)
+
+  declaration MonthlyRoleDeclaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+
+  @@unique([declarationId, roleType])
+  @@index([declarationId])
+  @@map("declaration_role_entries")
 }
 
 // ─── Time Records ─────────────────────────────────────────────────────────────

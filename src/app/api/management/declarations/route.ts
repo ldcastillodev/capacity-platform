@@ -11,44 +11,22 @@ export async function GET(req: NextRequest) {
         ...(clientId ? { clientId: Number(clientId) } : {}),
         ...(month ? { month: new Date(month) } : {}),
       },
-      orderBy: [{ month: "desc" }, { roleType: "asc" }],
+      orderBy: [{ month: "desc" }],
       select: {
-        id: true, contractId: true, clientId: true, squadId: true,
-        month: true, roleType: true, declaredHours: true, status: true,
-        submittedAt: true, submittedBy: true, updatedAt: true,
+        id: true,
+        contractId: true,
+        clientId: true,
+        squadId: true,
+        month: true,
+        status: true,
+        updatedAt: true,
         client: { select: { id: true, name: true } },
         squad: { select: { id: true, name: true } },
+        contract: { select: { id: true, name: true } },
+        roles: { select: { id: true, roleType: true, declaredHours: true } },
       },
     });
     return NextResponse.json(rows);
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json() as {
-      contract_id?: number;
-      client_id: number; squad_id: number; month: string;
-      role_type: string; declared_hours: number;
-    };
-    const row = await prisma.monthlyRoleDeclaration.create({
-      data: {
-        contractId: body.contract_id ?? null,
-        clientId: body.client_id, squadId: body.squad_id,
-        month: new Date(body.month),
-        roleType: body.role_type as never,
-        declaredHours: body.declared_hours,
-      },
-      select: {
-        id: true, contractId: true, clientId: true, squadId: true,
-        month: true, roleType: true, declaredHours: true, status: true, updatedAt: true,
-        client: { select: { id: true, name: true } },
-        squad: { select: { id: true, name: true } },
-      },
-    });
-    return NextResponse.json(row, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

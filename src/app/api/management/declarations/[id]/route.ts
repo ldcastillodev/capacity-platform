@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import type { RoleType } from "@prisma/client";
 
-const EDITABLE = ["draft", "confirmed"];
+const EDITABLE = ["draft", "confirmed"] as const;
 
 export async function PATCH(
   req: NextRequest,
@@ -11,20 +12,31 @@ export async function PATCH(
   try {
     const decl = await prisma.monthlyRoleDeclaration.findUnique({ where: { id: Number(id) } });
     if (!decl) return NextResponse.json({ error: "Not found." }, { status: 404 });
-    if (!EDITABLE.includes(decl.status))
+    if (!(EDITABLE as readonly string[]).includes(decl.status))
       return NextResponse.json({ error: "Declaration is locked and cannot be edited." }, { status: 400 });
 
-    const body = await req.json() as { declared_hours?: number; override_reason?: string; override_by?: number };
-    const row = await prisma.monthlyRoleDeclaration.update({
+    const body = await req.json() as {
+      roles?: Array<{ role_type: string; declared_hours: number }>;
+    };
+
+    if (body.roles && Array.isArray(body.roles)) {
+      await prisma.$transaction(
+        body.roles.map((r) =>
+          prisma.declarationRoleEntry.upsert({
+            where: { declarationId_roleType: { declarationId: Number(id), roleType: r.role_type as RoleType } },
+            update: { declaredHours: r.declared_hours },
+            create: { declarationId: Number(id), roleType: r.role_type as RoleType, declaredHours: r.declared_hours },
+          }),
+        ),
+      );
+    }
+
+    const row = await prisma.monthlyRoleDeclaration.findUnique({
       where: { id: Number(id) },
-      data: {
-        ...(body.declared_hours !== undefined && { declaredHours: body.declared_hours }),
-        ...(body.override_reason !== undefined && { overrideReason: body.override_reason }),
-        ...(body.override_by !== undefined && { overrideBy: body.override_by }),
-      },
       select: {
         id: true, clientId: true, squadId: true, month: true,
-        roleType: true, declaredHours: true, status: true, updatedAt: true,
+        status: true, updatedAt: true,
+        roles: { select: { id: true, roleType: true, declaredHours: true } },
       },
     });
     return NextResponse.json(row);

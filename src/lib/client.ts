@@ -265,9 +265,33 @@ export const fetchFlags = (params?: { client_id?: number; month?: string; open_o
 export const resolveFlag = (flag_id: number, resolution_notes: string) =>
   api.patch(`/analytics/flags/${flag_id}/resolve`, { resolution_notes }).then((r) => r.data);
 
+// ─── Contracts ────────────────────────────────────────────────────────────────
+
+export interface Contract {
+  id: number;
+  name: string;
+  sowId: number;
+  hourType: string;
+  type: string;
+  assignedHours: string;
+  startDate: string;
+  endDate: string | null;
+  status: string;
+  sow: { clientId: number; name: string };
+}
+
+export const fetchContractsByClient = (clientId: number) =>
+  api.get<Contract[]>("/contracts", { params: { client_id: clientId } }).then((r) => r.data);
+
 // ─── Declarations ─────────────────────────────────────────────────────────────
 
-export type DeclarationStatus = "draft" | "derived" | "confirmed" | "locked";
+export type DeclarationStatus = "draft" | "confirmed";
+
+export interface DeclarationRole {
+  role_type: string;
+  declared_hours: string;
+  consumed_hours: number;
+}
 
 export interface Declaration {
   id: number;
@@ -275,20 +299,15 @@ export interface Declaration {
   client_id: number;
   squad_id: number | null;
   month: string;
-  role_type: string;
-  declared_hours: string;
   status: DeclarationStatus;
-  submitted_at: string | null;
+  client: { id: number; name: string };
+  squad: { id: number; name: string };
+  contract: { id: number; name: string } | null;
+  roles: DeclarationRole[];
 }
 
-export const fetchDeclarations = (params?: { month?: string; squad_id?: number }) =>
-  api.get<Declaration[]>("/declarations", { params }).then((r) => norm(r.data));
-
-export const updateDeclaration = (id: number, declared_hours: number) =>
-  api.patch<Declaration>(`/declarations/${id}`, { declared_hours }).then((r) => norm(r.data));
-
-export const confirmDeclaration = (id: number) =>
-  api.post<Declaration>(`/declarations/${id}/confirm`).then((r) => norm(r.data));
+export const fetchDeclarations = (params?: { month?: string }) =>
+  api.get<Declaration[]>("/declarations", { params }).then((r) => r.data);
 
 // ─── Reports ──────────────────────────────────────────────────────────────────
 

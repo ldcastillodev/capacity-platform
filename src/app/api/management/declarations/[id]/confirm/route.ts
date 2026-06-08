@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
 export async function POST(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -12,14 +12,10 @@ export async function POST(
     if (decl.status !== "draft")
       return NextResponse.json({ error: "Only draft declarations can be confirmed." }, { status: 400 });
 
-    const body = await req.json() as { submitted_by: number };
-    if (!body.submitted_by)
-      return NextResponse.json({ error: "submitted_by is required." }, { status: 400 });
-
     const row = await prisma.monthlyRoleDeclaration.update({
       where: { id: Number(id) },
-      data: { status: "confirmed", submittedBy: body.submitted_by, submittedAt: new Date() },
-      select: { id: true, status: true, submittedBy: true, submittedAt: true },
+      data: { status: "confirmed" },
+      select: { id: true, status: true },
     });
     return NextResponse.json(row);
   } catch (e) {
