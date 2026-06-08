@@ -227,6 +227,30 @@ export interface NbBySquadRow {
 export const fetchNbBySquad = (params?: { month?: string }) =>
   api.get<NbBySquadRow[]>("/analytics/nb-by-squad", { params }).then((r) => r.data);
 
+export interface SquadCapacityRow {
+  squad_id: number;
+  squad_name: string;
+  member_count: number;
+  capacity_hours: number;
+  actual_hours: number;
+  utilisation_pct: number;
+}
+
+export const fetchSquadCapacity = (params?: { month?: string }) =>
+  api.get<SquadCapacityRow[]>("/analytics/squad-capacity", { params }).then((r) => r.data);
+
+export interface PersonCapacityRow {
+  person_id: number;
+  person_name: string;
+  squad_names: string;
+  capacity_hours: number;
+  actual_hours: number;
+  utilisation_pct: number;
+}
+
+export const fetchPersonCapacity = (params?: { month?: string }) =>
+  api.get<PersonCapacityRow[]>("/analytics/person-capacity", { params }).then((r) => r.data);
+
 export interface BurnByContractWeeklyRow {
   contract_id: number;
   contract_name: string;

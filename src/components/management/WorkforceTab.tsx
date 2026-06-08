@@ -235,105 +235,6 @@ function PersonRolesSection() {
   );
 }
 
-// ── Capacity Configs ──────────────────────────────────────────────────────────
-
-interface CapacityRow {
-  id: number; squadId: number; roleType: string;
-  hardBufferPct: string; softBufferPct: string;
-  squad: { id: number; name: string };
-}
-
-function CapacityConfigSection() {
-  const qc = useQueryClient();
-  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
-  const [editing, setEditing] = useState<CapacityRow | null>(null);
-  const [form, setForm] = useState({ squad_id: "", role_type: "dev", hard_buffer_pct: "15", soft_buffer_pct: "10" });
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  const { data: rows = [], isLoading } = useQuery({ queryKey: ["mgmt-capacity-configs"], queryFn: () => api.get<CapacityRow[]>("/management/squad-capacity-configs").then(r => r.data) });
-  const { data: squads = [] } = useQuery({ queryKey: ["mgmt-squads-active"], queryFn: () => api.get<SquadOption[]>("/management/squads").then(r => r.data) });
-
-  const createMutation = useMutation({
-    mutationFn: (f: typeof form) => api.post("/management/squad-capacity-configs", { squad_id: Number(f.squad_id), role_type: f.role_type, hard_buffer_pct: parseFloat(f.hard_buffer_pct) / 100, soft_buffer_pct: parseFloat(f.soft_buffer_pct) / 100 }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-capacity-configs"] }); closeModal(); },
-    onError: (e: unknown) => setApiError(errMsg(e)),
-  });
-  const updateMutation = useMutation({
-    mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/squad-capacity-configs/${id}`, { hard_buffer_pct: parseFloat(f.hard_buffer_pct) / 100, soft_buffer_pct: parseFloat(f.soft_buffer_pct) / 100 }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-capacity-configs"] }); closeModal(); },
-    onError: (e: unknown) => setApiError(errMsg(e)),
-  });
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/management/squad-capacity-configs/${id}`).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-capacity-configs"] }); setDeleteId(null); },
-  });
-
-  function openCreate() { setForm({ squad_id: "", role_type: "dev", hard_buffer_pct: "15", soft_buffer_pct: "10" }); setEditing(null); setApiError(null); setModalMode("create"); }
-  function openEdit(row: CapacityRow) { setForm({ squad_id: row.squadId.toString(), role_type: row.roleType, hard_buffer_pct: (parseFloat(row.hardBufferPct) * 100).toFixed(1), soft_buffer_pct: (parseFloat(row.softBufferPct) * 100).toFixed(1) }); setEditing(row); setApiError(null); setModalMode("edit"); }
-  function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
-  function handleSubmit(e: React.FormEvent) { e.preventDefault(); setApiError(null); if (modalMode === "create") createMutation.mutate(form); else if (editing) updateMutation.mutate({ id: editing.id, f: form }); }
-  const isPending = createMutation.isPending || updateMutation.isPending;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end"><Button size="sm" onClick={openCreate}>+ Add Config</Button></div>
-      <Card><CardContent className="p-0">
-        {isLoading
-          ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
-          : rows.length === 0
-            ? <p className="p-6 text-sm text-muted-foreground">No capacity configs found.</p>
-            : <div className="overflow-x-auto"><Table><TableHeader><TableRow>
-                <TableHead>Squad</TableHead><TableHead>Role</TableHead>
-                <TableHead className="text-right">Hard Buffer %</TableHead>
-                <TableHead className="text-right">Soft Buffer %</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow></TableHeader><TableBody>
-                {rows.map(row => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium text-sm">{row.squad.name}</TableCell>
-                    <TableCell className="text-sm">{row.roleType.replace(/_/g, " ")}</TableCell>
-                    <TableCell className="text-sm text-right">{(parseFloat(row.hardBufferPct) * 100).toFixed(1)}%</TableCell>
-                    <TableCell className="text-sm text-right">{(parseFloat(row.softBufferPct) * 100).toFixed(1)}%</TableCell>
-                    <TableCell className="text-right"><div className="flex gap-2 justify-end">
-                      <Button size="sm" variant="outline" onClick={() => openEdit(row)}>Edit</Button>
-                      <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(row.id)}>Delete</Button>
-                    </div></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody></Table></div>
-        }
-      </CardContent></Card>
-      <ManagementModal isOpen={modalMode !== null} onClose={closeModal} title={modalMode === "create" ? "Add Capacity Config" : "Edit Capacity Config"}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {apiError && <p className="text-sm text-destructive">{apiError}</p>}
-          <div className="space-y-1.5"><Label>Squad *</Label>
-            <Select required value={form.squad_id || "none"} onValueChange={v => setForm({ ...form, squad_id: v === "none" ? "" : v })} disabled={modalMode === "edit"}>
-              <SelectTrigger><SelectValue placeholder="— Select squad —" /></SelectTrigger>
-              <SelectContent><SelectItem value="none">— Select squad —</SelectItem>{squads.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5"><Label>Role Type *</Label>
-            <Select value={form.role_type} onValueChange={v => setForm({ ...form, role_type: v })} disabled={modalMode === "edit"}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{ROLE_TYPES.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>Hard Buffer %</Label><Input type="number" min="0" max="100" step="0.5" value={form.hard_buffer_pct} onChange={e => setForm({ ...form, hard_buffer_pct: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Soft Buffer %</Label><Input type="number" min="0" max="100" step="0.5" value={form.soft_buffer_pct} onChange={e => setForm({ ...form, soft_buffer_pct: e.target.value })} /></div>
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
-            <Button type="submit" disabled={isPending}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</Button>
-          </div>
-        </form>
-      </ManagementModal>
-      <ConfirmDialog open={deleteId !== null} onOpenChange={v => { if (!v) setDeleteId(null); }} title="Delete config?" description="This is permanent." confirmLabel="Delete" destructive onConfirm={() => deleteId !== null && deleteMutation.mutate(deleteId)} />
-    </div>
-  );
-}
-
 // ── Main Export ───────────────────────────────────────────────────────────────
 
 export function WorkforceTab() {
@@ -344,13 +245,11 @@ export function WorkforceTab() {
         <TabsTrigger value="persons">Persons</TabsTrigger>
         <TabsTrigger value="memberships">Squad Memberships</TabsTrigger>
         <TabsTrigger value="roles">Person Roles</TabsTrigger>
-        <TabsTrigger value="capacity">Capacity Configs</TabsTrigger>
       </TabsList>
       <TabsContent value="squads"><SquadsTab /></TabsContent>
       <TabsContent value="persons"><PersonsTab /></TabsContent>
       <TabsContent value="memberships"><MembershipsSection /></TabsContent>
       <TabsContent value="roles"><PersonRolesSection /></TabsContent>
-      <TabsContent value="capacity"><CapacityConfigSection /></TabsContent>
     </Tabs>
   );
 }
