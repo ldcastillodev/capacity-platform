@@ -89,19 +89,39 @@ export interface EnhancementSuggestion {
   current_hours: string | null;
 }
 
+export type SimulationVerdict = "ok" | "over" | "ambiguous";
+
+export interface SimulationMember {
+  personId: number;
+  personName: string;
+  allocationPct: number;
+  capacityHours: number;
+  recentAvgHours: number;
+  availableHours: number;
+  monthlyBillable: number[];
+}
+
+export interface SimulationRoleBreakdown {
+  roleType: string;
+  requiredHours: number;
+  capacityHours: number;
+  recentAvgHours: number;
+  availableHours: number;
+  gapHours: number;
+  verdict: SimulationVerdict;
+}
+
 export interface SimulationResult {
-  proposed_client_name: string;
-  proposed_start_month: string;
-  feasible: boolean;
-  bottleneck_role: RoleType | null;
-  line_items: Array<{
-    role_type: RoleType;
-    requested_hours: number;
-    available_hours: number;
-    gap_hours: number;
-    action: "available" | "hire_needed" | "redistribute";
-    ftes_to_hire: number;
-  }>;
+  squadId: number;
+  squadName: string;
+  month: string;
+  requiredHours: number;
+  availableHours: number;
+  gapHours: number;
+  verdict: SimulationVerdict;
+  members: SimulationMember[];
+  monthlyLabels: string[];
+  roleBreakdown: SimulationRoleBreakdown[];
 }
 
 // ─── API functions ────────────────────────────────────────────────────────────
@@ -144,11 +164,11 @@ export const dismissSuggestion = (id: number) =>
   api.patch(`/analytics/suggestions/${id}/status`, { status: "dismissed" }).then((r) => r.data);
 
 export const runSimulation = (body: {
-  proposed_client_name: string;
-  proposed_start_month: string;
-  proposed_pool_hours: number;
-  role_breakdown: Array<{ role_type: RoleType; hours_per_month: number }>;
-}) => api.post<SimulationResult>("/analytics/simulate", body).then((r) => r.data);
+  squadId: number;
+  requiredHours: number;
+  roles: { roleType: string; hours: number }[];
+}) =>
+  api.post<SimulationResult>("/analytics/simulate", body).then((r) => r.data);
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
