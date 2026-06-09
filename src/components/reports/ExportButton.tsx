@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import type { ColumnDef } from "./ReportTable";
 import { Button } from "@/components/ui/button";
+
+export interface ExportColumn {
+  key: string;
+  label: string;
+}
 
 interface Props {
   fetchAll: () => Promise<Record<string, unknown>[]>;
-  columnDefs: ColumnDef[];
+  columnDefs: ExportColumn[];
   visibleColumns: Set<string>;
   filename: string;
 }

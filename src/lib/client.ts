@@ -335,72 +335,84 @@ export const fetchDeclarations = (params?: { month?: string }) =>
 
 // ─── Reports ──────────────────────────────────────────────────────────────────
 
-export type ReportPage<T> = {
-  data: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
+export type ReportGroupBy = "person" | "squad" | "client" | "contract" | "role" | "month";
+export type ReportBillability = "all" | "billable" | "nonbillable";
+
+export type ReportFilterParams = {
+  from?: string;
+  to?: string;
+  groupBy?: ReportGroupBy;
+  billability?: ReportBillability;
+  personIds?: number[];
+  squadIds?: number[];
+  clientIds?: number[];
+  contractIds?: number[];
+  sowIds?: number[];
+  roleTypes?: string[];
 };
 
-export type ClientReportRow = {
-  id: number;
-  clientId: number;
+export type ReportKpis = {
+  totalHours: number;
+  billableHours: number;
+  nonBillableHours: number;
+  plannedHours: number | null;
+  utilizationPct: number | null;
+};
+
+export type ReportSeriesPoint = {
   month: string;
-  roleType: string | null;
-  declaredHours: string;
-  consumedHours: string;
-  retainerHours: string;
-  teHours: string;
-  coHours: string;
-  smeHours: string;
-  remainingHours: string;
-  utilizationPct: string;
-  billedRevenue: string | null;
-  directCost: string | null;
-  grossMargin: string | null;
-  grossMarginPct: string | null;
-  ceremonyHours: number;
-  client: { id: number; name: string; region: string; currency: string };
+  billable: number;
+  nonBillable: number;
+  planned: number | null;
 };
 
-export type PersonReportRow = {
-  person_id: number;
-  person_name: string;
-  employment_type: string;
-  squad_id: number;
-  squad_name: string;
+export type ReportRow = {
+  key: string;
+  groupKey: string;
+  label: string;
   month: string;
-  billable_hours: string;
-  nb_hours: string;
-  capacity_hours: string;
-  nb_pct: string;
+  billableHours: number;
+  nonBillableHours: number;
+  plannedHours: number | null;
+  utilizationPct: number | null;
 };
 
-export type SquadReportRow = {
-  squad_id: number;
-  squad_name: string;
-  month: string;
-  billable_hours: string;
-  nb_hours: string;
-  capacity_hours: string;
-  role_type: string | null;
+export type ReportHoursResponse = {
+  kpis: ReportKpis;
+  series: ReportSeriesPoint[];
+  rows: ReportRow[];
+  groupBy: ReportGroupBy;
 };
 
-export const fetchReportClients = (params: {
-  from?: string; to?: string; clientId?: number; roleType?: string;
-  page?: number; pageSize?: number;
-}) =>
-  api.get<ReportPage<ClientReportRow>>("/reports/clients", { params }).then((r) => r.data);
+export type FilterOption = { id: number; name: string };
+export type ContractOption = FilterOption & { sowId: number };
+export type SowOption = FilterOption & { clientId: number };
 
-export const fetchReportPersons = (params: {
-  from?: string; to?: string; squadId?: number;
-  page?: number; pageSize?: number;
-}) =>
-  api.get<ReportPage<PersonReportRow>>("/reports/persons", { params }).then((r) => r.data);
+export type ReportFilterOptions = {
+  persons: FilterOption[];
+  squads: FilterOption[];
+  clients: FilterOption[];
+  contracts: ContractOption[];
+  sows: SowOption[];
+};
 
-export const fetchReportSquads = (params: {
-  from?: string; to?: string; squadId?: number; roleType?: string;
-  page?: number; pageSize?: number;
-}) =>
-  api.get<ReportPage<SquadReportRow>>("/reports/squads", { params }).then((r) => r.data);
+function toQuery(params: ReportFilterParams): Record<string, string> {
+  const q: Record<string, string> = {};
+  if (params.from) q.from = params.from;
+  if (params.to) q.to = params.to;
+  if (params.groupBy) q.groupBy = params.groupBy;
+  if (params.billability) q.billability = params.billability;
+  if (params.personIds?.length) q.personIds = params.personIds.join(",");
+  if (params.squadIds?.length) q.squadIds = params.squadIds.join(",");
+  if (params.clientIds?.length) q.clientIds = params.clientIds.join(",");
+  if (params.contractIds?.length) q.contractIds = params.contractIds.join(",");
+  if (params.sowIds?.length) q.sowIds = params.sowIds.join(",");
+  if (params.roleTypes?.length) q.roleTypes = params.roleTypes.join(",");
+  return q;
+}
+
+export const fetchReportHours = (params: ReportFilterParams) =>
+  api.get<ReportHoursResponse>("/reports/hours", { params: toQuery(params) }).then((r) => r.data);
+
+export const fetchReportFilters = () =>
+  api.get<ReportFilterOptions>("/reports/filters").then((r) => r.data);
