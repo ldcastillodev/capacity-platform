@@ -1,0 +1,924 @@
+{
+  "squads": [
+    {
+      "id": 1,
+      "name": "Squad 1 PaaS",
+      "leadPersonId": 4,
+      "isActive": true,
+      "createdAt": "2026-06-05T20:38:09.522Z",
+      "updatedAt": "2026-06-09T16:08:42.638Z"
+    },
+    {
+      "id": 2,
+      "name": "Squad 2 PaaS",
+      "leadPersonId": 13,
+      "isActive": true,
+      "createdAt": "2026-06-09T16:08:26.436Z",
+      "updatedAt": "2026-06-09T16:44:08.643Z"
+    }
+  ],
+  "persons": [
+    {
+      "id": 1,
+      "name": "Luis Castillo",
+      "email": "luis.castillo@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-05T20:37:53.288Z",
+      "updatedAt": "2026-06-05T20:37:53.288Z"
+    },
+    {
+      "id": 2,
+      "name": "Tamara Rivas",
+      "email": "tamara.rivas@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-06T03:27:21.355Z",
+      "updatedAt": "2026-06-06T03:27:21.355Z"
+    },
+    {
+      "id": 3,
+      "name": "Brayhan Villalba",
+      "email": "brayhan.villalba@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-06T03:27:58.560Z",
+      "updatedAt": "2026-06-06T03:27:58.560Z"
+    },
+    {
+      "id": 4,
+      "name": "Jonathan Hernandez",
+      "email": "jonathan.hernandez@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T14:16:23.462Z",
+      "updatedAt": "2026-06-09T14:16:23.462Z"
+    },
+    {
+      "id": 5,
+      "name": "Emilio Barboza",
+      "email": "emilio.barboza@applydigital.co",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T14:18:12.114Z",
+      "updatedAt": "2026-06-09T14:18:12.114Z"
+    },
+    {
+      "id": 6,
+      "name": "Oscar Bustos",
+      "email": "oscar.bustos@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T14:18:36.735Z",
+      "updatedAt": "2026-06-09T14:18:36.735Z"
+    },
+    {
+      "id": 7,
+      "name": "Sebastian Espindola",
+      "email": "sebastian.espindola@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T14:18:57.954Z",
+      "updatedAt": "2026-06-09T14:18:57.954Z"
+    },
+    {
+      "id": 8,
+      "name": "Victor Araya",
+      "email": "victor.araya@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T14:19:26.009Z",
+      "updatedAt": "2026-06-09T14:19:26.009Z"
+    },
+    {
+      "id": 9,
+      "name": "Francisca Irribara",
+      "email": "francisca.irribarra@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T14:19:59.089Z",
+      "updatedAt": "2026-06-09T14:19:59.089Z"
+    },
+    {
+      "id": 10,
+      "name": "Francisca Jorquera",
+      "email": "francisca.jorquera@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T14:20:22.311Z",
+      "updatedAt": "2026-06-09T14:20:22.311Z"
+    },
+    {
+      "id": 11,
+      "name": "Dennis Solano",
+      "email": "dennis.solano@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:28:01.736Z",
+      "updatedAt": "2026-06-09T16:28:01.736Z"
+    },
+    {
+      "id": 12,
+      "name": "Isai Vargas",
+      "email": "isai.vargas@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:28:24.482Z",
+      "updatedAt": "2026-06-09T16:28:24.482Z"
+    },
+    {
+      "id": 13,
+      "name": "Luis Acurero",
+      "email": "luis.acurero@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:28:39.438Z",
+      "updatedAt": "2026-06-09T16:28:39.438Z"
+    },
+    {
+      "id": 14,
+      "name": "Luis Herrera",
+      "email": "luis.herrera@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:28:58.158Z",
+      "updatedAt": "2026-06-09T16:28:58.158Z"
+    },
+    {
+      "id": 15,
+      "name": "Nelson Aguayo",
+      "email": "nelson.aguayo@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:29:19.678Z",
+      "updatedAt": "2026-06-09T16:29:19.678Z"
+    },
+    {
+      "id": 16,
+      "name": "Rafael Paraguana",
+      "email": "rafael.paranagua@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:29:35.000Z",
+      "updatedAt": "2026-06-09T16:29:35.000Z"
+    },
+    {
+      "id": 17,
+      "name": "Rodrigo Dominguez",
+      "email": "rodrigo.dominguez@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:29:51.694Z",
+      "updatedAt": "2026-06-09T16:29:51.694Z"
+    },
+    {
+      "id": 18,
+      "name": "Wisam Mozalbat",
+      "email": "wisam.mozalbat@applydigital.com",
+      "isActive": true,
+      "weeklyCapacityHours": "40",
+      "createdAt": "2026-06-09T16:30:09.155Z",
+      "updatedAt": "2026-06-09T16:30:09.155Z"
+    }
+  ],
+  "squadMemberships": [
+    {
+      "id": 1,
+      "personId": 1,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 2,
+      "personId": 3,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 3,
+      "personId": 2,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 4,
+      "personId": 5,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 5,
+      "personId": 9,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 6,
+      "personId": 10,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 7,
+      "personId": 4,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 8,
+      "personId": 6,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 10,
+      "personId": 7,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 11,
+      "personId": 8,
+      "squadId": 1,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 12,
+      "personId": 11,
+      "squadId": 2,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 13,
+      "personId": 12,
+      "squadId": 2,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 14,
+      "personId": 13,
+      "squadId": 2,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 15,
+      "personId": 14,
+      "squadId": 2,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 16,
+      "personId": 15,
+      "squadId": 2,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 17,
+      "personId": 17,
+      "squadId": 2,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 18,
+      "personId": 18,
+      "squadId": 2,
+      "allocationPct": "1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 19,
+      "personId": 16,
+      "squadId": 1,
+      "allocationPct": "0.5",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 20,
+      "personId": 16,
+      "squadId": 2,
+      "allocationPct": "0.5",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    }
+  ],
+  "personRoles": [
+    {
+      "id": 1,
+      "personId": 1,
+      "roleType": "dev",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 2,
+      "personId": 3,
+      "roleType": "dev",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 3,
+      "personId": 2,
+      "roleType": "dev",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 4,
+      "personId": 11,
+      "roleType": "qa",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 5,
+      "personId": 5,
+      "roleType": "dev",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 6,
+      "personId": 9,
+      "roleType": "design",
+      "seniority": "L1",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 7,
+      "personId": 10,
+      "roleType": "content",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 8,
+      "personId": 12,
+      "roleType": "dev",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 9,
+      "personId": 4,
+      "roleType": "tl",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 10,
+      "personId": 13,
+      "roleType": "tl",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 11,
+      "personId": 14,
+      "roleType": "dev",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 12,
+      "personId": 15,
+      "roleType": "product",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 13,
+      "personId": 6,
+      "roleType": "product",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 14,
+      "personId": 16,
+      "roleType": "sre",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 15,
+      "personId": 17,
+      "roleType": "project",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 16,
+      "personId": 7,
+      "roleType": "project",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 17,
+      "personId": 8,
+      "roleType": "qa",
+      "seniority": "L3",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 18,
+      "personId": 18,
+      "roleType": "dev",
+      "seniority": "L2",
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    }
+  ],
+  "clients": [
+    {
+      "id": 1,
+      "name": "Tishman Speyer",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-06T03:19:51.661Z",
+      "updatedAt": "2026-06-06T03:19:51.661Z"
+    },
+    {
+      "id": 2,
+      "name": "Black & Veatch",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-09T15:01:38.670Z",
+      "updatedAt": "2026-06-09T15:01:38.670Z"
+    },
+    {
+      "id": 3,
+      "name": "Star Trek",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-09T15:05:03.709Z",
+      "updatedAt": "2026-06-09T15:05:03.709Z"
+    },
+    {
+      "id": 4,
+      "name": "Marketing",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-09T15:17:44.277Z",
+      "updatedAt": "2026-06-09T15:17:44.277Z"
+    },
+    {
+      "id": 5,
+      "name": "Parkland",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-09T15:20:43.322Z",
+      "updatedAt": "2026-06-09T15:20:43.322Z"
+    },
+    {
+      "id": 6,
+      "name": "Tiny Blue Dot",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-09T15:24:24.646Z",
+      "updatedAt": "2026-06-09T15:24:24.646Z"
+    },
+    {
+      "id": 7,
+      "name": "AllTech",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-09T16:04:15.597Z",
+      "updatedAt": "2026-06-09T16:04:15.597Z"
+    },
+    {
+      "id": 8,
+      "name": "SelectQuote",
+      "isActive": true,
+      "region": "na",
+      "currency": "USD",
+      "createdAt": "2026-06-09T16:42:42.837Z",
+      "updatedAt": "2026-06-09T16:42:42.837Z"
+    }
+  ],
+  "statementsOfWork": [
+    {
+      "id": 3,
+      "name": "Star Trek (2026)",
+      "clientId": 3,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "parentSowId": null
+    },
+    {
+      "id": 2,
+      "name": "Black & Veatch (2026)",
+      "clientId": 2,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "parentSowId": null
+    },
+    {
+      "id": 1,
+      "name": "Tishman Speyer (2026)",
+      "clientId": 1,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "parentSowId": null
+    },
+    {
+      "id": 4,
+      "name": "Marketing (2026)",
+      "clientId": 4,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "parentSowId": null
+    },
+    {
+      "id": 5,
+      "name": "Parkland (2026)",
+      "clientId": 5,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "parentSowId": null
+    },
+    {
+      "id": 6,
+      "name": "Tiny Blue Dot (2026)",
+      "clientId": 6,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "parentSowId": null
+    },
+    {
+      "id": 7,
+      "name": "AllTech (2026)",
+      "clientId": 7,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "parentSowId": null
+    },
+    {
+      "id": 8,
+      "name": "SelectQuote (2026)",
+      "clientId": 8,
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-07-24T00:00:00.000Z",
+      "parentSowId": null
+    }
+  ],
+  "contracts": [
+    {
+      "id": 6,
+      "name": "Star Trek",
+      "sowId": 3,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "50",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T15:07:10.604Z",
+      "updatedAt": "2026-06-09T15:07:10.604Z"
+    },
+    {
+      "id": 5,
+      "name": "Black & Veatch",
+      "sowId": 2,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "80",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T15:03:38.674Z",
+      "updatedAt": "2026-06-09T15:08:11.647Z"
+    },
+    {
+      "id": 2,
+      "name": "Tishman Corporate",
+      "sowId": 1,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "53",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-06T03:21:03.260Z",
+      "updatedAt": "2026-06-09T15:08:24.634Z"
+    },
+    {
+      "id": 3,
+      "name": "Tishman Cloudgate Integration",
+      "sowId": 1,
+      "hourType": "total",
+      "type": "change_order",
+      "assignedHours": "240",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-06T03:21:46.447Z",
+      "updatedAt": "2026-06-09T15:08:34.920Z"
+    },
+    {
+      "id": 4,
+      "name": "Tishman Corporate Investment fund",
+      "sowId": 1,
+      "hourType": "total",
+      "type": "change_order",
+      "assignedHours": "176",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-06T03:22:30.967Z",
+      "updatedAt": "2026-06-09T15:08:56.592Z"
+    },
+    {
+      "id": 1,
+      "name": "Tishman Studio",
+      "sowId": 1,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "292",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-06T03:20:44.635Z",
+      "updatedAt": "2026-06-09T15:09:03.497Z"
+    },
+    {
+      "id": 7,
+      "name": "AD Internal",
+      "sowId": 4,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "150",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T15:19:44.040Z",
+      "updatedAt": "2026-06-09T15:19:44.040Z"
+    },
+    {
+      "id": 8,
+      "name": "Parkland ",
+      "sowId": 5,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "150",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T15:21:38.706Z",
+      "updatedAt": "2026-06-09T15:21:38.706Z"
+    },
+    {
+      "id": 9,
+      "name": "Tiny Blue Dot",
+      "sowId": 6,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "20",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T15:25:20.275Z",
+      "updatedAt": "2026-06-09T15:25:20.275Z"
+    },
+    {
+      "id": 10,
+      "name": "Black & Veatch - Migration",
+      "sowId": 2,
+      "hourType": "total",
+      "type": "change_order",
+      "assignedHours": "80",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T15:40:51.980Z",
+      "updatedAt": "2026-06-09T15:40:51.980Z"
+    },
+    {
+      "id": 11,
+      "name": "AllTech",
+      "sowId": 7,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "50",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-12-31T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T16:05:19.526Z",
+      "updatedAt": "2026-06-09T16:05:19.526Z"
+    },
+    {
+      "id": 12,
+      "name": "SelectQuote",
+      "sowId": 8,
+      "hourType": "monthly",
+      "type": "base",
+      "assignedHours": "250",
+      "startDate": "2026-01-01T00:00:00.000Z",
+      "endDate": "2026-07-24T00:00:00.000Z",
+      "status": "active",
+      "parentContractId": null,
+      "createdAt": "2026-06-09T16:43:45.355Z",
+      "updatedAt": "2026-06-09T16:52:01.903Z"
+    }
+  ],
+  "nonBillableCategories": [
+    {
+      "id": 1,
+      "name": "Team Ceremonies",
+      "type": "shared_ceremony",
+      "description": null,
+      "isActive": true
+    },
+    {
+      "id": 2,
+      "name": "Company Meetings",
+      "type": "company",
+      "description": null,
+      "isActive": true
+    }
+  ],
+  "nonBillableSourceMappings": [
+    {
+      "id": 1,
+      "source": "jira_na",
+      "identifierType": "issue_key",
+      "identifierValue": "MP-2126",
+      "categoryId": 1
+    },
+    {
+      "id": 2,
+      "source": "jira_na",
+      "identifierType": "issue_key",
+      "identifierValue": "MP-2980",
+      "categoryId": 2
+    }
+  ],
+  "jiraComponentClientMappings": [
+    {
+      "id": 1,
+      "jiraInstance": "na",
+      "componentKey": "Tishman Studio",
+      "contractId": 1,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 2,
+      "jiraInstance": "na",
+      "componentKey": "Tishman-Corporate",
+      "contractId": 2,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 3,
+      "jiraInstance": "na",
+      "componentKey": "Tishman-Corporate - Investmen fund page",
+      "contractId": 4,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 4,
+      "jiraInstance": "na",
+      "componentKey": "Tishman Studio - Cloudgate and VTS integration",
+      "contractId": 3,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 5,
+      "jiraInstance": "na",
+      "componentKey": "MgS-Black & Veatch",
+      "contractId": 5,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 6,
+      "jiraInstance": "na",
+      "componentKey": "MgS-Star Trek",
+      "contractId": 6,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 7,
+      "jiraInstance": "na",
+      "componentKey": "MgS-Marketing",
+      "contractId": 7,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 8,
+      "jiraInstance": "na",
+      "componentKey": "MgS-Parkland",
+      "contractId": 8,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 9,
+      "jiraInstance": "na",
+      "componentKey": "Tiny Blue Dot",
+      "contractId": 9,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 10,
+      "jiraInstance": "na",
+      "componentKey": "MgS - Black & Veatch - Migration",
+      "contractId": 10,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 11,
+      "jiraInstance": "na",
+      "componentKey": "MgS-Select Quote",
+      "contractId": 12,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    },
+    {
+      "id": 12,
+      "jiraInstance": "na",
+      "componentKey": "MgS-Alltech",
+      "contractId": 11,
+      "effectiveFrom": "2026-01-01T00:00:00.000Z",
+      "effectiveTo": null
+    }
+  ]
+}
