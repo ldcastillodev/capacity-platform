@@ -76,10 +76,11 @@ export interface EnhancementSuggestion {
   person_id: number;
   squadId: number | null;
   squad_id: number | null;
+  squad: { id: number; name: string } | null;
   month: string;
   suggestionType: string;
   suggestion_type: string;
-  status: "open" | "acknowledged" | "resolved" | "dismissed";
+  status: "open" | "acknowledged" | "applied" | "dismissed";
   explanation: string | null;
   suggestedAction: string | null;
   suggested_action: string | null;

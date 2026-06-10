@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       ...(squadId ? { squadId: Number(squadId) } : {}),
       ...(month ? { month: new Date(month) } : {}),
     },
-    include: { squad: true },
+    include: { person: true, squad: true },
     orderBy: [{ month: "desc" }, { squadId: "asc" }],
   });
 

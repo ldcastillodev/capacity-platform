@@ -59,6 +59,15 @@ function formatSuggestionType(raw: string): string {
   return raw.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+type SuggestionStatus = "open" | "acknowledged" | "applied" | "dismissed";
+const STATUS_META: Record<SuggestionStatus, { label: string; color: string; bg: string }> = {
+  open:         { label: "Open",         color: "var(--warning)", bg: "var(--warning-bg)" },
+  acknowledged: { label: "Acknowledged", color: "var(--watch)",   bg: "var(--watch-bg)" },
+  applied:      { label: "Applied",      color: "var(--safe)",    bg: "var(--safe-bg)" },
+  dismissed:    { label: "Dismissed",    color: "hsl(var(--muted-foreground))", bg: "hsl(var(--muted))" },
+};
+const TERMINAL_STATUSES: SuggestionStatus[] = ["applied", "dismissed"];
+
 interface PersonRollup {
   personId: number;
   totalHours: number;
@@ -178,7 +187,7 @@ export default function NonBillablePage() {
 
   const { data: summaryRaw, isLoading } = useQuery({ queryKey: ["nonbillable", month], queryFn: () => fetchNonBillableSummary({ month }) });
   const { data: people } = useQuery({ queryKey: ["people"], queryFn: fetchPeople });
-  const { data: suggestions, isLoading: loadingSuggestions } = useQuery({ queryKey: ["suggestions", month, "open"], queryFn: () => fetchSuggestions({ month, status: "open" }) });
+  const { data: suggestions, isLoading: loadingSuggestions } = useQuery({ queryKey: ["suggestions", month], queryFn: () => fetchSuggestions({ month }) });
   const { data: nbBySquad, isLoading: squadLoading } = useQuery({ queryKey: ["nb-by-squad", month], queryFn: () => fetchNbBySquad({ month }) });
 
   const dismissMutation = useMutation({ mutationFn: (id: number) => dismissSuggestion(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suggestions"] }) });
@@ -197,7 +206,8 @@ export default function NonBillablePage() {
 
   const flagged = rollup.filter((r) => r.nbPct > 0.25).length;
   const avgNbPct = rollup.length > 0 ? rollup.reduce((s, r) => s + r.nbPct, 0) / rollup.length : 0;
-  const openSuggestions = (suggestions ?? []).filter((s) => s.status === "open");
+  const allSuggestions = suggestions ?? [];
+  const openSuggestions = allSuggestions.filter((s) => s.status === "open");
 
   return (
     <div>
@@ -380,41 +390,60 @@ export default function NonBillablePage() {
 
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="font-semibold text-base">Open Suggestions</h2>
-          {openSuggestions.length > 0 && (
-            <Badge className="bg-[var(--warning-bg)] text-[var(--warning)] border-0">{openSuggestions.length}</Badge>
+          <h2 className="font-semibold text-base">Suggestions</h2>
+          {allSuggestions.length > 0 && (
+            <Badge className="bg-[var(--warning-bg)] text-[var(--warning)] border-0">{allSuggestions.length}</Badge>
           )}
         </div>
         {loadingSuggestions
           ? <p className="text-muted-foreground text-sm">Loading suggestions…</p>
-          : openSuggestions.length === 0
-            ? <p className="text-muted-foreground text-sm">No open suggestions.</p>
+          : allSuggestions.length === 0
+            ? <p className="text-muted-foreground text-sm">No suggestions for this period.</p>
             : (
               <div className="flex flex-col gap-3">
-                {openSuggestions.map((s) => (
-                  <Card key={s.id}>
-                    <CardContent className="p-5 flex justify-between items-start gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2.5 mb-1.5">
-                          <span className="font-semibold">{personMap[s.person_id ?? s.personId] ?? `Person ${s.person_id ?? s.personId}`}</span>
-                          <Badge className="text-xs bg-[var(--warning-bg)] text-[var(--warning)] border-0">
-                            {formatSuggestionType(s.suggestion_type ?? s.suggestionType ?? "")}
-                          </Badge>
-                          {(s.current_hours ?? s.currentHours) && (
-                            <span className="text-sm text-muted-foreground">{parseFloat(String(s.current_hours ?? s.currentHours)).toFixed(1)}h logged</span>
+                {allSuggestions.map((s) => {
+                  const pid = s.person_id ?? s.personId;
+                  const subjectName = pid != null
+                    ? (personMap[pid] ?? `Person ${pid}`)
+                    : (s.squad?.name ?? `Squad ${s.squad_id ?? s.squadId ?? "—"}`);
+                  const status = (s.status ?? "open") as SuggestionStatus;
+                  const statusMeta = STATUS_META[status] ?? STATUS_META.open;
+                  const isTerminal = TERMINAL_STATUSES.includes(status);
+                  const currentHours = s.current_hours ?? s.currentHours;
+                  const suggestedHours = s.suggested_hours ?? s.suggestedHours;
+                  return (
+                    <Card key={s.id}>
+                      <CardContent className="p-5 flex justify-between items-start gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+                            <span className="font-semibold">{subjectName}</span>
+                            <Badge className="text-xs bg-[var(--warning-bg)] text-[var(--warning)] border-0">
+                              {formatSuggestionType(s.suggestion_type ?? s.suggestionType ?? "")}
+                            </Badge>
+                            <Badge className="text-xs border-0" style={{ background: statusMeta.bg, color: statusMeta.color }}>
+                              {statusMeta.label}
+                            </Badge>
+                            {currentHours != null && (
+                              <span className="text-sm text-muted-foreground">{parseFloat(String(currentHours)).toFixed(1)}h logged</span>
+                            )}
+                            {suggestedHours != null && (
+                              <span className="text-sm text-muted-foreground">target {parseFloat(String(suggestedHours)).toFixed(1)}h</span>
+                            )}
+                          </div>
+                          {s.explanation && <p className="text-sm text-muted-foreground leading-relaxed">{s.explanation}</p>}
+                          {(s.suggested_action ?? s.suggestedAction) && (
+                            <p className="text-sm mt-1.5 leading-relaxed"><strong>Suggested action:</strong> {s.suggested_action ?? s.suggestedAction}</p>
                           )}
                         </div>
-                        {s.explanation && <p className="text-sm text-muted-foreground leading-relaxed">{s.explanation}</p>}
-                        {(s.suggested_action ?? s.suggestedAction) && (
-                          <p className="text-sm mt-1.5 leading-relaxed"><strong>Suggested action:</strong> {s.suggested_action ?? s.suggestedAction}</p>
+                        {!isTerminal && (
+                          <Button variant="outline" size="sm" onClick={() => dismissMutation.mutate(s.id)} disabled={dismissMutation.isPending}>
+                            Dismiss
+                          </Button>
                         )}
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => dismissMutation.mutate(s.id)} disabled={dismissMutation.isPending}>
-                        Dismiss
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
       </div>
