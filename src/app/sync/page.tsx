@@ -9,11 +9,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-function todayStr(): string { return new Date().toISOString().split("T")[0]; }
-function thirtyDaysAgoStr(): string {
+function currentMonthStr(): string {
   const d = new Date();
-  d.setDate(d.getDate() - 30);
-  return d.toISOString().split("T")[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function lastDayOfMonthStr(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().split("T")[0];
 }
 function getSource(jira: boolean): "jira_na" | "all" { return jira ? "jira_na" : "all"; }
 function getMonthsArray(dateFrom: string, dateTo: string): string[] {
@@ -31,7 +33,7 @@ function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 type BannerResult = { ok: boolean; message: string } | null;
@@ -59,14 +61,28 @@ function Banner({ result }: { result: BannerResult }) {
 }
 
 export default function SyncPage() {
-  const [dateFrom, setDateFrom] = useState(thirtyDaysAgoStr);
-  const [dateTo, setDateTo] = useState(todayStr);
+  const [monthFrom, setMonthFrom] = useState(currentMonthStr);
+  const [monthTo, setMonthTo] = useState(currentMonthStr);
   const [jiraChecked, setJiraChecked] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<BannerResult>(null);
   const [refreshLoading, setRefreshLoading] = useState(false);
   const [refreshResult, setRefreshResult] = useState<BannerResult>(null);
   const [lastLogs, setLastLogs] = useState<SyncLogEntry[]>([]);
+
+  const dateFrom = `${monthFrom}-01`;
+  const dateTo = lastDayOfMonthStr(monthTo);
+
+  function handleMonthFromChange(value: string) {
+    if (!value) return;
+    setMonthFrom(value);
+    if (value > monthTo) setMonthTo(value);
+  }
+  function handleMonthToChange(value: string) {
+    if (!value) return;
+    setMonthTo(value);
+    if (value < monthFrom) setMonthFrom(value);
+  }
 
   async function fetchLastLogs() {
     try {
@@ -88,8 +104,7 @@ export default function SyncPage() {
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        const sources = Object.keys(data.results ?? {}).join(", ") || "all sources";
-        setSyncResult({ ok: true, message: `Sync complete — ${sources} synced successfully.` });
+        setSyncResult({ ok: true, message: "Sync completed" });
         await fetchLastLogs();
       } else {
         setSyncResult({ ok: false, message: data.error ?? "Sync failed. Check server logs." });
@@ -112,8 +127,7 @@ export default function SyncPage() {
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        const secs = data.durationMs ? ` (${(data.durationMs / 1000).toFixed(1)}s)` : "";
-        setRefreshResult({ ok: true, message: `Analytics refresh complete — ${months.length} month(s) refreshed${secs}.` });
+        setRefreshResult({ ok: true, message: "Analytics refresh complete" });
       } else {
         setRefreshResult({ ok: false, message: data.error ?? "Refresh failed. Check server logs." });
       }
@@ -169,11 +183,11 @@ export default function SyncPage() {
           <div className="flex gap-6 flex-wrap">
             <div className="space-y-1.5">
               <Label>From</Label>
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
+              <Input type="month" value={monthFrom} onChange={(e) => handleMonthFromChange(e.target.value)} className="w-auto" />
             </div>
             <div className="space-y-1.5">
               <Label>To</Label>
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
+              <Input type="month" value={monthTo} onChange={(e) => handleMonthToChange(e.target.value)} className="w-auto" />
             </div>
           </div>
         </CardContent>
@@ -204,8 +218,9 @@ export default function SyncPage() {
         <CardHeader className="pb-1">
           <CardTitle className="text-base">Analytics Refresh</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Recalculate consumption summaries, staffing gaps, and anomaly flags.
-            Will refresh <strong>{months.length}</strong> month{months.length !== 1 ? "s" : ""} based on the selected date range.
+            Recalculates anomaly flags for clients with no recent hours logged, and generates non-billable hour
+            enhancement suggestions (excessive non-billable time, ceremony overhead, or PTO capacity) for the
+            current month.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

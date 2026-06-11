@@ -176,12 +176,9 @@ export const runSimulation = (body: {
 export interface DashboardSummary {
   month: string;
   total_active_clients: number;
-  clients_on_track: number;
-  clients_at_risk: number;
-  clients_critical: number;
   open_anomaly_flags: number;
-  understaffed_roles: number;
-  total_gross_margin_pct: number | null;
+  persons_count: number;
+  squads_count: number;
 }
 
 export const fetchDashboard = (month?: string) =>

@@ -99,7 +99,7 @@ npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/extract-db.ts
 
 ## Architecture
 
-Next.js 15 App Router. No Tailwind — uses CSS variables (`src/app/globals.css`). Path alias `@/*` → `src/*`. Deployed on Firebase App Hosting + Cloud SQL (Node 20, `apphosting.yaml`).
+Next.js 15 App Router. Tailwind CSS + shadcn/ui (new-york style, `components.json`). shadcn is configured `rsc: false` — components are client-side. Theming is HSL CSS variables in `src/app/globals.css` consumed by `tailwind.config.ts` (legacy `--bg`/`--surface`/etc. tokens remain during per-page migration; status colors `safe`/`watch`/`warning`/`critical`). Dark mode via `next-themes` (class strategy). Path alias `@/*` → `src/*`. Deployed on Firebase App Hosting + Cloud SQL (Node 20, `apphosting.yaml`).
 
 **Pages:**
 
@@ -116,6 +116,7 @@ Next.js 15 App Router. No Tailwind — uses CSS variables (`src/app/globals.css`
 | `/reports` | Hour-consumption reports (clients/persons/squads), XLSX export |
 | `/management` | Admin CRUD for squads, persons, clients, mappings, contracts, billing rates |
 | `/sync` | Manually trigger Jira sync and analytics refresh |
+| `/help` | In-app usage/help docs |
 
 **Data flow:**
 1. Cron jobs (`/api/admin/jobs/sync`) pull raw hours from Jira into `HourRecord` and `NonBillableEntry`
@@ -135,22 +136,29 @@ Next.js 15 App Router. No Tailwind — uses CSS variables (`src/app/globals.css`
 - `src/lib/client.ts` — Axios instance + all client-side fetch functions
 - `src/lib/integrations/jira-na.ts` — JiraNAConnector (Jira NA sync)
 - `src/lib/analytics/refresh.ts` — analytics computation engine
-- `src/app/layout.tsx` — root layout with sidebar nav and QueryClientProvider
+- `src/app/layout.tsx` — root layout with sidebar nav, QueryClientProvider, and `<Toaster />` (sonner)
+- `src/lib/utils.ts` — `cn()` (clsx + tailwind-merge), used by all shadcn components
+- `src/components/ui/*` — shadcn primitives (Radix-based: dialog, select, table, form, etc.)
+- `src/components/app/*` — shared app shells (`DataTable`, `PageHeader`, `FormSheet`, `FilterSheet`, `ConfirmDialog`, `StatCard`, `StatusBadge`, `MonthNavigator`)
+- `src/components/management/*` and `src/components/reports/*` — per-page tab/panel components
+
+**UI stack:** Forms = `react-hook-form` + `zod` (`@hookform/resolvers`). Toasts = `sonner`. Charts = `recharts`. Icons = `lucide-react`. Tables/dialogs/selects = Radix via shadcn `ui/`.
 
 **Reports** (`/reports`): do not run on load — require explicit Apply. Persons and squads tabs use `prisma.$queryRaw` for aggregations; clients tab uses Prisma ORM. XLSX export is client-side via SheetJS (no server round-trip).
 
 ## Schema invariants
 
-**Financial immutability:** `HourRecord` stores five snapshot columns written once at sync time (`billingRateSnapshot`, `costRateSnapshot`, `currencySnapshot`, `billedAmountSnapshot`, `costAmountSnapshot`) and never updated. Analytics reads these instead of resolving live rates — financial reports stay stable if billing rates change retroactively.
+**Business rules:** `docs/business-rules.md` is the authoritative BR-1…BR-11 reference — client hierarchy, multi-squad hour attribution (declaration-based, skip+flag fallback), archival/expiry cascades, renewal-as-new-entity, allocation-sum trigger — with enforcement points and approved design decisions. Read it before touching sync, contracts, memberships, or mappings.
 
-**Soft deletes only:** No hard deletes anywhere. Archiving deactivates via `isActive`/`deactivatedAt`/`effectiveTo`.
+**Attribution snapshots:** `HourRecord.squadId`, `roleType`, and `contractId` are written at sync time via date-effective lookups and never recomputed — a person's past hours stay attributed to the squad/role they had then. (The earlier financial snapshot columns, six audit-history models, and `PersonCalendarAssignment` were removed in the `20260604165644_simplify_schema` and `20260606000000_drop_analytics_models` migrations.)
 
-**Audit ledgers:** Six append-only history models (`BillingRateHistory`, `ContractHistory`, `ContractExtensionHistory`, `MonthlyRoleDeclarationHistory`, `SquadMembershipHistory`, `StaffingGapSnapshotHistory`) record every state change with `changedAt`/`changedBy`.
+**Soft deletes only:** No hard deletes anywhere. Archiving deactivates via `isActive`/`effectiveTo`. Membership/role DELETE routes end-date instead, and return `409` if `HourRecord` rows exist in the row's effective window.
+
+**Temporal integrity:** `Person.weeklyCapacityHours` is versioned in `PersonCapacityHistory` (capacity PATCHes end-date the open row and insert a new one; analytics pro-rate by month). DB `EXCLUDE` constraints (`btree_gist`) forbid overlapping `SquadMembership` rows per person+squad and overlapping `PersonRole` rows per person; `effectiveTo` is inclusive. Concurrent memberships in *different* squads are legitimate (split allocations, `allocationPct < 1`).
 
 **Guards enforced at API level:**
 - Client currency is immutable once any `HourRecord` or `BillingRate` references the client (returns `400`)
 - Squad `leadPersonId` must have an active `SquadMembership` for that squad (returns `400`)
-- `PersonCalendarAssignment`: partial unique index enforces at most one open-ended row per person
 
 **Enum naming:** All PostgreSQL enum types use camelCase (e.g. `"ContractStatus"`, `"Currency"`). Pre-2026-05-27 dumps have lowercase types — apply `prisma/migrations/20260527_fix_enum_type_casing/migration.sql` before starting.
 

@@ -76,7 +76,7 @@ export default function DashboardPage() {
 
       {isLoading && (
         <MetricCardGrid className="mb-8">
-          {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
         </MetricCardGrid>
       )}
 
@@ -89,19 +89,15 @@ export default function DashboardPage() {
       {!isLoading && data && (
         <>
           <MetricCardGrid className="mb-8">
-            <StatCard label="Active Clients"     value={data.total_active_clients} />
-            <StatCard label="On Track"           value={data.clients_on_track}    valueColor="var(--safe)" />
-            <StatCard label="At Risk"            value={data.clients_at_risk}     valueColor="var(--watch)" />
-            <StatCard label="Critical"           value={data.clients_critical}    valueColor="var(--critical)" />
-            <StatCard label="Open Flags"         value={data.open_anomaly_flags}
+            <StatCard label="Active Clients"   value={data.total_active_clients} />
+            <StatCard label="On Track"         value={groupedContracts.safe?.length ?? 0}     valueColor="var(--safe)" />
+            <StatCard label="Watch"            value={groupedContracts.watch?.length ?? 0}    valueColor="var(--watch)" />
+            <StatCard label="Critical"         value={groupedContracts.critical?.length ?? 0} valueColor="var(--critical)" />
+            <StatCard label="Open Flags"       value={data.open_anomaly_flags}
               valueColor={data.open_anomaly_flags > 0 ? "var(--warning)" : undefined} />
-            <StatCard label="Understaffed Roles" value={data.understaffed_roles}
-              valueColor={data.understaffed_roles > 0 ? "var(--critical)" : undefined} />
-            <StatCard
-              label="Avg Gross Margin"
-              value={data.total_gross_margin_pct != null ? `${(+data.total_gross_margin_pct * 100).toFixed(1)}%` : "—"}
-              subtitle="across active clients"
-            />
+            <StatCard label="Active Contracts" value={contractBurn?.length ?? 0} />
+            <StatCard label="Persons"          value={data.persons_count} />
+            <StatCard label="Squads"           value={data.squads_count} />
           </MetricCardGrid>
 
           {data.total_active_clients === 0 && (
