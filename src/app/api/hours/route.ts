@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { findEffective, toUtcDateOnly } from "@/lib/temporal";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -31,20 +32,47 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as {
     person_id: number;
     client_id: number;
-    squad_id: number;
     date: string;
     hours: number;
-    role_type: string;
   };
+
+  // squadId and roleType are resolved server-side from the date-effective
+  // membership/role rows — never trusted from the request body.
+  const date = toUtcDateOnly(body.date);
+  const [memberships, roles] = await Promise.all([
+    prisma.squadMembership.findMany({
+      where: { personId: body.person_id },
+      orderBy: { effectiveFrom: "desc" },
+    }),
+    prisma.personRole.findMany({
+      where: { personId: body.person_id },
+      orderBy: { effectiveFrom: "desc" },
+    }),
+  ]);
+
+  const membership = findEffective(memberships, date);
+  if (!membership) {
+    return NextResponse.json(
+      { error: `No active squad membership for person ${body.person_id} on ${body.date}` },
+      { status: 422 },
+    );
+  }
+  const role = findEffective(roles, date);
+  if (!role) {
+    return NextResponse.json(
+      { error: `No active role for person ${body.person_id} on ${body.date}` },
+      { status: 422 },
+    );
+  }
 
   const record = await prisma.hourRecord.create({
     data: {
       personId: body.person_id,
       clientId: body.client_id,
-      squadId: body.squad_id,
-      date: new Date(body.date),
+      squadId: membership.squadId,
+      date,
       hours: body.hours,
-      roleType: body.role_type as never,
+      roleType: role.roleType,
       source: "manual",
     },
   });

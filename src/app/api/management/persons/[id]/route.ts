@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { addUtcDays, toUtcDateOnly } from "@/lib/temporal";
+
+class ConflictError extends Error {}
 
 export async function PATCH(
   req: NextRequest,
@@ -17,6 +20,7 @@ export async function PATCH(
     allocation_pct?: number;
   };
 
+  try {
   const person = await prisma.$transaction(async (tx) => {
     await tx.person.update({
       where: { id: personId },
@@ -27,14 +31,67 @@ export async function PATCH(
       },
     });
 
-    if (body.squad_id !== undefined) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      await tx.squadMembership.updateMany({
+    // Capacity changes are versioned: end-date the open history row and start a
+    // new one so historical months keep the capacity that was true at the time.
+    if (body.weekly_capacity_hours !== undefined) {
+      const today = toUtcDateOnly(new Date());
+      const open = await tx.personCapacityHistory.findFirst({
         where: { personId, effectiveTo: null },
-        data: { effectiveTo: today },
+        orderBy: { effectiveFrom: "desc" },
       });
+      if (!open) {
+        await tx.personCapacityHistory.create({
+          data: {
+            personId,
+            weeklyCapacityHours: body.weekly_capacity_hours,
+            effectiveFrom: today,
+          },
+        });
+      } else if (Number(open.weeklyCapacityHours) !== body.weekly_capacity_hours) {
+        if (open.effectiveFrom >= today) {
+          // Row already starts today — correct it in place instead of creating
+          // an invalid zero-length predecessor.
+          await tx.personCapacityHistory.update({
+            where: { id: open.id },
+            data: { weeklyCapacityHours: body.weekly_capacity_hours },
+          });
+        } else {
+          await tx.personCapacityHistory.update({
+            where: { id: open.id },
+            data: { effectiveTo: addUtcDays(today, -1) },
+          });
+          await tx.personCapacityHistory.create({
+            data: {
+              personId,
+              weeklyCapacityHours: body.weekly_capacity_hours,
+              effectiveFrom: today,
+            },
+          });
+        }
+      }
+    }
+
+    if (body.squad_id !== undefined) {
+      const today = toUtcDateOnly(new Date());
+      // Close prior rows at yesterday so the old and new memberships never
+      // overlap on the transition day.
+      const yesterday = addUtcDays(today, -1);
+
+      const openRows = await tx.squadMembership.findMany({
+        where: { personId, effectiveTo: null },
+        select: { id: true, effectiveFrom: true },
+      });
+      for (const prior of openRows) {
+        if (prior.effectiveFrom >= today) {
+          throw new ConflictError(
+            "Person already has a membership starting today; cannot end-date it to yesterday.",
+          );
+        }
+        await tx.squadMembership.update({
+          where: { id: prior.id },
+          data: { effectiveTo: yesterday },
+        });
+      }
 
       if (body.squad_id !== null) {
         await tx.squadMembership.create({
@@ -73,4 +130,11 @@ export async function PATCH(
   });
 
   return NextResponse.json(person);
+  } catch (e) {
+    if (e instanceof ConflictError)
+      return NextResponse.json({ error: e.message }, { status: 409 });
+    if (String(e).includes("allocation_sum_exceeded"))
+      return NextResponse.json({ error: "Total allocation across this person's overlapping memberships would exceed 100%." }, { status: 409 });
+    throw e;
+  }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { addUtcDays, toUtcDateOnly } from "@/lib/temporal";
 
 export async function PATCH(
   req: NextRequest,
@@ -25,6 +26,10 @@ export async function PATCH(
     });
     return NextResponse.json(row);
   } catch (e) {
+    if (String(e).includes("exclusion constraint"))
+      return NextResponse.json({ error: "Overlapping membership for this person/squad date range." }, { status: 409 });
+    if (String(e).includes("allocation_sum_exceeded"))
+      return NextResponse.json({ error: "Total allocation across this person's overlapping memberships would exceed 100%." }, { status: 409 });
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
@@ -35,7 +40,43 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    await prisma.squadMembership.delete({ where: { id: Number(id) } });
+    const row = await prisma.squadMembership.findUnique({ where: { id: Number(id) } });
+    if (!row) {
+      return NextResponse.json({ error: "Membership not found." }, { status: 404 });
+    }
+
+    // HourRecords synced inside this row's effective window depend on it for
+    // temporal history — refuse to destroy it.
+    const dependentHours = await prisma.hourRecord.count({
+      where: {
+        personId: row.personId,
+        squadId: row.squadId,
+        date: {
+          gte: row.effectiveFrom,
+          ...(row.effectiveTo ? { lte: row.effectiveTo } : {}),
+        },
+      },
+    });
+    if (dependentHours > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete: ${dependentHours} hour record(s) were attributed through this membership's effective window. End-date the membership instead.`,
+        },
+        { status: 409 },
+      );
+    }
+
+    const yesterday = addUtcDays(toUtcDateOnly(new Date()), -1);
+    if (row.effectiveTo === null && row.effectiveFrom <= yesterday) {
+      const updated = await prisma.squadMembership.update({
+        where: { id: row.id },
+        data: { effectiveTo: yesterday },
+      });
+      return NextResponse.json({ deleted: false, endDated: true, effectiveTo: updated.effectiveTo });
+    }
+
+    // Already end-dated (or created today) with no dependent hours — safe to remove.
+    await prisma.squadMembership.delete({ where: { id: row.id } });
     return NextResponse.json({ deleted: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

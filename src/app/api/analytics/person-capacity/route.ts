@@ -25,6 +25,21 @@ export async function GET(req: NextRequest) {
       FROM generate_series(${monthDate}::date, ${monthEnd}::date, '1 day'::interval) d
       WHERE EXTRACT(DOW FROM d) NOT IN (0, 6)
     ),
+    -- Capacity effective for the queried month, pro-rated by days when it
+    -- changed mid-month.
+    pcap AS (
+      SELECT
+        pch.person_id,
+        SUM(
+          pch.weekly_capacity_hours *
+          (LEAST(COALESCE(pch.effective_to, ${monthEnd}::date), ${monthEnd}::date)
+           - GREATEST(pch.effective_from, ${monthDate}::date) + 1)
+        )::numeric / (${monthEnd}::date - ${monthDate}::date + 1) AS weekly_capacity
+      FROM person_capacity_history pch
+      WHERE pch.effective_from <= ${monthEnd}::date
+        AND (pch.effective_to IS NULL OR pch.effective_to >= ${monthDate}::date)
+      GROUP BY pch.person_id
+    ),
     person_squads AS (
       SELECT
         sm.person_id,
@@ -46,16 +61,19 @@ export async function GET(req: NextRequest) {
       p.id   AS person_id,
       p.name AS person_name,
       COALESCE(ps.squad_names, '—') AS squad_names,
-      (p.weekly_capacity_hours * (SELECT cnt FROM workdays) / 5.0)::float AS capacity_hours,
+      (COALESCE(pc.weekly_capacity, 0) * (SELECT cnt FROM workdays) / 5.0)::float AS capacity_hours,
       COALESCE(a.actual_hours, 0)::float AS actual_hours,
-      CASE WHEN p.weekly_capacity_hours > 0
-           THEN (COALESCE(a.actual_hours, 0) / (p.weekly_capacity_hours * (SELECT cnt FROM workdays) / 5.0) * 100)::float
+      CASE WHEN COALESCE(pc.weekly_capacity, 0) > 0
+           THEN (COALESCE(a.actual_hours, 0) / (pc.weekly_capacity * (SELECT cnt FROM workdays) / 5.0) * 100)::float
            ELSE 0::float
       END AS utilisation_pct
     FROM persons p
+    LEFT JOIN pcap pc ON pc.person_id = p.id
     LEFT JOIN person_squads ps ON ps.person_id = p.id
     LEFT JOIN actual a ON a.person_id = p.id
-    WHERE p.is_active = true
+    -- Active-in-period = had a membership or logged hours that month,
+    -- not is_active today (a person deactivated later still counts).
+    WHERE ps.person_id IS NOT NULL OR a.person_id IS NOT NULL
     ORDER BY p.name
   `);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { JiraNAConnector } from "@/lib/integrations/jira-na";
 import { runAnalyticsRefresh } from "@/lib/analytics/refresh";
+import { runExpirySweep } from "@/lib/lifecycle";
 import prisma from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
@@ -19,6 +20,10 @@ export async function POST(req: NextRequest) {
   const dateTo = body.date_to ?? new Date().toISOString().split("T")[0];
 
   const results: Record<string, unknown> = {};
+
+  // Close expired contracts/mappings before syncing so the connector's
+  // status guard sees current lifecycle state.
+  results.expirySweep = await runExpirySweep();
 
   if (source === "jira_na" || source === "all") {
     const connector = new JiraNAConnector();

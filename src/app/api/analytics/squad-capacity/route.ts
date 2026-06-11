@@ -20,19 +20,34 @@ export async function GET(req: NextRequest) {
       utilisation_pct: number;
     }[]
   >(Prisma.sql`
-    WITH capacity AS (
+    WITH workdays AS (
+      SELECT COUNT(*)::numeric AS cnt
+      FROM generate_series(${monthDate}::date, ${monthEnd}::date, '1 day'::interval) d
+      WHERE EXTRACT(DOW FROM d) NOT IN (0, 6)
+    ),
+    -- Capacity effective for the queried month, pro-rated by days when it
+    -- changed mid-month. Membership window (not is_active today) decides
+    -- who counts for a historical month.
+    pcap AS (
+      SELECT
+        pch.person_id,
+        SUM(
+          pch.weekly_capacity_hours *
+          (LEAST(COALESCE(pch.effective_to, ${monthEnd}::date), ${monthEnd}::date)
+           - GREATEST(pch.effective_from, ${monthDate}::date) + 1)
+        )::numeric / (${monthEnd}::date - ${monthDate}::date + 1) AS weekly_capacity
+      FROM person_capacity_history pch
+      WHERE pch.effective_from <= ${monthEnd}::date
+        AND (pch.effective_to IS NULL OR pch.effective_to >= ${monthDate}::date)
+      GROUP BY pch.person_id
+    ),
+    capacity AS (
       SELECT
         sm.squad_id,
         COUNT(DISTINCT sm.person_id)::int AS member_count,
-        SUM(
-          p.weekly_capacity_hours * sm.allocation_pct * (
-            SELECT COUNT(*)::numeric
-            FROM generate_series(${monthDate}::date, ${monthEnd}::date, '1 day'::interval) d
-            WHERE EXTRACT(DOW FROM d) NOT IN (0, 6)
-          ) / 5.0
-        ) AS capacity_hours
+        SUM(pc.weekly_capacity * sm.allocation_pct * (SELECT cnt FROM workdays) / 5.0) AS capacity_hours
       FROM squad_memberships sm
-      JOIN persons p ON p.id = sm.person_id AND p.is_active = true
+      JOIN pcap pc ON pc.person_id = sm.person_id
       WHERE sm.effective_from <= ${monthEnd}::date
         AND (sm.effective_to IS NULL OR sm.effective_to >= ${monthDate}::date)
       GROUP BY sm.squad_id

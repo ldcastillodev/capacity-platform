@@ -66,12 +66,24 @@ export async function GET(req: NextRequest) {
     nbPrior.map((r) => [`${r.personId}|${r.squadId}`, Number(r._sum.hours ?? 0)]),
   );
 
-  // Person weekly capacity
-  const persons = await prisma.person.findMany({
-    where: { id: { in: personIds } },
-    select: { id: true, weeklyCapacityHours: true },
+  // Person weekly capacity effective for the queried month, pro-rated by
+  // days when it changed mid-month.
+  const capRows = await prisma.personCapacityHistory.findMany({
+    where: {
+      personId: { in: personIds },
+      effectiveFrom: { lte: monthEnd },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthDate } }],
+    },
   });
-  const personCapMap = new Map(persons.map((p) => [p.id, Number(p.weeklyCapacityHours)]));
+  const daysInMonth = Math.round((monthEnd.getTime() - monthDate.getTime()) / 86_400_000) + 1;
+  const personCapMap = new Map<number, number>();
+  for (const row of capRows) {
+    const from = row.effectiveFrom > monthDate ? row.effectiveFrom : monthDate;
+    const to = row.effectiveTo && row.effectiveTo < monthEnd ? row.effectiveTo : monthEnd;
+    const daysActive = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+    const weighted = Number(row.weeklyCapacityHours) * (daysActive / daysInMonth);
+    personCapMap.set(row.personId, (personCapMap.get(row.personId) ?? 0) + weighted);
+  }
 
   // Category metadata
   const catIds = [

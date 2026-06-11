@@ -7,11 +7,19 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const mapping = await prisma.jiraComponentClientMapping.update({
-    where: { id: Number(id) },
-    data: { effectiveTo: null },
-    select: { id: true, componentKey: true, effectiveTo: true },
-  });
-
-  return NextResponse.json(mapping);
+  try {
+    const mapping = await prisma.jiraComponentClientMapping.update({
+      where: { id: Number(id) },
+      data: { effectiveTo: null },
+      select: { id: true, componentKey: true, effectiveTo: true },
+    });
+    return NextResponse.json(mapping);
+  } catch (e) {
+    if (String(e).includes("exclusion constraint"))
+      return NextResponse.json(
+        { error: "Cannot unarchive: a newer mapping for this component overlaps the reopened range." },
+        { status: 409 },
+      );
+    throw e;
+  }
 }

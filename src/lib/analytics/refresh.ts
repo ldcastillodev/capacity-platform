@@ -45,7 +45,7 @@ async function runAnomalyDetection(month: Date): Promise<void> {
   }
 }
 
-async function upsertAnomaly(
+export async function upsertAnomaly(
   clientId: number,
   month: Date,
   roleType: string | null,

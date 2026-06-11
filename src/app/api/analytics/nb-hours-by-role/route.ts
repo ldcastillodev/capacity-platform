@@ -17,16 +17,26 @@ export async function GET(req: NextRequest) {
     where: {
       isNonBillable: true,
       ...(squadId
-        ? { person: { squadMemberships: { some: { squadId: Number(squadId) } } } }
+        ? {
+            person: {
+              squadMemberships: {
+                some: {
+                  squadId: Number(squadId),
+                  effectiveFrom: { lte: monthEnd },
+                  OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthDate } }],
+                },
+              },
+            },
+          }
         : {}),
       date: { gte: monthDate, lte: monthEnd },
     },
-    include: { person: { include: { roles: { where: { effectiveTo: null } } } } },
+    select: { roleType: true, hours: true },
   });
 
   const byRole: Record<string, number> = {};
   for (const entry of entries) {
-    const role = entry.person.roles[0]?.roleType ?? "unknown";
+    const role = entry.roleType ?? "unknown";
     byRole[role] = (byRole[role] ?? 0) + Number(entry.hours);
   }
 

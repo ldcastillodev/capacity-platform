@@ -65,6 +65,16 @@ export async function DELETE(
     );
   }
 
+  // BR-8: the HourRecord FK is onDelete: SetNull — deleting a contract would
+  // silently strip contractId from the historical ledger. Refuse instead.
+  const hourCount = await prisma.hourRecord.count({ where: { contractId } });
+  if (hourCount > 0) {
+    return NextResponse.json(
+      { error: `Cannot delete: ${hourCount} hour record(s) are attributed to this contract. Close it instead.` },
+      { status: 409 },
+    );
+  }
+
   await prisma.contract.delete({ where: { id: contractId } });
   return NextResponse.json({ success: true });
 }

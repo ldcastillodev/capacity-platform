@@ -158,8 +158,23 @@ model Person {
   roles            PersonRole[]
   hourRecords      HourRecord[]
   suggestions      NonBillableEnhancementSuggestion[]
+  capacityHistory  PersonCapacityHistory[]
 
   @@map("persons")
+}
+
+model PersonCapacityHistory {
+  id                  Int       @id @default(autoincrement())
+  personId            Int       @map("person_id")
+  weeklyCapacityHours Decimal   @map("weekly_capacity_hours") @db.Decimal(5, 2)
+  effectiveFrom       DateTime  @map("effective_from") @db.Date
+  effectiveTo         DateTime? @map("effective_to") @db.Date
+
+  person Person @relation(fields: [personId], references: [id])
+
+  @@unique([personId, effectiveFrom])
+  @@index([personId])
+  @@map("person_capacity_history")
 }
 
 model SquadMembership {
@@ -188,6 +203,7 @@ model PersonRole {
 
   person Person @relation(fields: [personId], references: [id])
 
+  @@unique([personId, roleType, effectiveFrom])
   @@index([personId, roleType])
   @@map("person_roles")
 }
