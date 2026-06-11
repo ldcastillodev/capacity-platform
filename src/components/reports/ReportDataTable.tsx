@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import {
   Table,
@@ -13,11 +13,11 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ReportGroupBy, ReportRow } from "@/lib/client";
-import { roleLabel, GROUP_BY_LABELS } from "./roleLabels";
+import type { ReportDimension, ReportRow } from "@/lib/client";
+import { roleLabel, DIMENSION_LABELS } from "./roleLabels";
 import ExportButton, { type ExportColumn } from "./ExportButton";
 
-type SortKey = "label" | "month" | "billableHours" | "nonBillableHours" | "plannedHours" | "utilizationPct";
+type SortKey = `dim:${ReportDimension}` | "billableHours" | "nonBillableHours";
 type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 25;
@@ -26,55 +26,66 @@ function monthLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", timeZone: "UTC" });
 }
 
-function groupLabel(row: ReportRow, groupBy: ReportGroupBy): string {
-  if (groupBy === "role") return roleLabel(row.label);
-  if (groupBy === "month") return monthLabel(row.label);
-  return row.label;
+function dateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function dimCell(row: ReportRow, dim: ReportDimension): string {
+  const raw = row.labels[dim] ?? "";
+  if (dim === "role") return roleLabel(raw === "unassigned" ? null : raw);
+  if (dim === "month") return monthLabel(raw);
+  if (dim === "week" || dim === "day") return dateLabel(raw);
+  return raw;
 }
 
 const h = (v: number) => `${v.toFixed(1)}h`;
 
-const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: "label", label: "Group" },
-  { key: "month", label: "Month" },
-  { key: "billableHours", label: "Billable h" },
-  { key: "nonBillableHours", label: "Non-Billable h" },
-  { key: "plannedHours", label: "Planned h" },
-  { key: "utilizationPct", label: "Utilization" },
-];
-
 interface Props {
   rows: ReportRow[];
-  groupBy: ReportGroupBy;
+  dimensions: ReportDimension[];
   filename: string;
 }
 
-export function ReportDataTable({ rows, groupBy, filename }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("label");
+export function ReportDataTable({ rows, dimensions, filename }: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>(`dim:${dimensions[0]}`);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
+
+  // Selected dimensions can change under us — keep the sort key valid.
+  useEffect(() => {
+    if (sortKey.startsWith("dim:") && !dimensions.includes(sortKey.slice(4) as ReportDimension)) {
+      setSortKey(`dim:${dimensions[0]}`);
+      setSortDir("asc");
+      setPage(1);
+    }
+  }, [dimensions, sortKey]);
 
   const sorted = useMemo(() => {
     const copy = [...rows];
     copy.sort((a, b) => {
       let av: number | string;
       let bv: number | string;
-      if (sortKey === "label") {
-        av = groupLabel(a, groupBy);
-        bv = groupLabel(b, groupBy);
-      } else if (sortKey === "month") {
-        av = a.month;
-        bv = b.month;
+      if (sortKey.startsWith("dim:")) {
+        const dim = sortKey.slice(4) as ReportDimension;
+        // Sort temporal dimensions by their ISO value, not the display label
+        av = dim === "month" || dim === "week" || dim === "day" ? a.labels[dim] ?? "" : dimCell(a, dim);
+        bv = dim === "month" || dim === "week" || dim === "day" ? b.labels[dim] ?? "" : dimCell(b, dim);
       } else {
-        av = a[sortKey] ?? -1;
-        bv = b[sortKey] ?? -1;
+        const k = sortKey as "billableHours" | "nonBillableHours";
+        av = a[k];
+        bv = b[k];
       }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
       if (av > bv) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
     return copy;
-  }, [rows, sortKey, sortDir, groupBy]);
+  }, [rows, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -85,28 +96,26 @@ export function ReportDataTable({ rows, groupBy, filename }: Props) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "label" || key === "month" ? "asc" : "desc");
+      setSortDir(key.startsWith("dim:") ? "asc" : "desc");
     }
     setPage(1);
   }
 
-  function utilColor(util: number | null): string | undefined {
-    if (util == null) return undefined;
-    if (util > 1.0) return "var(--critical)";
-    if (util > 0.9) return "var(--warning)";
-    return "var(--safe)";
-  }
+  const exportColumns: ExportColumn[] = [
+    ...dimensions.map((d) => ({ key: d, label: DIMENSION_LABELS[d] })),
+    { key: "billableHours", label: "Billable h" },
+    { key: "nonBillableHours", label: "Non-Billable h" },
+  ];
 
   const exportRows = () =>
     Promise.resolve(
-      sorted.map((r) => ({
-        label: groupLabel(r, groupBy),
-        month: monthLabel(r.month),
-        billableHours: r.billableHours.toFixed(1),
-        nonBillableHours: r.nonBillableHours.toFixed(1),
-        plannedHours: r.plannedHours == null ? "" : r.plannedHours.toFixed(1),
-        utilizationPct: r.utilizationPct == null ? "" : `${(r.utilizationPct * 100).toFixed(1)}%`,
-      }))
+      sorted.map((r) => {
+        const out: Record<string, string> = {};
+        for (const d of dimensions) out[d] = dimCell(r, d);
+        out.billableHours = r.billableHours.toFixed(1);
+        out.nonBillableHours = r.nonBillableHours.toFixed(1);
+        return out;
+      })
     );
 
   return (
@@ -117,8 +126,8 @@ export function ReportDataTable({ rows, groupBy, filename }: Props) {
         </p>
         <ExportButton
           fetchAll={exportRows}
-          columnDefs={EXPORT_COLUMNS}
-          visibleColumns={new Set(EXPORT_COLUMNS.map((c) => c.key))}
+          columnDefs={exportColumns}
+          visibleColumns={new Set(exportColumns.map((c) => c.key))}
           filename={filename}
         />
       </div>
@@ -127,37 +136,36 @@ export function ReportDataTable({ rows, groupBy, filename }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHead label={GROUP_BY_LABELS[groupBy]} active={sortKey === "label"} dir={sortDir} onClick={() => toggleSort("label")} />
-              <SortHead label="Month" active={sortKey === "month"} dir={sortDir} onClick={() => toggleSort("month")} />
+              {dimensions.map((d) => (
+                <SortHead
+                  key={d}
+                  label={DIMENSION_LABELS[d]}
+                  active={sortKey === `dim:${d}`}
+                  dir={sortDir}
+                  onClick={() => toggleSort(`dim:${d}`)}
+                />
+              ))}
               <SortHead label="Billable" align="right" active={sortKey === "billableHours"} dir={sortDir} onClick={() => toggleSort("billableHours")} />
               <SortHead label="Non-Billable" align="right" active={sortKey === "nonBillableHours"} dir={sortDir} onClick={() => toggleSort("nonBillableHours")} />
-              <SortHead label="Planned" align="right" active={sortKey === "plannedHours"} dir={sortDir} onClick={() => toggleSort("plannedHours")} />
-              <SortHead label="Utilization" align="right" active={sortKey === "utilizationPct"} dir={sortDir} onClick={() => toggleSort("utilizationPct")} />
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={dimensions.length + 2} className="py-12 text-center text-sm text-muted-foreground">
                   No hours for the selected filters
                 </TableCell>
               </TableRow>
             )}
             {pageRows.map((r) => (
               <TableRow key={r.key}>
-                <TableCell className="font-medium">{groupLabel(r, groupBy)}</TableCell>
-                <TableCell>{monthLabel(r.month)}</TableCell>
+                {dimensions.map((d, i) => (
+                  <TableCell key={d} className={i === 0 ? "font-medium" : undefined}>
+                    {dimCell(r, d)}
+                  </TableCell>
+                ))}
                 <TableCell className="text-right tabular-nums">{h(r.billableHours)}</TableCell>
                 <TableCell className="text-right tabular-nums">{h(r.nonBillableHours)}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {r.plannedHours == null ? "—" : h(r.plannedHours)}
-                </TableCell>
-                <TableCell
-                  className="text-right tabular-nums font-medium"
-                  style={{ color: utilColor(r.utilizationPct) }}
-                >
-                  {r.utilizationPct == null ? "—" : `${(r.utilizationPct * 100).toFixed(1)}%`}
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>

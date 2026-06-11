@@ -1,6 +1,6 @@
 "use client";
 
-import type React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MonthNavigator } from "@/components/app/MonthNavigator";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -65,8 +65,44 @@ function CapacityTable({
   );
 }
 
+function SquadMembers({ squadId, month }: { squadId: number; month: string }): React.ReactElement {
+  const { data: members = [], isLoading } = useQuery({
+    queryKey: ["person-capacity", month, squadId],
+    queryFn: () => fetchPersonCapacity({ month, squad_id: squadId }),
+  });
+  if (isLoading) return <p className="py-2 text-sm text-muted-foreground">Loading members…</p>;
+  if (members.length === 0) {
+    return <p className="py-2 text-sm text-muted-foreground">No members in this squad for this month.</p>;
+  }
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Person</TableHead>
+          <TableHead className="text-right">Capacity (h)</TableHead>
+          <TableHead className="text-right">Consumed (h)</TableHead>
+          <TableHead className="text-right">% Consumed</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {members.map((m) => (
+          <TableRow key={m.person_id}>
+            <TableCell className="text-sm">{m.person_name}</TableCell>
+            <TableCell className="text-sm text-right">{m.capacity_hours.toFixed(0)}</TableCell>
+            <TableCell className="text-sm text-right">{m.actual_hours.toFixed(0)}</TableCell>
+            <TableCell className="text-sm text-right">
+              {m.capacity_hours > 0 ? `${m.utilisation_pct.toFixed(0)}%` : "—"}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 export default function CapacityPage(): React.ReactElement {
   const [month, setMonth] = useMonth();
+  const [expandedSquad, setExpandedSquad] = useState<number | null>(null);
 
   const { data: squads = [], isLoading: squadsLoading } = useQuery({
     queryKey: ["squad-capacity", month],
@@ -96,18 +132,33 @@ export default function CapacityPage(): React.ReactElement {
             isLoading={squadsLoading}
             isEmpty={squads.length === 0}
             emptyMessage="No active squads."
-            headers={["Squad", "Members", "Capacity (h)", "Actual (h)", "Utilisation"]}
+            headers={["Squad", "Members", "Capacity (h)", "Consumed (h)", "% Consumed"]}
           >
             {squads.map((row) => (
-              <TableRow key={row.squad_id}>
-                <TableCell className="font-medium text-sm">{row.squad_name}</TableCell>
-                <TableCell className="text-sm text-right">{row.member_count}</TableCell>
-                <TableCell className="text-sm text-right">{row.capacity_hours.toFixed(0)}</TableCell>
-                <TableCell className="text-sm text-right">{row.actual_hours.toFixed(0)}</TableCell>
-                <TableCell className="text-sm text-right">
-                  {row.capacity_hours > 0 ? `${row.utilisation_pct.toFixed(0)}%` : "—"}
-                </TableCell>
-              </TableRow>
+              <React.Fragment key={row.squad_id}>
+                <TableRow
+                  className="cursor-pointer"
+                  onClick={() => setExpandedSquad(expandedSquad === row.squad_id ? null : row.squad_id)}
+                >
+                  <TableCell className="font-medium text-sm">
+                    <span className="mr-2 text-muted-foreground">{expandedSquad === row.squad_id ? "▾" : "▸"}</span>
+                    {row.squad_name}
+                  </TableCell>
+                  <TableCell className="text-sm text-right">{row.member_count}</TableCell>
+                  <TableCell className="text-sm text-right">{row.capacity_hours.toFixed(0)}</TableCell>
+                  <TableCell className="text-sm text-right">{row.actual_hours.toFixed(0)}</TableCell>
+                  <TableCell className="text-sm text-right">
+                    {row.capacity_hours > 0 ? `${row.utilisation_pct.toFixed(0)}%` : "—"}
+                  </TableCell>
+                </TableRow>
+                {expandedSquad === row.squad_id && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="bg-muted/30 px-6">
+                      <SquadMembers squadId={row.squad_id} month={month} />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
             ))}
           </CapacityTable>
         </TabsContent>
@@ -117,7 +168,7 @@ export default function CapacityPage(): React.ReactElement {
             isLoading={personsLoading}
             isEmpty={persons.length === 0}
             emptyMessage="No active persons."
-            headers={["Person", "Squad(s)", "Capacity (h)", "Actual (h)", "Utilisation"]}
+            headers={["Person", "Squad(s)", "Capacity (h)", "Consumed (h)", "% Consumed"]}
             leftCols={2}
           >
             {persons.map((row) => (

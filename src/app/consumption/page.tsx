@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/app/StatusBadge";
 
 type View = "by_contract";
 
@@ -53,7 +54,7 @@ export default function ConsumptionPage() {
     <div>
       <PageHeader
         title="Hours Consumption"
-        description={`${formatMonthDisplay(month)} · Declared vs Actual`}
+        description={`${formatMonthDisplay(month)} · Declared vs Actual · total-pool contracts shown against lifetime pool`}
         actions={<MonthNavigator month={month} onChange={setMonth} />}
       />
 
@@ -73,8 +74,10 @@ export default function ConsumptionPage() {
                     <TableRow>
                       <TableHead>Client</TableHead>
                       <TableHead>Contract</TableHead>
-                      <TableHead className="text-right">Declared</TableHead>
-                      <TableHead className="text-right">Consumed</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Declared / Pool</TableHead>
+                      <TableHead className="text-right">Prior Months</TableHead>
+                      <TableHead className="text-right">Consumed (month)</TableHead>
                       <TableHead className="text-right">Remaining</TableHead>
                       <TableHead className="min-w-[180px]">Utilization %</TableHead>
                     </TableRow>
@@ -88,7 +91,13 @@ export default function ConsumptionPage() {
                         <TableRow key={row.contract_id}>
                           <TableCell className="text-muted-foreground">{row.client_name}</TableCell>
                           <TableCell className="font-medium">{row.contract_name}</TableCell>
+                          <TableCell>
+                            <StatusBadge tone="default" label={row.hour_type === "total" ? "Total Pool" : "Monthly"} />
+                          </TableCell>
                           <TableCell className="text-right text-muted-foreground">{fmtHours(row.declared_hours)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {row.prior_consumed_hours == null ? "—" : fmtHours(row.prior_consumed_hours)}
+                          </TableCell>
                           <TableCell className="text-right">{fmtHours(row.consumed_hours)}</TableCell>
                           <TableCell
                             className="text-right"

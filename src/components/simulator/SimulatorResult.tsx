@@ -77,6 +77,41 @@ export function SimulatorResult({ result }: Props) {
         <StatusBadge tone={tone} label={VERDICT_LABEL[result.verdict]} />
       </CardHeader>
       <CardContent className="space-y-4 flex-1 overflow-auto">
+        <p
+          className="text-sm rounded-md border px-3 py-2"
+          style={{
+            color:
+              result.verdict === "ok"
+                ? "var(--safe)"
+                : result.verdict === "over"
+                  ? "var(--critical)"
+                  : undefined,
+            borderColor:
+              result.verdict === "ok"
+                ? "var(--safe)"
+                : result.verdict === "over"
+                  ? "var(--critical)"
+                  : "hsl(var(--border))",
+          }}
+        >
+          {result.verdict === "ok" ? (
+            <>
+              <strong>{result.squadName} CAN absorb this engagement.</strong>{" "}
+              {fmtHours(result.availableHours)} available vs {fmtHours(result.requiredHours)} required
+              ({fmtHours(-result.gapHours)} to spare).
+            </>
+          ) : result.verdict === "over" ? (
+            <>
+              <strong>{result.squadName} CANNOT absorb this engagement.</strong>{" "}
+              Short by {fmtHours(result.gapHours)} ({fmtHours(result.availableHours)} available vs{" "}
+              {fmtHours(result.requiredHours)} required).
+            </>
+          ) : (
+            <span className="text-muted-foreground">
+              Verdict inconclusive — no capacity data for this squad/month.
+            </span>
+          )}
+        </p>
         <div className="grid grid-cols-3 gap-3">
           <StatCard label="Required" value={fmtHours(result.requiredHours)} />
           <StatCard label="Available" value={fmtHours(result.availableHours)} />
@@ -180,6 +215,28 @@ export function SimulatorResult({ result }: Props) {
             </Table>
           </div>
         )}
+
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Who has spare capacity</h3>
+          {result.members.filter((m) => m.availableHours > 0).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No members with spare capacity this month.
+            </p>
+          ) : (
+            <ul className="text-sm space-y-1">
+              {result.members
+                .filter((m) => m.availableHours > 0)
+                .map((m) => (
+                  <li key={m.personId} className="flex justify-between border-b border-border pb-1">
+                    <span>{m.personName}</span>
+                    <span className="font-semibold" style={{ color: "var(--safe)" }}>
+                      {fmtHours(m.availableHours)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

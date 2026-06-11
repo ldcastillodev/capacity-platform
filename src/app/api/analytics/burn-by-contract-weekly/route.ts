@@ -68,12 +68,21 @@ export async function GET(req: NextRequest) {
 
       const consumed = cumulative;
       const utilization_pct = pool > 0 ? consumed / pool : 0;
+      // Pace-relative taxonomy (≠ overview health taxonomy by design):
+      // critical = ahead of expected pace, watch = behind, safe = on pace ±10%.
+      const elapsedDays = Math.min(
+        Math.max(Math.ceil((Date.now() - monthDate.getTime()) / 86400000), 0),
+        totalDaysUTC,
+      );
+      const expectedToDate = pool > 0 ? pool * (elapsedDays / totalDaysUTC) : 0;
       let alert_level: string;
-      if (consumed === 0) alert_level = "watch";
-      else if (utilization_pct > 1.1) alert_level = "critical";
-      else if (utilization_pct >= 0.9) alert_level = "watch";
-      else if (utilization_pct >= 0.4) alert_level = "safe";
-      else alert_level = "watch";
+      if (expectedToDate === 0) alert_level = consumed > 0 ? "critical" : "watch";
+      else {
+        const ratio = consumed / expectedToDate;
+        if (ratio > 1.1) alert_level = "critical";
+        else if (ratio < 0.9) alert_level = "watch";
+        else alert_level = "safe";
+      }
 
       return {
         contract_id: contract.id,

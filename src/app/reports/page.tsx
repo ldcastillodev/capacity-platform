@@ -9,7 +9,7 @@ export default function ReportsPage() {
     <div>
       <PageHeader
         title="Reports"
-        description="Hours by person, squad, client, contract, SOW, or role — planned vs actual"
+        description="Hours by any combination of person, squad, client, SOW, contract, role, or ticket"
       />
       <Suspense fallback={null}>
         <ReportBuilder />

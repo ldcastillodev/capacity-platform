@@ -10,6 +10,76 @@ export async function GET(req: NextRequest) {
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
+  const squadIdParam = searchParams.get("squad_id");
+  const squadId = squadIdParam ? Number(squadIdParam) : null;
+
+  if (squadId !== null && Number.isFinite(squadId)) {
+    // Squad-scoped members: capacity weighted by allocation_pct so member rows
+    // sum to the squad-capacity formula; consumed = hours attributed to this squad.
+    const rows = await prisma.$queryRaw<
+      {
+        person_id: number;
+        person_name: string;
+        squad_names: string;
+        capacity_hours: number;
+        actual_hours: number;
+        utilisation_pct: number;
+      }[]
+    >(Prisma.sql`
+      WITH workdays AS (
+        SELECT COUNT(*)::numeric AS cnt
+        FROM generate_series(${monthDate}::date, ${monthEnd}::date, '1 day'::interval) d
+        WHERE EXTRACT(DOW FROM d) NOT IN (0, 6)
+      ),
+      pcap AS (
+        SELECT
+          pch.person_id,
+          SUM(
+            pch.weekly_capacity_hours *
+            (LEAST(COALESCE(pch.effective_to, ${monthEnd}::date), ${monthEnd}::date)
+             - GREATEST(pch.effective_from, ${monthDate}::date) + 1)
+          )::numeric / (${monthEnd}::date - ${monthDate}::date + 1) AS weekly_capacity
+        FROM person_capacity_history pch
+        WHERE pch.effective_from <= ${monthEnd}::date
+          AND (pch.effective_to IS NULL OR pch.effective_to >= ${monthDate}::date)
+        GROUP BY pch.person_id
+      ),
+      member AS (
+        SELECT sm.person_id, SUM(sm.allocation_pct) AS alloc
+        FROM squad_memberships sm
+        WHERE sm.squad_id = ${squadId}
+          AND sm.effective_from <= ${monthEnd}::date
+          AND (sm.effective_to IS NULL OR sm.effective_to >= ${monthDate}::date)
+        GROUP BY sm.person_id
+      ),
+      actual AS (
+        SELECT hr.person_id, SUM(hr.hours) AS actual_hours
+        FROM hour_records hr
+        WHERE hr.date >= ${monthDate}::date
+          AND hr.date <= ${monthEnd}::date
+          AND hr.squad_id = ${squadId}
+        GROUP BY hr.person_id
+      )
+      SELECT
+        p.id   AS person_id,
+        p.name AS person_name,
+        '—'    AS squad_names,
+        (COALESCE(pc.weekly_capacity, 0) * COALESCE(m.alloc, 0) * (SELECT cnt FROM workdays) / 5.0)::float AS capacity_hours,
+        COALESCE(a.actual_hours, 0)::float AS actual_hours,
+        CASE WHEN COALESCE(pc.weekly_capacity, 0) * COALESCE(m.alloc, 0) > 0
+             THEN (COALESCE(a.actual_hours, 0) / (pc.weekly_capacity * m.alloc * (SELECT cnt FROM workdays) / 5.0) * 100)::float
+             ELSE 0::float
+        END AS utilisation_pct
+      FROM persons p
+      LEFT JOIN pcap pc ON pc.person_id = p.id
+      LEFT JOIN member m ON m.person_id = p.id
+      LEFT JOIN actual a ON a.person_id = p.id
+      WHERE m.person_id IS NOT NULL OR a.person_id IS NOT NULL
+      ORDER BY p.name
+    `);
+    return NextResponse.json(rows);
+  }
+
   const rows = await prisma.$queryRaw<
     {
       person_id: number;

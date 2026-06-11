@@ -162,11 +162,10 @@ function NbEntryDetail({ personId, month }: { personId: number; month: string })
                       {group.category_name} · {group.total_hours.toFixed(1)}h
                     </div>
                     {group.entries.map((e, i) => (
-                      <div key={i} className="grid gap-3 px-4 py-1 text-xs border-t border-border items-center" style={{ gridTemplateColumns: "90px 50px 1fr 140px" }}>
+                      <div key={i} className="grid gap-3 px-4 py-1 text-xs border-t border-border items-center" style={{ gridTemplateColumns: "90px 50px 1fr" }}>
                         <span className="text-muted-foreground">{e.date}</span>
                         <span className="font-semibold">{e.hours.toFixed(1)}h</span>
-                        <span className="text-muted-foreground truncate">{e.notes ?? "—"}</span>
-                        {e.external_ref && <span className="text-right font-mono text-muted-foreground">{e.external_ref}</span>}
+                        <span className="text-right font-mono text-muted-foreground">{e.issue_key ?? "—"}</span>
                       </div>
                     ))}
                   </div>
@@ -354,6 +353,7 @@ export default function NonBillablePage() {
                           <TableRow>
                             <TableHead>Squad</TableHead>
                             <TableHead className="text-right">NB Hours</TableHead>
+                            <TableHead className="text-right">Capacity (h)</TableHead>
                             <TableHead className="min-w-[180px]">NB % of capacity</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -365,6 +365,9 @@ export default function NonBillablePage() {
                               <TableRow key={row.squad_id}>
                                 <TableCell className="font-medium">{row.squad_name}</TableCell>
                                 <TableCell className="text-right">{row.total_hours.toFixed(1)}h</TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {row.capacity_hours > 0 ? `${row.capacity_hours.toFixed(0)}h` : "—"}
+                                </TableCell>
                                 <TableCell>
                                   {row.capacity_hours > 0 ? (
                                     <div className="flex items-center gap-2">

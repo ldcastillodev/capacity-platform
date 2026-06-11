@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchBurnByContract,
   fetchDashboard,
-  type AlertLevel,
   type BurnByContractRow,
 } from "@/lib/client";
+import type { ContractHealthStatus } from "@/lib/analytics/contract-status";
 import { StatCard } from "@/components/app/StatCard";
 import { MetricCardGrid } from "@/components/app/MetricCardGrid";
 import { MonthNavigator } from "@/components/app/MonthNavigator";
@@ -16,25 +16,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import React from "react";
 
-const LEVEL_COLOR: Record<AlertLevel, string> = {
+const LEVEL_COLOR: Record<ContractHealthStatus, string> = {
   critical: "var(--critical)",
-  warning: "var(--warning)",
   watch: "var(--watch)",
-  safe: "var(--safe)",
+  underconsumption: "var(--warning)",
+  on_track: "var(--safe)",
 };
 
-const LEVEL_BG: Record<AlertLevel, string> = {
+const LEVEL_BG: Record<ContractHealthStatus, string> = {
   critical: "rgba(239,68,68,0.06)",
-  warning: "rgba(249,115,22,0.06)",
   watch: "rgba(234,179,8,0.06)",
-  safe: "rgba(34,197,94,0.06)",
+  underconsumption: "rgba(249,115,22,0.06)",
+  on_track: "rgba(34,197,94,0.06)",
 };
 
-const LEVEL_LABEL: Record<AlertLevel, string> = {
+const LEVEL_LABEL: Record<ContractHealthStatus, string> = {
   critical: "Critical",
-  warning: "Warning",
   watch: "Watch",
-  safe: "On Track",
+  underconsumption: "Underconsumption",
+  on_track: "On Track",
 };
 
 export default function DashboardPage() {
@@ -50,21 +50,12 @@ export default function DashboardPage() {
     queryFn: () => fetchBurnByContract({ month }),
   });
 
-  function contractAlertLevel(row: BurnByContractRow): AlertLevel {
-    const p = row.utilization_pct;
-    if (row.consumed_hours === 0) return "watch";
-    if (p > 1.1 || p < 0.2) return "critical";
-    if (p >= 0.9 || p < 0.4) return "watch";
-    return "safe";
-  }
-
-  const groupedContracts: Partial<Record<AlertLevel, BurnByContractRow[]>> = {};
+  const groupedContracts: Partial<Record<ContractHealthStatus, BurnByContractRow[]>> = {};
   for (const row of contractBurn ?? []) {
-    const level = contractAlertLevel(row);
-    (groupedContracts[level] ??= []).push(row);
+    (groupedContracts[row.status] ??= []).push(row);
   }
 
-  const displayLevels: AlertLevel[] = ["critical", "warning", "watch", "safe"];
+  const displayLevels: ContractHealthStatus[] = ["critical", "watch", "underconsumption", "on_track"];
 
   return (
     <div>
@@ -89,8 +80,8 @@ export default function DashboardPage() {
       {!isLoading && data && (
         <>
           <MetricCardGrid className="mb-8">
-            <StatCard label="Active Clients"   value={data.total_active_clients} />
-            <StatCard label="On Track"         value={groupedContracts.safe?.length ?? 0}     valueColor="var(--safe)" />
+            <StatCard label="On Track"         value={groupedContracts.on_track?.length ?? 0} valueColor="var(--safe)" />
+            <StatCard label="Underconsumption" value={groupedContracts.underconsumption?.length ?? 0} valueColor="var(--warning)" />
             <StatCard label="Watch"            value={groupedContracts.watch?.length ?? 0}    valueColor="var(--watch)" />
             <StatCard label="Critical"         value={groupedContracts.critical?.length ?? 0} valueColor="var(--critical)" />
             <StatCard label="Open Flags"       value={data.open_anomaly_flags}
@@ -153,7 +144,9 @@ export default function DashboardPage() {
                               <div className="text-sm font-bold" style={{ color: pct > 110 ? "var(--critical)" : pct > 90 ? "var(--watch)" : undefined }}>
                                 {row.consumed_hours.toFixed(0)}h / {row.pool_hours.toFixed(0)}h
                               </div>
-                              <div className="text-xs text-muted-foreground mt-0.5">{pct.toFixed(1)}% utilization</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {pct.toFixed(1)}% utilization{row.hour_type === "total" ? " · lifetime" : ""}
+                              </div>
                             </div>
                           </div>
                         );

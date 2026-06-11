@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     category_type: string;
     category_name: string;
     total_hours: number;
-    entries: Array<{ date: string; hours: number; external_ref: string | null; notes: null }>;
+    entries: Array<{ date: string; hours: number; issue_key: string | null }>;
   }> = {};
 
   for (const e of entries) {
@@ -45,8 +45,7 @@ export async function GET(req: NextRequest) {
     groups[key].entries.push({
       date: e.date.toISOString().substring(0, 10),
       hours: Number(e.hours),
-      external_ref: e.externalRef ?? null,
-      notes: null,
+      issue_key: e.issueKey ?? null,
     });
   }
 

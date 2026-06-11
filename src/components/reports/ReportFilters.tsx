@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,17 +15,18 @@ import { MultiSelect } from "./MultiSelect";
 import {
   ROLE_TYPES,
   roleLabel,
-  GROUP_BY_LABELS,
+  DIMENSION_LABELS,
+  GRANULARITY_LABELS,
   BILLABILITY_LABELS,
-  type GroupBy,
   type Billability,
 } from "./roleLabels";
-import type { ReportFilterOptions } from "@/lib/client";
+import type { ReportDimension, ReportGranularity, ReportFilterOptions } from "@/lib/client";
 
 export interface ReportFilterState {
   from: string;
   to: string;
-  groupBy: GroupBy;
+  dimensions: ReportDimension[];
+  granularity: ReportGranularity;
   billability: Billability;
   personIds: number[];
   squadIds: number[];
@@ -46,17 +48,51 @@ const toMonthInput = (iso: string) => iso.slice(0, 7);
 const fromMonthInput = (v: string) => (v ? `${v}-01` : "");
 
 export function ReportFilters({ filters, onChange, onReset, options }: Props) {
-  const personOpts = (options?.persons ?? []).map((p) => ({ value: p.id, label: p.name }));
+  // Cascading option lists: parent selections narrow downstream choices.
+  const personOpts = useMemo(() => {
+    const persons = options?.persons ?? [];
+    const squadSel = new Set(filters.squadIds);
+    const narrowed = filters.squadIds.length
+      ? persons.filter((p) => p.squadIds.some((id) => squadSel.has(id)))
+      : persons;
+    return narrowed.map((p) => ({ value: p.id, label: p.name }));
+  }, [options, filters.squadIds]);
+
+  const sowOpts = useMemo(() => {
+    const sows = options?.sows ?? [];
+    const clientSel = new Set(filters.clientIds);
+    const narrowed = filters.clientIds.length ? sows.filter((s) => clientSel.has(s.clientId)) : sows;
+    return narrowed.map((s) => ({ value: s.id, label: s.name }));
+  }, [options, filters.clientIds]);
+
+  const contractOpts = useMemo(() => {
+    const contracts = options?.contracts ?? [];
+    const sowClientById = new Map((options?.sows ?? []).map((s) => [s.id, s.clientId]));
+    const clientSel = new Set(filters.clientIds);
+    const sowSel = new Set(filters.sowIds);
+    const narrowed = contracts.filter((c) => {
+      if (filters.sowIds.length && !sowSel.has(c.sowId)) return false;
+      if (filters.clientIds.length) {
+        const clientId = sowClientById.get(c.sowId);
+        if (clientId == null || !clientSel.has(clientId)) return false;
+      }
+      return true;
+    });
+    return narrowed.map((c) => ({ value: c.id, label: c.name }));
+  }, [options, filters.clientIds, filters.sowIds]);
+
   const squadOpts = (options?.squads ?? []).map((s) => ({ value: s.id, label: s.name }));
   const clientOpts = (options?.clients ?? []).map((c) => ({ value: c.id, label: c.name }));
-  const contractOpts = (options?.contracts ?? []).map((c) => ({ value: c.id, label: c.name }));
-  const sowOpts = (options?.sows ?? []).map((s) => ({ value: s.id, label: s.name }));
   const roleOpts = ROLE_TYPES.map((r) => ({ value: r, label: roleLabel(r) }));
+  const dimensionOpts = (Object.keys(DIMENSION_LABELS) as ReportDimension[]).map((d) => ({
+    value: d,
+    label: DIMENSION_LABELS[d],
+  }));
 
   return (
     <Card>
       <CardContent className="space-y-4 pt-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">From</label>
             <Input
@@ -75,16 +111,25 @@ export function ReportFilters({ filters, onChange, onReset, options }: Props) {
               className="h-9"
             />
           </div>
+          <MultiSelect
+            label="Row dimensions"
+            options={dimensionOpts}
+            selected={filters.dimensions}
+            onChange={(v) => onChange({ dimensions: v.map(String) as ReportDimension[] })}
+          />
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Group by</label>
-            <Select value={filters.groupBy} onValueChange={(v) => onChange({ groupBy: v as GroupBy })}>
+            <label className="text-xs font-medium text-muted-foreground">Granularity</label>
+            <Select
+              value={filters.granularity}
+              onValueChange={(v) => onChange({ granularity: v as ReportGranularity })}
+            >
               <SelectTrigger className="h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(GROUP_BY_LABELS) as GroupBy[]).map((g) => (
+                {(Object.keys(GRANULARITY_LABELS) as ReportGranularity[]).map((g) => (
                   <SelectItem key={g} value={g}>
-                    {GROUP_BY_LABELS[g]}
+                    {GRANULARITY_LABELS[g]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -112,16 +157,16 @@ export function ReportFilters({ filters, onChange, onReset, options }: Props) {
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <MultiSelect
-            label="Person"
-            options={personOpts}
-            selected={filters.personIds}
-            onChange={(v) => onChange({ personIds: v.map(Number) })}
-          />
-          <MultiSelect
             label="Squad"
             options={squadOpts}
             selected={filters.squadIds}
             onChange={(v) => onChange({ squadIds: v.map(Number) })}
+          />
+          <MultiSelect
+            label="Person"
+            options={personOpts}
+            selected={filters.personIds}
+            onChange={(v) => onChange({ personIds: v.map(Number) })}
           />
           <MultiSelect
             label="Client"
@@ -130,16 +175,16 @@ export function ReportFilters({ filters, onChange, onReset, options }: Props) {
             onChange={(v) => onChange({ clientIds: v.map(Number) })}
           />
           <MultiSelect
-            label="Contract"
-            options={contractOpts}
-            selected={filters.contractIds}
-            onChange={(v) => onChange({ contractIds: v.map(Number) })}
-          />
-          <MultiSelect
             label="SOW"
             options={sowOpts}
             selected={filters.sowIds}
             onChange={(v) => onChange({ sowIds: v.map(Number) })}
+          />
+          <MultiSelect
+            label="Contract"
+            options={contractOpts}
+            selected={filters.contractIds}
+            onChange={(v) => onChange({ contractIds: v.map(Number) })}
           />
           <MultiSelect
             label="Role"

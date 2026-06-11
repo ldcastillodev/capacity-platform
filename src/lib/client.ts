@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { ContractHealthStatus } from "@/lib/analytics/contract-status";
 
 export const api = axios.create({
   baseURL: "/api",
@@ -59,8 +60,7 @@ export interface NonBillableSummary {
 export interface NbEntry {
   date: string;
   hours: number;
-  external_ref: string | null;
-  notes: string | null;
+  issue_key: string | null;
 }
 
 export interface NbEntryGroup {
@@ -193,9 +193,12 @@ export interface BurnByContractRow {
   contract_name: string;
   client_id: number;
   client_name: string;
+  hour_type: "monthly" | "total";
   consumed_hours: number;
   pool_hours: number;
   utilization_pct: number;
+  expected_pct: number | null;
+  status: ContractHealthStatus;
 }
 
 export const fetchBurnByContract = (params?: { month?: string }) =>
@@ -206,7 +209,9 @@ export interface ConsumptionByContractRow {
   contract_name: string;
   client_id: number;
   client_name: string;
+  hour_type: "monthly" | "total";
   declared_hours: number;
+  prior_consumed_hours: number | null;
   consumed_hours: number;
   remaining_hours: number;
   utilization_pct: number;
@@ -266,7 +271,7 @@ export interface PersonCapacityRow {
   utilisation_pct: number;
 }
 
-export const fetchPersonCapacity = (params?: { month?: string }) =>
+export const fetchPersonCapacity = (params?: { month?: string; squad_id?: number }) =>
   api.get<PersonCapacityRow[]>("/analytics/person-capacity", { params }).then((r) => r.data);
 
 export interface BurnByContractWeeklyRow {
@@ -353,13 +358,26 @@ export const fetchDeclarations = (params?: { month?: string }) =>
 
 // ─── Reports ──────────────────────────────────────────────────────────────────
 
-export type ReportGroupBy = "person" | "squad" | "client" | "contract" | "role" | "month";
+export type ReportDimension =
+  | "person"
+  | "squad"
+  | "client"
+  | "sow"
+  | "contract"
+  | "role"
+  | "billability"
+  | "ticket"
+  | "month"
+  | "week"
+  | "day";
+export type ReportGranularity = "day" | "week" | "month";
 export type ReportBillability = "all" | "billable" | "nonbillable";
 
 export type ReportFilterParams = {
   from?: string;
   to?: string;
-  groupBy?: ReportGroupBy;
+  dimensions?: ReportDimension[];
+  granularity?: ReportGranularity;
   billability?: ReportBillability;
   personIds?: number[];
   squadIds?: number[];
@@ -373,41 +391,36 @@ export type ReportKpis = {
   totalHours: number;
   billableHours: number;
   nonBillableHours: number;
-  plannedHours: number | null;
-  utilizationPct: number | null;
 };
 
 export type ReportSeriesPoint = {
-  month: string;
+  period: string;
   billable: number;
   nonBillable: number;
-  planned: number | null;
 };
 
 export type ReportRow = {
   key: string;
-  groupKey: string;
-  label: string;
-  month: string;
+  labels: Record<string, string>;
   billableHours: number;
   nonBillableHours: number;
-  plannedHours: number | null;
-  utilizationPct: number | null;
 };
 
 export type ReportHoursResponse = {
   kpis: ReportKpis;
   series: ReportSeriesPoint[];
   rows: ReportRow[];
-  groupBy: ReportGroupBy;
+  dimensions: ReportDimension[];
+  granularity: ReportGranularity;
 };
 
 export type FilterOption = { id: number; name: string };
+export type PersonOption = FilterOption & { squadIds: number[] };
 export type ContractOption = FilterOption & { sowId: number };
 export type SowOption = FilterOption & { clientId: number };
 
 export type ReportFilterOptions = {
-  persons: FilterOption[];
+  persons: PersonOption[];
   squads: FilterOption[];
   clients: FilterOption[];
   contracts: ContractOption[];
@@ -418,7 +431,8 @@ function toQuery(params: ReportFilterParams): Record<string, string> {
   const q: Record<string, string> = {};
   if (params.from) q.from = params.from;
   if (params.to) q.to = params.to;
-  if (params.groupBy) q.groupBy = params.groupBy;
+  if (params.dimensions?.length) q.dimensions = params.dimensions.join(",");
+  if (params.granularity) q.granularity = params.granularity;
   if (params.billability) q.billability = params.billability;
   if (params.personIds?.length) q.personIds = params.personIds.join(",");
   if (params.squadIds?.length) q.squadIds = params.squadIds.join(",");

@@ -5,27 +5,33 @@ import {
   CartesianGrid,
   ComposedChart,
   Legend,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ReportSeriesPoint } from "@/lib/client";
+import type { ReportGranularity, ReportSeriesPoint } from "@/lib/client";
 
-function monthLabel(iso: string): string {
+function periodLabel(iso: string, granularity: ReportGranularity): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", timeZone: "UTC" });
+  if (granularity === "month") {
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", timeZone: "UTC" });
+  }
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-export function ReportChart({ series }: { series: ReportSeriesPoint[] }) {
-  const hasPlanned = series.some((p) => p.planned != null);
+export function ReportChart({
+  series,
+  granularity,
+}: {
+  series: ReportSeriesPoint[];
+  granularity: ReportGranularity;
+}) {
   const data = series.map((p) => ({
-    month: monthLabel(p.month),
+    period: periodLabel(p.period, granularity),
     Billable: Number(p.billable.toFixed(2)),
     "Non-Billable": Number(p.nonBillable.toFixed(2)),
-    Planned: p.planned == null ? null : Number(p.planned.toFixed(2)),
   }));
 
   return (
@@ -42,7 +48,7 @@ export function ReportChart({ series }: { series: ReportSeriesPoint[] }) {
           <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+              <XAxis dataKey="period" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip
                 contentStyle={{
@@ -60,17 +66,6 @@ export function ReportChart({ series }: { series: ReportSeriesPoint[] }) {
                 fill="hsl(var(--muted-foreground))"
                 radius={[2, 2, 0, 0]}
               />
-              {hasPlanned && (
-                <Line
-                  type="monotone"
-                  dataKey="Planned"
-                  stroke="var(--watch)"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  connectNulls
-                />
-              )}
             </ComposedChart>
           </ResponsiveContainer>
         )}

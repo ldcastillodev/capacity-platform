@@ -1,11 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+const STORAGE_KEY = "capacity-platform.month";
+const MONTH_RE = /^\d{4}-\d{2}-01$/;
 
 export function useMonth(): [string, (m: string) => void] {
   const now = new Date();
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  return useState(defaultMonth);
+  // Default month on first paint matches the server-rendered HTML; the stored
+  // month is restored after mount to avoid a hydration mismatch.
+  const [month, setMonthState] = useState(defaultMonth);
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(STORAGE_KEY);
+    if (stored && MONTH_RE.test(stored)) setMonthState(stored);
+  }, []);
+
+  const setMonth = useCallback((m: string) => {
+    setMonthState(m);
+    try {
+      window.sessionStorage.setItem(STORAGE_KEY, m);
+    } catch {
+      // storage unavailable — selection still works for this page
+    }
+  }, []);
+
+  return [month, setMonth];
 }
 
 export function formatMonthDisplay(month: string): string {

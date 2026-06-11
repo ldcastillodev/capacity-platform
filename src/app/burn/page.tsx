@@ -72,11 +72,11 @@ export default function BurnPage() {
                           {contract.consumed_hours.toFixed(1)}h consumed of {contract.pool_hours.toFixed(1)}h pool
                         </p>
                       </div>
+                      {/* Pace badge: critical = ahead of pace, watch = behind (≠ overview taxonomy) */}
                       <StatusBadge tone={contract.alert_level as AlertLevel} label={
-                        contract.alert_level === "safe" ? "On Track"
-                          : contract.alert_level === "watch" ? "Watch"
-                          : contract.alert_level === "warning" ? "Warning"
-                          : "Critical"
+                        contract.alert_level === "safe" ? "On Pace"
+                          : contract.alert_level === "watch" ? "Behind Pace"
+                          : "Ahead of Pace"
                       } />
                     </div>
                   </CardHeader>

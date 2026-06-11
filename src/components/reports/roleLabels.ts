@@ -1,4 +1,4 @@
-import type { RoleType } from "@/lib/client";
+import type { RoleType, ReportDimension, ReportGranularity } from "@/lib/client";
 
 export const ROLE_LABELS: Record<RoleType, string> = {
   dev: "Developer",
@@ -21,15 +21,24 @@ export function roleLabel(role: string | null | undefined): string {
   return ROLE_LABELS[role as RoleType] ?? role;
 }
 
-export type GroupBy = "person" | "squad" | "client" | "contract" | "role" | "month";
-
-export const GROUP_BY_LABELS: Record<GroupBy, string> = {
+export const DIMENSION_LABELS: Record<ReportDimension, string> = {
   person: "Person",
   squad: "Squad",
   client: "Client",
+  sow: "SOW",
   contract: "Contract",
   role: "Role",
+  billability: "Billability",
+  ticket: "Ticket",
   month: "Month",
+  week: "Week",
+  day: "Day",
+};
+
+export const GRANULARITY_LABELS: Record<ReportGranularity, string> = {
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
 };
 
 export type Billability = "all" | "billable" | "nonbillable";
