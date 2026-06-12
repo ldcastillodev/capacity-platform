@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeProvider } from "next-themes";
 import { Activity, AlertTriangle, BarChart2, BookOpen, ClipboardList, Clock, FileText, LayoutDashboard, PieChart, RefreshCw, Settings, Zap } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
@@ -31,11 +32,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
       <body className="min-h-screen bg-background text-foreground">
+        <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
         <QueryClientProvider client={queryClient}>
           <div className="flex min-h-screen">
             {/* Sidebar */}
@@ -77,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </QueryClientProvider>
         <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
