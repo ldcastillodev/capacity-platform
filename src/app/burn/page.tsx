@@ -61,6 +61,7 @@ export default function BurnPage() {
                 expected: w.expected_cumulative,
                 pool: w.pool_hours,
               }));
+              const isTotal = contract.hour_type === "total";
               return (
                 <Card key={contract.contract_id}>
                   <CardHeader className="pb-2">
@@ -69,7 +70,7 @@ export default function BurnPage() {
                         <CardTitle className="text-base">{contract.contract_name}</CardTitle>
                         <p className="text-sm text-muted-foreground mt-0.5">{contract.client_name}</p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {contract.consumed_hours.toFixed(1)}h consumed of {contract.pool_hours.toFixed(1)}h pool
+                          {contract.consumed_hours.toFixed(1)}h consumed of {contract.pool_hours.toFixed(1)}h {isTotal ? "remaining pool" : "pool"}
                         </p>
                       </div>
                       {/* Pace badge: critical = ahead of pace, watch = behind (≠ overview taxonomy) */}
@@ -89,7 +90,7 @@ export default function BurnPage() {
                           <YAxis tick={{ fontSize: 12 }} />
                           <Tooltip />
                           <Legend />
-                          <ReferenceLine y={chartData[0]?.pool} stroke="var(--critical)" strokeDasharray="4 4" label={{ value: "Pool limit", fill: "var(--critical)", fontSize: 11 }} />
+                          <ReferenceLine y={chartData[0]?.pool} stroke="var(--critical)" strokeDasharray="4 4" label={{ value: isTotal ? "Remaining pool" : "Pool limit", fill: "var(--critical)", fontSize: 11 }} />
                           <Line type="monotone" dataKey="actual" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Actual" />
                           <Line type="monotone" dataKey="expected" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 5" dot={false} name="Expected pace" />
                         </LineChart>

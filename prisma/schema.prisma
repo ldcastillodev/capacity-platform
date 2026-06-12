@@ -70,6 +70,14 @@ enum SyncSource {
   api
 }
 
+enum SyncConflictCategory {
+  missing_mapping
+  missing_membership
+  missing_role
+  missing_declaration
+  inactive_target
+}
+
 enum NonBillableType {
   shared_ceremony
   leave
@@ -392,6 +400,24 @@ model SyncLog {
 
   @@index([source, startedAt])
   @@map("sync_logs")
+}
+
+model SyncConflict {
+  id           Int                  @id @default(autoincrement())
+  source       SyncSource
+  externalRef  String               @unique @map("external_ref")
+  category     SyncConflictCategory
+  authorEmail  String?              @map("author_email")
+  issueKey     String?              @map("issue_key")
+  componentKey String?              @map("component_key")
+  date         DateTime             @db.Date
+  hours        Decimal              @db.Decimal(6, 2)
+  detail       String?
+  firstSeenAt  DateTime             @default(now()) @map("first_seen_at")
+  lastSeenAt   DateTime             @map("last_seen_at")
+
+  @@index([category])
+  @@map("sync_conflicts")
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

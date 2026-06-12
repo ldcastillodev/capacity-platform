@@ -279,6 +279,7 @@ export interface BurnByContractWeeklyRow {
   contract_name: string;
   client_id: number;
   client_name: string;
+  hour_type: "monthly" | "total";
   pool_hours: number;
   consumed_hours: number;
   utilization_pct: number;

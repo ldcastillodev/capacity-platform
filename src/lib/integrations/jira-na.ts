@@ -47,6 +47,17 @@ interface SyncResult {
   errors: string[];
 }
 
+interface ConflictRecord {
+  externalRef: string;
+  category: "missing_mapping" | "missing_membership" | "missing_role" | "missing_declaration" | "inactive_target";
+  authorEmail: string | null;
+  issueKey: string;
+  componentKey: string | null;
+  date: Date;
+  hours: number;
+  detail: string;
+}
+
 interface WorklogLookupContext {
   personByEmail: Map<string, Person>;
   sourceMappingByPrefix: Map<string, NonBillableSourceMapping>;
@@ -221,6 +232,8 @@ export class JiraNAConnector {
     result: SyncResult,
   ): Promise<void> {
     const hourRecordsToCreate: Prisma.HourRecordCreateManyInput[] = [];
+    // one auditable row per skipped worklog, upserted by externalRef
+    const conflictsToRecord: ConflictRecord[] = [];
     // client+month pairs that need a missing_data flag (BR-10 fallback)
     const missingDeclarationFlags = new Map<string, Date>();
     // client+month pairs where worklogs targeted a closed/expired entity
@@ -245,6 +258,12 @@ export class JiraNAConnector {
           const person = ctx.personByEmail.get(wl.author.emailAddress);
           if (!person) {
             result.missingMapping++;
+            conflictsToRecord.push({
+              externalRef, category: "missing_mapping",
+              authorEmail: wl.author.emailAddress ?? null,
+              issueKey: issue.key, componentKey: components[0]?.name ?? null, date, hours,
+              detail: `No person found with email ${wl.author.emailAddress}.`,
+            });
             continue;
           }
 
@@ -257,6 +276,12 @@ export class JiraNAConnector {
 
           if (activeMemberships.length === 0) {
             result.missingMembership++;
+            conflictsToRecord.push({
+              externalRef, category: "missing_membership",
+              authorEmail: wl.author.emailAddress ?? null,
+              issueKey: issue.key, componentKey: components[0]?.name ?? null, date, hours,
+              detail: `No active squad membership on ${date.toISOString().slice(0, 10)}.`,
+            });
             continue;
           }
 
@@ -264,6 +289,12 @@ export class JiraNAConnector {
             const sourceMapping = ctx.sourceMappingByPrefix.get(issue.key);
             if (!sourceMapping) {
               result.missingMapping++;
+              conflictsToRecord.push({
+                externalRef, category: "missing_mapping",
+                authorEmail: wl.author.emailAddress ?? null,
+                issueKey: issue.key, componentKey: components[0]?.name ?? null, date, hours,
+                detail: `No non-billable source mapping for issue ${issue.key}.`,
+              });
               continue;
             }
             // Snapshot the role effective on the worklog date so nb-hours-by-role
@@ -297,6 +328,12 @@ export class JiraNAConnector {
           const componentName = components[0]?.name;
           if (!componentName) {
             result.missingMapping++;
+            conflictsToRecord.push({
+              externalRef, category: "missing_mapping",
+              authorEmail: wl.author.emailAddress ?? null,
+              issueKey: issue.key, componentKey: null, date, hours,
+              detail: `Worklog issue ${issue.key} has no Jira component.`,
+            });
             continue;
           }
 
@@ -308,6 +345,12 @@ export class JiraNAConnector {
           );
           if (!clientMapping) {
             result.missingMapping++;
+            conflictsToRecord.push({
+              externalRef, category: "missing_mapping",
+              authorEmail: wl.author.emailAddress ?? null,
+              issueKey: issue.key, componentKey: componentName, date, hours,
+              detail: `No client mapping for component "${componentName}" effective on ${date.toISOString().slice(0, 10)}.`,
+            });
             continue;
           }
 
@@ -322,6 +365,12 @@ export class JiraNAConnector {
             !mappedContract.sow.client.isActive
           ) {
             result.inactiveTarget++;
+            conflictsToRecord.push({
+              externalRef, category: "inactive_target",
+              authorEmail: wl.author.emailAddress ?? null,
+              issueKey: issue.key, componentKey: componentName, date, hours,
+              detail: `Mapped contract ${clientMapping.contractId} is closed/expired, its SOW has ended, or the client is archived.`,
+            });
             const month = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
             inactiveTargetFlags.set(
               `${mappedContract.sow.clientId}:${month.toISOString().slice(0, 7)}`,
@@ -338,6 +387,12 @@ export class JiraNAConnector {
           );
           if (!role) {
             result.missingRole++;
+            conflictsToRecord.push({
+              externalRef, category: "missing_role",
+              authorEmail: wl.author.emailAddress ?? null,
+              issueKey: issue.key, componentKey: componentName, date, hours,
+              detail: `No active person role on ${date.toISOString().slice(0, 10)}.`,
+            });
             continue;
           }
 
@@ -369,6 +424,12 @@ export class JiraNAConnector {
               : activeMemberships.find(sm => sm.squadId === declaredSquadId);
             if (declaredSquadId === undefined || !declaredMembership) {
               result.missingDeclaration++;
+              conflictsToRecord.push({
+                externalRef, category: "missing_declaration",
+                authorEmail: wl.author.emailAddress ?? null,
+                issueKey: issue.key, componentKey: componentName, date, hours,
+                detail: `Person has multiple active squad memberships and no role declaration for contract ${baseContractId} in ${month.toISOString().slice(0, 7)} resolves a squad they belong to.`,
+              });
               missingDeclarationFlags.set(
                 `${clientMapping.contract.sow.clientId}:${month.toISOString().slice(0, 7)}`,
                 month,
@@ -403,6 +464,29 @@ export class JiraNAConnector {
         data: hourRecordsToCreate.slice(i, i + BATCH_SIZE),
         skipDuplicates: true,
       });
+    }
+
+    // Persist one auditable row per conflicted worklog. Upsert by externalRef so
+    // re-syncs refresh lastSeenAt instead of duplicating.
+    const now = new Date();
+    for (const c of conflictsToRecord) {
+      await prisma.syncConflict.upsert({
+        where: { externalRef: c.externalRef },
+        update: {
+          category: c.category, authorEmail: c.authorEmail, issueKey: c.issueKey,
+          componentKey: c.componentKey, date: c.date, hours: c.hours,
+          detail: c.detail, lastSeenAt: now,
+        },
+        create: { ...c, source: "jira_na", lastSeenAt: now },
+      });
+    }
+    // Clear conflicts for worklogs that imported this run (e.g. person added or
+    // declaration created since the previous sync).
+    const createdRefs = hourRecordsToCreate
+      .map(r => r.externalRef)
+      .filter((r): r is string => typeof r === "string");
+    if (createdRefs.length > 0) {
+      await prisma.syncConflict.deleteMany({ where: { externalRef: { in: createdRefs } } });
     }
 
     for (const [key, month] of missingDeclarationFlags) {

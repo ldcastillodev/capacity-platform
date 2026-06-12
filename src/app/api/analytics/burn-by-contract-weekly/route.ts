@@ -27,14 +27,31 @@ export async function GET(req: NextRequest) {
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
-      const records = await prisma.hourRecord.findMany({
-        where: {
-          contractId: contract.id,
-          isNonBillable: false,
-          date: { gte: monthDate, lte: monthEnd },
-        },
-        select: { date: true, hours: true },
-      });
+      const isTotal = contract.hourType === "total";
+
+      const [records, priorAgg] = await Promise.all([
+        prisma.hourRecord.findMany({
+          where: {
+            contractId: contract.id,
+            isNonBillable: false,
+            date: { gte: monthDate, lte: monthEnd },
+          },
+          select: { date: true, hours: true },
+        }),
+        // Total-pool contract: consumption before the selected month draws
+        // down the same lifetime pool (strict lt avoids double-counting).
+        isTotal
+          ? prisma.hourRecord.aggregate({
+              where: {
+                contractId: contract.id,
+                isNonBillable: false,
+                date: { gte: contract.startDate, lt: monthDate },
+              },
+              _sum: { hours: true },
+            })
+          : null,
+      ]);
+      const prior = priorAgg ? parseFloat(String(priorAgg._sum.hours ?? 0)) : 0;
 
       const byWeek = new Map<string, number>();
       for (const r of records) {
@@ -42,7 +59,9 @@ export async function GET(req: NextRequest) {
         byWeek.set(key, (byWeek.get(key) ?? 0) + Number(r.hours));
       }
 
-      const pool = Number(contract.assignedHours);
+      // Total contracts: pool entering this month = lifetime pool minus past
+      // consumption (unclamped — overrun shows negative). Monthly: prior = 0.
+      const pool = Number(contract.assignedHours) - prior;
       const totalDaysUTC = monthEnd.getUTCDate();
 
       // Generate every week-start in the month so the chart always has full x-axis coverage
@@ -89,6 +108,7 @@ export async function GET(req: NextRequest) {
         contract_name: contract.name,
         client_id: contract.sow.clientId,
         client_name: contract.sow.client.name,
+        hour_type: contract.hourType,
         pool_hours: pool,
         consumed_hours: consumed,
         utilization_pct,
