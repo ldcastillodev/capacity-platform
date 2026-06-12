@@ -8,6 +8,7 @@ import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/app/DatePicker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -225,8 +226,8 @@ function SowsSection() {
             {modalMode === "edit" && <p className="text-xs text-muted-foreground">Client is immutable after creation.</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>Start Date *</Label><Input type="date" required value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>End Date</Label><Input type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Start Date *</Label><DatePicker required value={form.start_date} onChange={v => setForm({ ...form, start_date: v })} /></div>
+            <div className="space-y-1.5"><Label>End Date</Label><DatePicker clearable value={form.end_date} onChange={v => setForm({ ...form, end_date: v })} /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
@@ -372,8 +373,8 @@ function ContractsSection() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5"><Label>Assigned Hours *</Label><Input type="number" min="0" step="0.5" required value={form.assigned_hours} onChange={e => setForm({ ...form, assigned_hours: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Start Date *</Label><Input type="date" required value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>End Date</Label><Input type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Start Date *</Label><DatePicker required value={form.start_date} onChange={v => setForm({ ...form, start_date: v })} /></div>
+            <div className="space-y-1.5"><Label>End Date</Label><DatePicker clearable value={form.end_date} onChange={v => setForm({ ...form, end_date: v })} /></div>
           </div>
           <div className="space-y-1.5"><Label>Status</Label>
             <Select value={form.status} onValueChange={v => setForm({ ...form, status: v as "active"|"paused"|"closed" })}>

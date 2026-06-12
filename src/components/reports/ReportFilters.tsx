@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/app/DatePicker";
 import {
   Select,
   SelectContent,
@@ -42,10 +42,6 @@ interface Props {
   onReset: () => void;
   options?: ReportFilterOptions;
 }
-
-// 'YYYY-MM-01' → 'YYYY-MM' for <input type=month>
-const toMonthInput = (iso: string) => iso.slice(0, 7);
-const fromMonthInput = (v: string) => (v ? `${v}-01` : "");
 
 export function ReportFilters({ filters, onChange, onReset, options }: Props) {
   // Cascading option lists: parent selections narrow downstream choices.
@@ -95,21 +91,11 @@ export function ReportFilters({ filters, onChange, onReset, options }: Props) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">From</label>
-            <Input
-              type="month"
-              value={toMonthInput(filters.from)}
-              onChange={(e) => onChange({ from: fromMonthInput(e.target.value) })}
-              className="h-9"
-            />
+            <DatePicker value={filters.from} onChange={(v) => onChange({ from: v })} />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">To</label>
-            <Input
-              type="month"
-              value={toMonthInput(filters.to)}
-              onChange={(e) => onChange({ to: fromMonthInput(e.target.value) })}
-              className="h-9"
-            />
+            <DatePicker value={filters.to} onChange={(v) => onChange({ to: v })} />
           </div>
           <MultiSelect
             label="Row dimensions"

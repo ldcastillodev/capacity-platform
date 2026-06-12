@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MonthPicker } from "@/components/app/MonthPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -155,7 +155,7 @@ export default function SyncPage() {
               <div key={log.id} className="rounded-lg border p-4 bg-[var(--safe-bg)]">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-sm">{log.source === "jira_na" ? "Jira NA" : log.source}</span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--safe)] text-white uppercase tracking-wide">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)] uppercase tracking-wide">
                     {log.completedAt ? "Success" : "Running"}
                   </span>
                 </div>
@@ -181,13 +181,13 @@ export default function SyncPage() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-6 flex-wrap">
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-3">
               <Label>From</Label>
-              <Input type="month" value={monthFrom} onChange={(e) => handleMonthFromChange(e.target.value)} className="w-auto" />
+              <MonthPicker value={monthFrom} onChange={handleMonthFromChange} className="w-44" />
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-3">
               <Label>To</Label>
-              <Input type="month" value={monthTo} onChange={(e) => handleMonthToChange(e.target.value)} className="w-auto" />
+              <MonthPicker value={monthTo} onChange={handleMonthToChange} className="w-44" />
             </div>
           </div>
         </CardContent>

@@ -65,6 +65,16 @@
     --border: 229 12% 20%;
     --input: 229 12% 20%;
     --ring: 12 100% 55%;
+
+    /* legacy status tokens — brighter text + translucent tints for dark surfaces */
+    --safe: #4ade80;
+    --safe-bg: rgba(74, 222, 128, 0.12);
+    --watch: #fbbf24;
+    --watch-bg: rgba(251, 191, 36, 0.12);
+    --warning: #fb923c;
+    --warning-bg: rgba(251, 146, 60, 0.12);
+    --critical: #f87171;
+    --critical-bg: rgba(248, 113, 113, 0.12);
   }
 
   * {

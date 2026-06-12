@@ -14,7 +14,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReportFilters, type ReportFilterState } from "./ReportFilters";
 import { ReportKpis } from "./ReportKpis";
-import { ReportChart } from "./ReportChart";
 import { ReportDataTable } from "./ReportDataTable";
 import { DIMENSION_LABELS, type Billability } from "./roleLabels";
 
@@ -23,8 +22,8 @@ const BILLABILITIES: Billability[] = ["all", "billable", "nonbillable"];
 
 function defaultState(): ReportFilterState {
   const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
-  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return {
     from: iso(from),
@@ -179,13 +178,11 @@ export function ReportBuilder() {
               <Skeleton key={i} className="h-24" />
             ))}
           </div>
-          <Skeleton className="h-[320px]" />
           <Skeleton className="h-64" />
         </div>
       ) : data ? (
         <>
           <ReportKpis kpis={data.kpis} />
-          <ReportChart series={data.series} granularity={data.granularity} />
           <ReportDataTable
             rows={data.rows}
             dimensions={data.dimensions}

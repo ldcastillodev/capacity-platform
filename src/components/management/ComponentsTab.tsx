@@ -7,6 +7,7 @@ import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/app/DatePicker";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -173,7 +174,7 @@ export function ComponentsTab() {
           </div>
           <div className="space-y-1.5">
             <Label>Effective From *</Label>
-            <Input type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })}
+            <DatePicker required value={form.effective_from} onChange={v => setForm({ ...form, effective_from: v })}
               disabled={modalMode === "edit"} />
             {modalMode === "edit" && <p className="text-xs text-muted-foreground">Effective date is immutable after creation.</p>}
           </div>

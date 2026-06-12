@@ -9,6 +9,7 @@ import { PersonsTab } from "./PersonsTab";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/app/DatePicker";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -115,8 +116,8 @@ function MembershipsSection() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5"><Label>Allocation %</Label><Input type="number" min="1" max="100" step="1" value={form.allocation_pct} onChange={e => setForm({ ...form, allocation_pct: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>From *</Label><Input type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} disabled={modalMode === "edit"} /></div>
-            <div className="space-y-1.5"><Label>To</Label><Input type="date" value={form.effective_to} onChange={e => setForm({ ...form, effective_to: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>From *</Label><DatePicker required value={form.effective_from} onChange={v => setForm({ ...form, effective_from: v })} disabled={modalMode === "edit"} /></div>
+            <div className="space-y-1.5"><Label>To</Label><DatePicker clearable value={form.effective_to} onChange={v => setForm({ ...form, effective_to: v })} /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
@@ -221,8 +222,8 @@ function PersonRolesSection() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>From *</Label><Input type="date" required value={form.effective_from} onChange={e => setForm({ ...form, effective_from: e.target.value })} disabled={modalMode === "edit"} /></div>
-            <div className="space-y-1.5"><Label>To</Label><Input type="date" value={form.effective_to} onChange={e => setForm({ ...form, effective_to: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>From *</Label><DatePicker required value={form.effective_from} onChange={v => setForm({ ...form, effective_from: v })} disabled={modalMode === "edit"} /></div>
+            <div className="space-y-1.5"><Label>To</Label><DatePicker clearable value={form.effective_to} onChange={v => setForm({ ...form, effective_to: v })} /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
