@@ -253,10 +253,11 @@ export const fetchNbBySquad = (params?: { month?: string }) =>
 export interface SquadCapacityRow {
   squad_id: number;
   squad_name: string;
-  member_count: number;
+  person_id: number | null;
+  person_name: string | null;
   capacity_hours: number;
-  actual_hours: number;
-  utilisation_pct: number;
+  billable_hours: number;
+  nonbillable_hours: number;
 }
 
 export const fetchSquadCapacity = (params?: { month?: string }) =>
@@ -267,12 +268,25 @@ export interface PersonCapacityRow {
   person_name: string;
   squad_names: string;
   capacity_hours: number;
-  actual_hours: number;
-  utilisation_pct: number;
+  billable_hours: number;
+  nonbillable_hours: number;
 }
 
 export const fetchPersonCapacity = (params?: { month?: string; squad_id?: number }) =>
   api.get<PersonCapacityRow[]>("/analytics/person-capacity", { params }).then((r) => r.data);
+
+export interface RoleCapacityRow {
+  squad_id: number;
+  squad_name: string;
+  role_type: string;
+  capacity_hours: number;
+  declared_hours: number;
+  billable_hours: number;
+  nonbillable_hours: number;
+}
+
+export const fetchRoleCapacity = (params?: { month?: string }) =>
+  api.get<RoleCapacityRow[]>("/analytics/role-capacity", { params }).then((r) => r.data);
 
 export interface BurnByContractWeeklyRow {
   contract_id: number;

@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
         person_name: string;
         squad_names: string;
         capacity_hours: number;
-        actual_hours: number;
-        utilisation_pct: number;
+        billable_hours: number;
+        nonbillable_hours: number;
       }[]
     >(Prisma.sql`
       WITH workdays AS (
@@ -53,7 +53,10 @@ export async function GET(req: NextRequest) {
         GROUP BY sm.person_id
       ),
       actual AS (
-        SELECT hr.person_id, SUM(hr.hours) AS actual_hours
+        SELECT
+          hr.person_id,
+          SUM(hr.hours) FILTER (WHERE NOT hr.is_non_billable) AS billable_hours,
+          SUM(hr.hours) FILTER (WHERE hr.is_non_billable)     AS nonbillable_hours
         FROM hour_records hr
         WHERE hr.date >= ${monthDate}::date
           AND hr.date <= ${monthEnd}::date
@@ -65,11 +68,8 @@ export async function GET(req: NextRequest) {
         p.name AS person_name,
         '—'    AS squad_names,
         (COALESCE(pc.weekly_capacity, 0) * COALESCE(m.alloc, 0) * (SELECT cnt FROM workdays) / 5.0)::float AS capacity_hours,
-        COALESCE(a.actual_hours, 0)::float AS actual_hours,
-        CASE WHEN COALESCE(pc.weekly_capacity, 0) * COALESCE(m.alloc, 0) > 0
-             THEN (COALESCE(a.actual_hours, 0) / (pc.weekly_capacity * m.alloc * (SELECT cnt FROM workdays) / 5.0) * 100)::float
-             ELSE 0::float
-        END AS utilisation_pct
+        COALESCE(a.billable_hours, 0)::float    AS billable_hours,
+        COALESCE(a.nonbillable_hours, 0)::float AS nonbillable_hours
       FROM persons p
       LEFT JOIN pcap pc ON pc.person_id = p.id
       LEFT JOIN member m ON m.person_id = p.id
@@ -86,8 +86,8 @@ export async function GET(req: NextRequest) {
       person_name: string;
       squad_names: string;
       capacity_hours: number;
-      actual_hours: number;
-      utilisation_pct: number;
+      billable_hours: number;
+      nonbillable_hours: number;
     }[]
   >(Prisma.sql`
     WITH workdays AS (
@@ -121,7 +121,10 @@ export async function GET(req: NextRequest) {
       GROUP BY sm.person_id
     ),
     actual AS (
-      SELECT hr.person_id, SUM(hr.hours) AS actual_hours
+      SELECT
+        hr.person_id,
+        SUM(hr.hours) FILTER (WHERE NOT hr.is_non_billable) AS billable_hours,
+        SUM(hr.hours) FILTER (WHERE hr.is_non_billable)     AS nonbillable_hours
       FROM hour_records hr
       WHERE hr.date >= ${monthDate}::date
         AND hr.date <= ${monthEnd}::date
@@ -132,11 +135,8 @@ export async function GET(req: NextRequest) {
       p.name AS person_name,
       COALESCE(ps.squad_names, '—') AS squad_names,
       (COALESCE(pc.weekly_capacity, 0) * (SELECT cnt FROM workdays) / 5.0)::float AS capacity_hours,
-      COALESCE(a.actual_hours, 0)::float AS actual_hours,
-      CASE WHEN COALESCE(pc.weekly_capacity, 0) > 0
-           THEN (COALESCE(a.actual_hours, 0) / (pc.weekly_capacity * (SELECT cnt FROM workdays) / 5.0) * 100)::float
-           ELSE 0::float
-      END AS utilisation_pct
+      COALESCE(a.billable_hours, 0)::float    AS billable_hours,
+      COALESCE(a.nonbillable_hours, 0)::float AS nonbillable_hours
     FROM persons p
     LEFT JOIN pcap pc ON pc.person_id = p.id
     LEFT JOIN person_squads ps ON ps.person_id = p.id
