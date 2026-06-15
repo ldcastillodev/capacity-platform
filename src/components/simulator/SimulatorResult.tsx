@@ -1,6 +1,8 @@
 "use client";
 
 import type {
+  SimulationMember,
+  SimulationMemberRole,
   SimulationResult,
   SimulationVerdict,
 } from "@/lib/client";
@@ -63,10 +65,41 @@ interface Props {
   result: SimulationResult;
 }
 
+function roleRowBadge(r: SimulationMemberRole) {
+  return r.availableHours >= r.requiredHours ? (
+    <StatusBadge tone="safe" label="Capacity" />
+  ) : (
+    <StatusBadge tone="critical" label="No capacity" />
+  );
+}
+
+function memberHasCapacity(m: SimulationMember): boolean {
+  return m.roles.some((r) => r.hasCapacity);
+}
+
+// A member has capacity only if every requested role they hold covers its hours.
+function memberBadge(m: SimulationMember) {
+  return m.roles.every((r) => r.availableHours >= r.requiredHours) ? (
+    <StatusBadge tone="safe" label="Has capacity" />
+  ) : (
+    <StatusBadge tone="critical" label="No capacity" />
+  );
+}
+
 export function SimulatorResult({ result }: Props) {
   const tone = VERDICT_TONE[result.verdict];
   const gapColor =
     result.gapHours > 0 ? "var(--critical)" : result.gapHours < 0 ? "var(--safe)" : undefined;
+
+  const squadHasNoCapacity =
+    result.members.length > 0 && !result.members.some(memberHasCapacity);
+
+  const overRoles = result.roleBreakdown.filter((r) => r.verdict === "over");
+  const ambiguousRoles = result.roleBreakdown.filter((r) => r.verdict === "ambiguous");
+  const roleName = (rt: string) => ROLE_LABELS[rt] ?? rt;
+
+  // Only members who hold at least one of the requested roles are relevant.
+  const matchingMembers = result.members.filter((m) => m.roles.length > 0);
 
   return (
     <Card className="flex flex-col h-full">
@@ -77,6 +110,14 @@ export function SimulatorResult({ result }: Props) {
         <StatusBadge tone={tone} label={VERDICT_LABEL[result.verdict]} />
       </CardHeader>
       <CardContent className="space-y-4 flex-1 overflow-auto">
+        {squadHasNoCapacity && (
+          <div
+            role="alert"
+            className="rounded-md border border-[var(--critical)] bg-[var(--critical-bg)] px-3 py-3 text-sm font-semibold text-[var(--critical)]"
+          >
+            This squad has no available capacity to absorb the requested hours.
+          </div>
+        )}
         <p
           className="text-sm rounded-md border px-3 py-2"
           style={{
@@ -103,12 +144,31 @@ export function SimulatorResult({ result }: Props) {
           ) : result.verdict === "over" ? (
             <>
               <strong>{result.squadName} CANNOT absorb this engagement.</strong>{" "}
-              Short by {fmtHours(result.gapHours)} ({fmtHours(result.availableHours)} available vs{" "}
-              {fmtHours(result.requiredHours)} required).
+              {overRoles.length > 0 ? (
+                <>
+                  Insufficient role capacity:{" "}
+                  {overRoles
+                    .map((r) => `${roleName(r.roleType)} (short ${fmtHours(r.gapHours)})`)
+                    .join(", ")}
+                  .
+                </>
+              ) : (
+                <>
+                  Short by {fmtHours(result.gapHours)} ({fmtHours(result.availableHours)} available
+                  vs {fmtHours(result.requiredHours)} required).
+                </>
+              )}
             </>
           ) : (
             <span className="text-muted-foreground">
-              Verdict inconclusive — no capacity data for this squad/month.
+              {ambiguousRoles.length > 0 ? (
+                <>
+                  Verdict inconclusive — no capacity data for:{" "}
+                  {ambiguousRoles.map((r) => roleName(r.roleType)).join(", ")}.
+                </>
+              ) : (
+                <>Verdict inconclusive — no capacity data for this squad/month.</>
+              )}
             </span>
           )}
         </p>
@@ -177,66 +237,68 @@ export function SimulatorResult({ result }: Props) {
           <p className="text-sm text-muted-foreground">
             No active squad members in this month.
           </p>
+        ) : matchingMembers.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No members in this squad hold the requested role(s).
+          </p>
         ) : (
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Member</TableHead>
-                  <TableHead className="text-right">Alloc</TableHead>
-                  <TableHead className="text-right">Capacity</TableHead>
-                  {result.monthlyLabels.map((label) => (
-                    <TableHead key={label} className="text-right">
-                      {fmtMonth(label)}
-                    </TableHead>
-                  ))}
-                  <TableHead className="text-right">Billable 3mo avg</TableHead>
-                  <TableHead className="text-right">Available</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {result.members.map((m) => (
-                  <TableRow key={m.personId}>
-                    <TableCell className="font-medium">{m.personName}</TableCell>
-                    <TableCell className="text-right">{fmtPct(m.allocationPct)}</TableCell>
-                    <TableCell className="text-right">{fmtHours(m.capacityHours)}</TableCell>
-                    {result.monthlyLabels.map((label, idx) => (
-                      <TableCell key={label} className="text-right">
-                        {fmtHours(m.monthlyBillable[idx] ?? 0)}
-                      </TableCell>
-                    ))}
-                    <TableCell className="text-right">{fmtHours(m.recentAvgHours)}</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {fmtHours(m.availableHours)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        <div>
-          <h3 className="text-sm font-semibold mb-2">Who has spare capacity</h3>
-          {result.members.filter((m) => m.availableHours > 0).length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No members with spare capacity this month.
-            </p>
-          ) : (
-            <ul className="text-sm space-y-1">
-              {result.members
-                .filter((m) => m.availableHours > 0)
-                .map((m) => (
-                  <li key={m.personId} className="flex justify-between border-b border-border pb-1">
-                    <span>{m.personName}</span>
-                    <span className="font-semibold" style={{ color: "var(--safe)" }}>
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Members</h3>
+            {matchingMembers.map((m) => (
+              <div key={m.personId} className="rounded-md border">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{m.personName}</span>
+                    {memberBadge(m)}
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {fmtPct(m.allocationPct)} · cap {fmtHours(m.capacityHours)} · 3mo avg{" "}
+                    {fmtHours(m.recentAvgHours)} · avail{" "}
+                    <span className="font-semibold text-foreground">
                       {fmtHours(m.availableHours)}
                     </span>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </div>
+                  </span>
+                </div>
+                <p className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
+                  {result.monthlyLabels
+                    .map((label, idx) => `${fmtMonth(label)} ${fmtHours(m.monthlyBillable[idx] ?? 0)}`)
+                    .join(" · ")}
+                </p>
+                <div className="px-3 py-2 space-y-1">
+                  {m.roles.map((r) => (
+                    <div
+                      key={r.roleType}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="font-medium">
+                        {ROLE_LABELS[r.roleType] ?? r.roleType}
+                      </span>
+                      <span className="flex items-center gap-3">
+                        <span>
+                          avail{" "}
+                          <span className="font-semibold">{fmtHours(r.availableHours)}</span>
+                        </span>
+                        <span className="text-muted-foreground">
+                          req {fmtHours(r.requiredHours)}
+                        </span>
+                        {roleRowBadge(r)}
+                      </span>
+                    </div>
+                  ))}
+                  {m.unassignedAvgHours > 0 && (
+                    <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                      <span>Unassigned</span>
+                      <span className="flex items-center gap-3">
+                        <span>3mo avg {fmtHours(m.unassignedAvgHours)}</span>
+                        <span>req —</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

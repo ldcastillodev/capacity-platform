@@ -3,8 +3,10 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
+  computeMemberRoles,
   computeRoleBreakdown,
   computeSimulation,
+  worstVerdict,
   type SimulationMemberInput,
   type SimulationRoleInput,
 } from "@/lib/simulator";
@@ -58,6 +60,7 @@ type MemberRow = {
   m3_hours: number;
   m2_hours: number;
   m1_hours: number;
+  unassigned_avg: number;
 };
 
 function ymKey(d: Date): string {
@@ -104,7 +107,11 @@ export async function POST(req: NextRequest) {
       ), 0)::float AS m2_hours,
       COALESCE(SUM(hr.hours) FILTER (
         WHERE hr.date >= ${m1Start}::date AND hr.date < ${monthStart}::date AND hr.is_non_billable = false
-      ), 0)::float AS m1_hours
+      ), 0)::float AS m1_hours,
+      (COALESCE(SUM(hr.hours) FILTER (
+        WHERE hr.date >= ${m3Start}::date AND hr.date < ${monthStart}::date
+          AND hr.is_non_billable = false AND hr.role_type IS NULL
+      ), 0) / 3.0)::float AS unassigned_avg
     FROM squad_memberships sm
     JOIN persons p ON p.id = sm.person_id AND p.is_active = true
     LEFT JOIN hour_records hr ON hr.person_id = p.id
@@ -191,15 +198,65 @@ export async function POST(req: NextRequest) {
 
   const roleBreakdown = computeRoleBreakdown(roleInputs);
 
+  type MemberRoleRow = {
+    person_id: number;
+    role_type: string;
+    recent_avg_hours: number;
+  };
+
+  const memberRoleRows = await prisma.$queryRaw<MemberRoleRow[]>(Prisma.sql`
+    SELECT
+      pr.person_id,
+      pr.role_type::text AS role_type,
+      COALESCE((
+        SELECT SUM(hr.hours) FILTER (
+          WHERE hr.date >= ${m3Start}::date AND hr.date < ${monthStart}::date
+            AND hr.is_non_billable = false
+            AND hr.role_type = pr.role_type
+        )
+        FROM hour_records hr
+        WHERE hr.person_id = pr.person_id
+      ), 0)::float / 3.0 AS recent_avg_hours
+    FROM person_roles pr
+    JOIN persons p ON p.id = pr.person_id AND p.is_active = true
+    WHERE pr.role_type IN (${roleSqlList})
+      AND pr.effective_from <= ${monthEnd}::date
+      AND (pr.effective_to IS NULL OR pr.effective_to >= ${monthStart}::date)
+      AND EXISTS (
+        SELECT 1 FROM squad_memberships sm
+        WHERE sm.person_id = pr.person_id
+          AND sm.squad_id = ${squadId}
+          AND sm.effective_from <= ${monthEnd}::date
+          AND (sm.effective_to IS NULL OR sm.effective_to >= ${monthStart}::date)
+      )
+    GROUP BY pr.person_id, pr.role_type
+  `);
+
+  const membersOut = membersWithMonthly.map((m) => {
+    const src = rows.find((r) => r.person_id === m.personId);
+    const personRoleRows = memberRoleRows
+      .filter((rr) => rr.person_id === m.personId)
+      .map((rr) => ({ roleType: rr.role_type, recentAvgHours: rr.recent_avg_hours }));
+    return {
+      ...m,
+      roles: computeMemberRoles(m.capacityHours, personRoleRows, roleRequests),
+      unassignedAvgHours: src?.unassigned_avg ?? 0,
+    };
+  });
+
+  // Headline numbers reflect capacity within the requested roles, not the
+  // whole squad — a squad absorbs an engagement role by role.
+  const roleAvailableHours = roleBreakdown.reduce((a, r) => a + r.availableHours, 0);
+
   return NextResponse.json({
     squadId,
     squadName: squad.name,
     month: ymKey(monthStart),
     requiredHours,
-    availableHours: sim.availableHours,
-    gapHours: sim.gapHours,
-    verdict: sim.verdict,
-    members: membersWithMonthly,
+    availableHours: roleAvailableHours,
+    gapHours: requiredHours - roleAvailableHours,
+    verdict: worstVerdict(sim.verdict, ...roleBreakdown.map((r) => r.verdict)),
+    members: membersOut,
     monthlyLabels,
     roleBreakdown,
   });

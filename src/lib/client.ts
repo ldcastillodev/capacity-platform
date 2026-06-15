@@ -92,6 +92,14 @@ export interface EnhancementSuggestion {
 
 export type SimulationVerdict = "ok" | "over" | "ambiguous";
 
+export interface SimulationMemberRole {
+  roleType: string;
+  requiredHours: number;
+  recentAvgHours: number;
+  availableHours: number;
+  hasCapacity: boolean;
+}
+
 export interface SimulationMember {
   personId: number;
   personName: string;
@@ -100,6 +108,8 @@ export interface SimulationMember {
   recentAvgHours: number;
   availableHours: number;
   monthlyBillable: number[];
+  roles: SimulationMemberRole[];
+  unassignedAvgHours: number;
 }
 
 export interface SimulationRoleBreakdown {

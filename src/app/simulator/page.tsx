@@ -25,7 +25,7 @@ export default function SimulatorPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       <PageHeader
         title="Capacity Simulator"
-        description="Check if a squad has capacity for a new engagement this month"
+        description="Check if a squad has capacity for a new engagement"
       />
 
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
