@@ -8,6 +8,7 @@ import { MonthPicker } from "@/components/app/MonthPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useSyncContext, type OpState } from "@/context/SyncContext";
 
 function currentMonthStr(): string {
   const d = new Date();
@@ -17,7 +18,9 @@ function lastDayOfMonthStr(month: string): string {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().split("T")[0];
 }
-function getSource(jira: boolean): "jira_na" | "all" { return jira ? "jira_na" : "all"; }
+function getSource(jira: boolean): "jira_na" | "all" {
+  return jira ? "jira_na" : "all";
+}
 function getMonthsArray(dateFrom: string, dateTo: string): string[] {
   const months: string[] = [];
   const d = new Date(dateFrom + "T00:00:00Z");
@@ -30,10 +33,21 @@ function getMonthsArray(dateFrom: string, dateTo: string): string[] {
   return months;
 }
 function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 type BannerResult = { ok: boolean; message: string } | null;
@@ -46,15 +60,24 @@ interface SyncLogEntry {
   dateTo: string | null;
 }
 
+function toBanner(state: OpState): BannerResult {
+  if (state.status === "success" || state.status === "error") {
+    return { ok: state.status === "success", message: state.message ?? "" };
+  }
+  return null;
+}
+
 function Banner({ result }: { result: BannerResult }) {
   if (!result) return null;
   return (
-    <div className={cn(
-      "mt-3 rounded-md px-4 py-3 text-sm font-medium",
-      result.ok
-        ? "bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)]"
-        : "bg-[var(--critical-bg)] text-[var(--critical)] border border-[var(--critical)]"
-    )}>
+    <div
+      className={cn(
+        "mt-3 rounded-md px-4 py-3 text-sm font-medium",
+        result.ok
+          ? "bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)]"
+          : "bg-[var(--critical-bg)] text-[var(--critical)] border border-[var(--critical)]"
+      )}
+    >
       {result.message}
     </div>
   );
@@ -64,11 +87,8 @@ export default function SyncPage() {
   const [monthFrom, setMonthFrom] = useState(currentMonthStr);
   const [monthTo, setMonthTo] = useState(currentMonthStr);
   const [jiraChecked, setJiraChecked] = useState(true);
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [syncResult, setSyncResult] = useState<BannerResult>(null);
-  const [refreshLoading, setRefreshLoading] = useState(false);
-  const [refreshResult, setRefreshResult] = useState<BannerResult>(null);
   const [lastLogs, setLastLogs] = useState<SyncLogEntry[]>([]);
+  const { sync, refresh, runSync, runRefresh } = useSyncContext();
 
   const dateFrom = `${monthFrom}-01`;
   const dateTo = lastDayOfMonthStr(monthTo);
@@ -87,63 +107,30 @@ export default function SyncPage() {
   async function fetchLastLogs() {
     try {
       const res = await fetch("/api/admin/jobs/sync");
-      if (res.ok) { const data = await res.json(); setLastLogs(data.logs ?? []); }
-    } catch { /* non-critical */ }
-  }
-
-  useEffect(() => { fetchLastLogs(); }, []);
-
-  async function runSync() {
-    setSyncLoading(true);
-    setSyncResult(null);
-    try {
-      const res = await fetch("/api/admin/jobs/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: getSource(jiraChecked), date_from: dateFrom, date_to: dateTo }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setSyncResult({ ok: true, message: "Sync completed" });
-        await fetchLastLogs();
-      } else {
-        setSyncResult({ ok: false, message: data.error ?? "Sync failed. Check server logs." });
-        await fetchLastLogs();
+      if (res.ok) {
+        const data = await res.json();
+        setLastLogs(data.logs ?? []);
       }
     } catch {
-      setSyncResult({ ok: false, message: "Network error — sync request failed." });
-    } finally { setSyncLoading(false); }
+      /* non-critical */
+    }
   }
 
-  async function runRefresh() {
-    setRefreshLoading(true);
-    setRefreshResult(null);
-    const months = getMonthsArray(dateFrom, dateTo);
-    try {
-      const res = await fetch("/api/admin/jobs/analytics-refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ months }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setRefreshResult({ ok: true, message: "Analytics refresh complete" });
-      } else {
-        setRefreshResult({ ok: false, message: data.error ?? "Refresh failed. Check server logs." });
-      }
-    } catch {
-      setRefreshResult({ ok: false, message: "Network error — refresh request failed." });
-    } finally { setRefreshLoading(false); }
-  }
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch of sync log status on mount
+    fetchLastLogs();
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh sync log status after a sync completes elsewhere
+    if (sync.status === "success") fetchLastLogs();
+  }, [sync.status]);
 
   const months = getMonthsArray(dateFrom, dateTo);
 
   return (
     <div>
-      <PageHeader
-        title="Sync"
-        description="Trigger data sync from Jira and analytics refresh."
-      />
+      <PageHeader title="Sync" description="Trigger data sync from Jira and analytics refresh." />
 
       {lastLogs.length > 0 && (
         <Card className="mb-5">
@@ -154,7 +141,9 @@ export default function SyncPage() {
             {lastLogs.map((log) => (
               <div key={log.id} className="rounded-lg border p-4 bg-[var(--safe-bg)]">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-sm">{log.source === "jira_na" ? "Jira NA" : log.source}</span>
+                  <span className="font-semibold text-sm">
+                    {log.source === "jira_na" ? "Jira NA" : log.source}
+                  </span>
                   <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)] uppercase tracking-wide">
                     {log.completedAt ? "Success" : "Running"}
                   </span>
@@ -166,7 +155,11 @@ export default function SyncPage() {
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground mb-0.5">Date Range</div>
-                    <div>{log.dateFrom && log.dateTo ? `${fmtDate(log.dateFrom)} – ${fmtDate(log.dateTo)}` : "—"}</div>
+                    <div>
+                      {log.dateFrom && log.dateTo
+                        ? `${fmtDate(log.dateFrom)} – ${fmtDate(log.dateTo)}`
+                        : "—"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -196,7 +189,9 @@ export default function SyncPage() {
       <Card className="mb-5">
         <CardHeader className="pb-1">
           <CardTitle className="text-base">Data Sync</CardTitle>
-          <p className="text-sm text-muted-foreground">Pull hour records from selected sources into the database.</p>
+          <p className="text-sm text-muted-foreground">
+            Pull hour records from selected sources into the database.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2">
@@ -207,10 +202,13 @@ export default function SyncPage() {
             />
             <Label htmlFor="jira">Jira NA</Label>
           </div>
-          <Button onClick={runSync} disabled={syncLoading || !jiraChecked}>
-            {syncLoading ? "Running…" : "Run Sync"}
+          <Button
+            onClick={() => runSync({ source: getSource(jiraChecked), dateFrom, dateTo })}
+            disabled={sync.status === "running" || !jiraChecked}
+          >
+            {sync.status === "running" ? "Running…" : "Run Sync"}
           </Button>
-          <Banner result={syncResult} />
+          <Banner result={toBanner(sync)} />
         </CardContent>
       </Card>
 
@@ -218,16 +216,19 @@ export default function SyncPage() {
         <CardHeader className="pb-1">
           <CardTitle className="text-base">Analytics Refresh</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Recalculates anomaly flags for clients with no recent hours logged, and generates non-billable hour
-            enhancement suggestions (excessive non-billable time, ceremony overhead, or PTO capacity) for the
-            current month.
+            Recalculates anomaly flags for clients with no recent hours logged, and generates
+            non-billable hour enhancement suggestions (excessive non-billable time, ceremony
+            overhead, or PTO capacity) for the current month.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={runRefresh} disabled={refreshLoading || months.length === 0}>
-            {refreshLoading ? "Running…" : "Run Analytics Refresh"}
+          <Button
+            onClick={() => runRefresh({ months })}
+            disabled={refresh.status === "running" || months.length === 0}
+          >
+            {refresh.status === "running" ? "Running…" : "Run Analytics Refresh"}
           </Button>
-          <Banner result={refreshResult} />
+          <Banner result={toBanner(refresh)} />
         </CardContent>
       </Card>
     </div>
