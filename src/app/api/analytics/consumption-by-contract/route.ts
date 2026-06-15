@@ -63,11 +63,13 @@ export async function GET(req: NextRequest) {
           prior_consumed_hours: prior,
           consumed_hours: consumed,
           remaining_hours: pool - prior - consumed,
-          utilization_pct: pool > 0 ? (prior + consumed) / pool : 0,
+          consumption_pct: pool > 0 ? (prior + consumed) / pool : 0,
         };
       }
 
-      const declared = parseFloat(String(declEntries._sum.declaredHours ?? 0)) || parseFloat(String(contract.assignedHours));
+      const declared =
+        parseFloat(String(declEntries._sum.declaredHours ?? 0)) ||
+        parseFloat(String(contract.assignedHours));
       const remaining = Math.max(declared - consumed, 0);
       return {
         contract_id: contract.id,
@@ -79,9 +81,9 @@ export async function GET(req: NextRequest) {
         prior_consumed_hours: null,
         consumed_hours: consumed,
         remaining_hours: remaining,
-        utilization_pct: declared > 0 ? consumed / declared : 0,
+        consumption_pct: declared > 0 ? consumed / declared : 0,
       };
-    }),
+    })
   );
 
   return NextResponse.json(rows);

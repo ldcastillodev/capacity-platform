@@ -13,7 +13,7 @@ import {
   type SquadCapacityRow,
   type RoleCapacityRow,
 } from "@/lib/client";
-import { UtilizationBar } from "@/components/capacity/UtilizationBar";
+import { ConsumptionBar } from "@/components/capacity/ConsumptionBar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,7 +61,13 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   return groups;
 }
 
-function ColumnLabel({ children, align = "center" }: { children: React.ReactNode; align?: "left" | "center" }): React.ReactElement {
+function ColumnLabel({
+  children,
+  align = "center",
+}: {
+  children: React.ReactNode;
+  align?: "left" | "center";
+}): React.ReactElement {
   return (
     <TableHead
       className={`sticky top-0 z-10 bg-card text-xs uppercase tracking-wide text-muted-foreground ${align === "center" ? "text-center" : ""}`}
@@ -71,7 +77,13 @@ function ColumnLabel({ children, align = "center" }: { children: React.ReactNode
   );
 }
 
-function NumCell({ value, strong = false }: { value: number; strong?: boolean }): React.ReactElement {
+function NumCell({
+  value,
+  strong = false,
+}: {
+  value: number;
+  strong?: boolean;
+}): React.ReactElement {
   return (
     <TableCell className={`text-sm text-center tabular-nums ${strong ? "font-semibold" : ""}`}>
       {Number(value.toFixed(2)).toString()}
@@ -79,7 +91,17 @@ function NumCell({ value, strong = false }: { value: number; strong?: boolean })
   );
 }
 
-function SectionHeader({ icon, name, count, countLabel }: { icon: React.ReactNode; name: string; count: number; countLabel: string }): React.ReactElement {
+function SectionHeader({
+  icon,
+  name,
+  count,
+  countLabel,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  count: number;
+  countLabel: string;
+}): React.ReactElement {
   return (
     <div className="flex items-center gap-2 px-4 py-3 border-b">
       <span className="text-muted-foreground">{icon}</span>
@@ -120,7 +142,8 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
       {Array.from(groups.values()).map((squadRows) => {
         const { squad_id, squad_name } = squadRows[0];
         const members = squadRows.filter(
-          (r): r is SquadCapacityRow & { person_id: number; person_name: string } => r.person_id !== null
+          (r): r is SquadCapacityRow & { person_id: number; person_name: string } =>
+            r.person_id !== null
         );
         const totals = {
           capacity: members.reduce((s, m) => s + m.capacity_hours, 0),
@@ -139,7 +162,9 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
                 countLabel={members.length === 1 ? "member" : "members"}
               />
               {members.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">No members in this squad for this month.</p>
+                <p className="p-4 text-sm text-muted-foreground">
+                  No members in this squad for this month.
+                </p>
               ) : (
                 <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
                   <Table>
@@ -160,11 +185,19 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
                           <NumCell value={m.capacity_hours} />
                           <NumCell value={m.billable_hours} />
                           <TableCell className="min-w-[160px] w-[18%]">
-                            <UtilizationBar variant="billable" pct={pctOf(m.billable_hours, m.capacity_hours)} hasCapacity={m.capacity_hours > 0} />
+                            <ConsumptionBar
+                              variant="billable"
+                              pct={pctOf(m.billable_hours, m.capacity_hours)}
+                              hasCapacity={m.capacity_hours > 0}
+                            />
                           </TableCell>
                           <NumCell value={m.nonbillable_hours} />
                           <TableCell className="min-w-[160px] w-[18%]">
-                            <UtilizationBar variant="nonbillable" pct={pctOf(m.nonbillable_hours, m.capacity_hours)} hasCapacity={m.capacity_hours > 0} />
+                            <ConsumptionBar
+                              variant="nonbillable"
+                              pct={pctOf(m.nonbillable_hours, m.capacity_hours)}
+                              hasCapacity={m.capacity_hours > 0}
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -173,11 +206,19 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
                         <NumCell value={totals.capacity} strong />
                         <NumCell value={totals.billable} strong />
                         <TableCell className="min-w-[160px] w-[18%]">
-                          <UtilizationBar variant="billable" pct={totals.billablePct} hasCapacity={totals.capacity > 0} />
+                          <ConsumptionBar
+                            variant="billable"
+                            pct={totals.billablePct}
+                            hasCapacity={totals.capacity > 0}
+                          />
                         </TableCell>
                         <NumCell value={totals.nonbillable} strong />
                         <TableCell className="min-w-[160px] w-[18%]">
-                          <UtilizationBar variant="nonbillable" pct={totals.nonbillablePct} hasCapacity={totals.capacity > 0} />
+                          <ConsumptionBar
+                            variant="nonbillable"
+                            pct={totals.nonbillablePct}
+                            hasCapacity={totals.capacity > 0}
+                          />
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -241,11 +282,19 @@ function RoleSections({ rows }: { rows: RoleCapacityRow[] }): React.ReactElement
                         <NumCell value={r.declared_hours} />
                         <NumCell value={r.billable_hours} />
                         <TableCell className="min-w-[160px] w-[18%]">
-                          <UtilizationBar variant="billable" pct={pctOf(r.billable_hours, r.capacity_hours)} hasCapacity={r.capacity_hours > 0} />
+                          <ConsumptionBar
+                            variant="billable"
+                            pct={pctOf(r.billable_hours, r.capacity_hours)}
+                            hasCapacity={r.capacity_hours > 0}
+                          />
                         </TableCell>
                         <NumCell value={r.nonbillable_hours} />
                         <TableCell className="min-w-[160px] w-[18%]">
-                          <UtilizationBar variant="nonbillable" pct={pctOf(r.nonbillable_hours, r.capacity_hours)} hasCapacity={r.capacity_hours > 0} />
+                          <ConsumptionBar
+                            variant="nonbillable"
+                            pct={pctOf(r.nonbillable_hours, r.capacity_hours)}
+                            hasCapacity={r.capacity_hours > 0}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -255,11 +304,19 @@ function RoleSections({ rows }: { rows: RoleCapacityRow[] }): React.ReactElement
                       <NumCell value={totals.declared} strong />
                       <NumCell value={totals.billable} strong />
                       <TableCell className="min-w-[160px] w-[18%]">
-                        <UtilizationBar variant="billable" pct={totals.billablePct} hasCapacity={totals.capacity > 0} />
+                        <ConsumptionBar
+                          variant="billable"
+                          pct={totals.billablePct}
+                          hasCapacity={totals.capacity > 0}
+                        />
                       </TableCell>
                       <NumCell value={totals.nonbillable} strong />
                       <TableCell className="min-w-[160px] w-[18%]">
-                        <UtilizationBar variant="nonbillable" pct={totals.nonbillablePct} hasCapacity={totals.capacity > 0} />
+                        <ConsumptionBar
+                          variant="nonbillable"
+                          pct={totals.nonbillablePct}
+                          hasCapacity={totals.capacity > 0}
+                        />
                       </TableCell>
                     </TableRow>
                   </TableBody>
@@ -340,15 +397,25 @@ export default function CapacityPage(): React.ReactElement {
                       {persons.map((row) => (
                         <TableRow key={row.person_id}>
                           <TableCell className="text-sm font-medium">{row.person_name}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{row.squad_names}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {row.squad_names}
+                          </TableCell>
                           <NumCell value={row.capacity_hours} />
                           <NumCell value={row.billable_hours} />
                           <TableCell className="min-w-[160px] w-[18%]">
-                            <UtilizationBar variant="billable" pct={pctOf(row.billable_hours, row.capacity_hours)} hasCapacity={row.capacity_hours > 0} />
+                            <ConsumptionBar
+                              variant="billable"
+                              pct={pctOf(row.billable_hours, row.capacity_hours)}
+                              hasCapacity={row.capacity_hours > 0}
+                            />
                           </TableCell>
                           <NumCell value={row.nonbillable_hours} />
                           <TableCell className="min-w-[160px] w-[18%]">
-                            <UtilizationBar variant="nonbillable" pct={pctOf(row.nonbillable_hours, row.capacity_hours)} hasCapacity={row.capacity_hours > 0} />
+                            <ConsumptionBar
+                              variant="nonbillable"
+                              pct={pctOf(row.nonbillable_hours, row.capacity_hours)}
+                              hasCapacity={row.capacity_hours > 0}
+                            />
                           </TableCell>
                         </TableRow>
                       ))}

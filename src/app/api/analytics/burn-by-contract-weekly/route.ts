@@ -79,19 +79,19 @@ export async function GET(req: NextRequest) {
         const wDate = new Date(week_start + "T12:00:00Z");
         const daysElapsed = Math.min(
           Math.round((wDate.getTime() - monthDate.getTime()) / 86400000) + 7,
-          totalDaysUTC,
+          totalDaysUTC
         );
         const expected_cumulative = pool > 0 ? pool * (daysElapsed / totalDaysUTC) : 0;
         return { week_start, cumulative_hours: cumulative, expected_cumulative, pool_hours: pool };
       });
 
       const consumed = cumulative;
-      const utilization_pct = pool > 0 ? consumed / pool : 0;
+      const consumption_pct = pool > 0 ? consumed / pool : 0;
       // Pace-relative taxonomy (≠ overview health taxonomy by design):
       // critical = ahead of expected pace, watch = behind, safe = on pace ±10%.
       const elapsedDays = Math.min(
         Math.max(Math.ceil((Date.now() - monthDate.getTime()) / 86400000), 0),
-        totalDaysUTC,
+        totalDaysUTC
       );
       const expectedToDate = pool > 0 ? pool * (elapsedDays / totalDaysUTC) : 0;
       let alert_level: string;
@@ -111,11 +111,11 @@ export async function GET(req: NextRequest) {
         hour_type: contract.hourType,
         pool_hours: pool,
         consumed_hours: consumed,
-        utilization_pct,
+        consumption_pct,
         alert_level,
         weeks,
       };
-    }),
+    })
   );
 
   return NextResponse.json(rows.filter((r) => r.weeks.length > 0 || r.consumed_hours > 0));

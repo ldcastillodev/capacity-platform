@@ -1,11 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  fetchBurnByContract,
-  fetchDashboard,
-  type BurnByContractRow,
-} from "@/lib/client";
+import { fetchBurnByContract, fetchDashboard, type BurnByContractRow } from "@/lib/client";
 import type { ContractHealthStatus } from "@/lib/analytics/contract-status";
 import { StatCard } from "@/components/app/StatCard";
 import { MetricCardGrid } from "@/components/app/MetricCardGrid";
@@ -55,7 +51,12 @@ export default function DashboardPage() {
     (groupedContracts[row.status] ??= []).push(row);
   }
 
-  const displayLevels: ContractHealthStatus[] = ["critical", "watch", "underconsumption", "on_track"];
+  const displayLevels: ContractHealthStatus[] = [
+    "critical",
+    "watch",
+    "underconsumption",
+    "on_track",
+  ];
 
   return (
     <div>
@@ -67,7 +68,9 @@ export default function DashboardPage() {
 
       {isLoading && (
         <MetricCardGrid className="mb-8">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
         </MetricCardGrid>
       )}
 
@@ -80,15 +83,34 @@ export default function DashboardPage() {
       {!isLoading && data && (
         <>
           <MetricCardGrid className="mb-8">
-            <StatCard label="On Track"         value={groupedContracts.on_track?.length ?? 0} valueColor="var(--safe)" />
-            <StatCard label="Underconsumption" value={groupedContracts.underconsumption?.length ?? 0} valueColor="var(--warning)" />
-            <StatCard label="Watch"            value={groupedContracts.watch?.length ?? 0}    valueColor="var(--watch)" />
-            <StatCard label="Critical"         value={groupedContracts.critical?.length ?? 0} valueColor="var(--critical)" />
-            <StatCard label="Open Flags"       value={data.open_anomaly_flags}
-              valueColor={data.open_anomaly_flags > 0 ? "var(--warning)" : undefined} />
+            <StatCard
+              label="On Track"
+              value={groupedContracts.on_track?.length ?? 0}
+              valueColor="var(--safe)"
+            />
+            <StatCard
+              label="Underconsumption"
+              value={groupedContracts.underconsumption?.length ?? 0}
+              valueColor="var(--warning)"
+            />
+            <StatCard
+              label="Watch"
+              value={groupedContracts.watch?.length ?? 0}
+              valueColor="var(--watch)"
+            />
+            <StatCard
+              label="Critical"
+              value={groupedContracts.critical?.length ?? 0}
+              valueColor="var(--critical)"
+            />
+            <StatCard
+              label="Open Flags"
+              value={data.open_anomaly_flags}
+              valueColor={data.open_anomaly_flags > 0 ? "var(--warning)" : undefined}
+            />
             <StatCard label="Active Contracts" value={contractBurn?.length ?? 0} />
-            <StatCard label="Persons"          value={data.persons_count} />
-            <StatCard label="Squads"           value={data.squads_count} />
+            <StatCard label="Persons" value={data.persons_count} />
+            <StatCard label="Squads" value={data.squads_count} />
           </MetricCardGrid>
 
           {data.total_active_clients === 0 && (
@@ -118,34 +140,66 @@ export default function DashboardPage() {
                   const bg = LEVEL_BG[level];
                   const label = LEVEL_LABEL[level];
                   return (
-                    <div key={level} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${color}` }}>
-                      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b" style={{ background: bg, borderColor: color }}>
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                        <span className="font-bold text-sm" style={{ color }}>{label}</span>
-                        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full ml-1 text-white" style={{ background: color }}>{contracts.length}</span>
+                    <div
+                      key={level}
+                      className="rounded-xl overflow-hidden"
+                      style={{ border: `1px solid ${color}` }}
+                    >
+                      <div
+                        className="flex items-center gap-2.5 px-4 py-2.5 border-b"
+                        style={{ background: bg, borderColor: color }}
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ background: color }}
+                        />
+                        <span className="font-bold text-sm" style={{ color }}>
+                          {label}
+                        </span>
+                        <span
+                          className="text-xs font-bold px-1.5 py-0.5 rounded-full ml-1 text-white"
+                          style={{ background: color }}
+                        >
+                          {contracts.length}
+                        </span>
                       </div>
                       {contracts.map((row, i) => {
-                        const pct = row.utilization_pct * 100;
+                        const pct = row.consumption_pct * 100;
                         return (
                           <div
                             key={row.contract_id}
                             className="grid items-center gap-4 px-4 py-3"
                             style={{
                               gridTemplateColumns: "1fr auto",
-                              background: i % 2 === 0 ? "hsl(var(--card))" : "hsl(var(--background))",
-                              borderBottom: i < contracts.length - 1 ? `1px solid hsl(var(--border))` : "none",
+                              background:
+                                i % 2 === 0 ? "hsl(var(--card))" : "hsl(var(--background))",
+                              borderBottom:
+                                i < contracts.length - 1 ? `1px solid hsl(var(--border))` : "none",
                             }}
                           >
                             <div>
-                              <div className="font-semibold text-sm mb-0.5">{row.contract_name}</div>
+                              <div className="font-semibold text-sm mb-0.5">
+                                {row.contract_name}
+                              </div>
                               <div className="text-xs text-muted-foreground">{row.client_name}</div>
                             </div>
                             <div className="text-right flex-shrink-0">
-                              <div className="text-sm font-bold" style={{ color: pct > 110 ? "var(--critical)" : pct > 90 ? "var(--watch)" : undefined }}>
+                              <div
+                                className="text-sm font-bold"
+                                style={{
+                                  color:
+                                    pct > 110
+                                      ? "var(--critical)"
+                                      : pct > 90
+                                        ? "var(--watch)"
+                                        : undefined,
+                                }}
+                              >
                                 {row.consumed_hours.toFixed(0)}h / {row.pool_hours.toFixed(0)}h
                               </div>
                               <div className="text-xs text-muted-foreground mt-0.5">
-                                {pct.toFixed(1)}% utilization{row.hour_type === "total" ? " · lifetime" : ""}
+                                {pct.toFixed(1)}% consumption
+                                {row.hour_type === "total" ? " · lifetime" : ""}
                               </div>
                             </div>
                           </div>

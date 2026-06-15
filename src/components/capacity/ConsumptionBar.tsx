@@ -17,7 +17,7 @@ function barColor(pct: number, variant: BarVariant): string {
   return "var(--safe)";
 }
 
-export function UtilizationBar({
+export function ConsumptionBar({
   pct,
   variant,
   hasCapacity = true,

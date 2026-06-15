@@ -10,11 +10,16 @@ export const api = axios.create({
 
 export type RoleType =
   | "dev"
-  | "qa" | "devops"
-  | "data" | "tl" 
-  | "product" | "project"
-  | "seo" | "content" |
-   "sre" | "design";
+  | "qa"
+  | "devops"
+  | "data"
+  | "tl"
+  | "product"
+  | "project"
+  | "seo"
+  | "content"
+  | "sre"
+  | "design";
 
 export interface Client {
   id: number;
@@ -153,20 +158,21 @@ function norm<T>(data: T): T {
   return data;
 }
 
-export const fetchClients = () =>
-  api.get<Client[]>("/clients").then((r) => norm(r.data));
+export const fetchClients = () => api.get<Client[]>("/clients").then((r) => norm(r.data));
 
-export const fetchSquads = () =>
-  api.get<Squad[]>("/squads").then((r) => norm(r.data));
+export const fetchSquads = () => api.get<Squad[]>("/squads").then((r) => norm(r.data));
 
-export const fetchPeople = () =>
-  api.get<Person[]>("/people").then((r) => norm(r.data));
+export const fetchPeople = () => api.get<Person[]>("/people").then((r) => norm(r.data));
 
 export const fetchNonBillableSummary = (params?: { month?: string; squad_id?: number }) =>
-  api.get<NonBillableSummary[]>("/analytics/nonbillable-summary", { params }).then((r) => norm(r.data));
+  api
+    .get<NonBillableSummary[]>("/analytics/nonbillable-summary", { params })
+    .then((r) => norm(r.data));
 
 export const fetchNonBillableEntries = (person_id: number, month: string) =>
-  api.get<NbEntryGroup[]>("/analytics/nonbillable-entries", { params: { person_id, month } }).then((r) => r.data);
+  api
+    .get<NbEntryGroup[]>("/analytics/nonbillable-entries", { params: { person_id, month } })
+    .then((r) => r.data);
 
 export const fetchSuggestions = (params?: { month?: string; status?: string }) =>
   api.get<EnhancementSuggestion[]>("/analytics/suggestions", { params }).then((r) => norm(r.data));
@@ -178,8 +184,7 @@ export const runSimulation = (body: {
   squadId: number;
   requiredHours: number;
   roles: { roleType: string; hours: number }[];
-}) =>
-  api.post<SimulationResult>("/analytics/simulate", body).then((r) => r.data);
+}) => api.post<SimulationResult>("/analytics/simulate", body).then((r) => r.data);
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
@@ -206,7 +211,7 @@ export interface BurnByContractRow {
   hour_type: "monthly" | "total";
   consumed_hours: number;
   pool_hours: number;
-  utilization_pct: number;
+  consumption_pct: number;
   expected_pct: number | null;
   status: ContractHealthStatus;
 }
@@ -224,11 +229,13 @@ export interface ConsumptionByContractRow {
   prior_consumed_hours: number | null;
   consumed_hours: number;
   remaining_hours: number;
-  utilization_pct: number;
+  consumption_pct: number;
 }
 
 export const fetchConsumptionByContract = (params?: { month?: string }) =>
-  api.get<ConsumptionByContractRow[]>("/analytics/consumption-by-contract", { params }).then((r) => r.data);
+  api
+    .get<ConsumptionByContractRow[]>("/analytics/consumption-by-contract", { params })
+    .then((r) => r.data);
 
 export interface NbByClientRow {
   client_id: number;
@@ -306,13 +313,20 @@ export interface BurnByContractWeeklyRow {
   hour_type: "monthly" | "total";
   pool_hours: number;
   consumed_hours: number;
-  utilization_pct: number;
+  consumption_pct: number;
   alert_level: string;
-  weeks: Array<{ week_start: string; cumulative_hours: number; expected_cumulative: number; pool_hours: number }>;
+  weeks: Array<{
+    week_start: string;
+    cumulative_hours: number;
+    expected_cumulative: number;
+    pool_hours: number;
+  }>;
 }
 
 export const fetchBurnByContractWeekly = (params?: { month?: string }) =>
-  api.get<BurnByContractWeeklyRow[]>("/analytics/burn-by-contract-weekly", { params }).then((r) => r.data);
+  api
+    .get<BurnByContractWeeklyRow[]>("/analytics/burn-by-contract-weekly", { params })
+    .then((r) => r.data);
 
 // ─── Anomaly flags ────────────────────────────────────────────────────────────
 

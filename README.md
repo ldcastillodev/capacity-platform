@@ -4,30 +4,30 @@ Squad capacity planning and delivery tracking. Tracks staffing gaps, retainer bu
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 15.5 (App Router, TypeScript strict) |
-| ORM | Prisma 5 → PostgreSQL 16 |
-| Data fetching | TanStack Query v5 |
-| Styling | CSS variables (no Tailwind) |
-| Charts | Recharts |
-| Deployment | Firebase App Hosting + Cloud SQL |
+| Layer         | Technology                                   |
+| ------------- | -------------------------------------------- |
+| Framework     | Next.js 15.5 (App Router, TypeScript strict) |
+| ORM           | Prisma 5 → PostgreSQL 16                     |
+| Data fetching | TanStack Query v5                            |
+| Styling       | CSS variables (no Tailwind)                  |
+| Charts        | Recharts                                     |
+| Deployment    | Firebase App Hosting + Cloud SQL             |
 
 ## Pages
 
-| Route | Description |
-|---|---|
-| `/` | Overview dashboard — active clients, alert counts, gross margin, burn status breakdown |
-| `/burn` | Weekly burn rate per client — cumulative vs expected pace, pool exhaustion projection |
-| `/nonbillable` | NB hour summaries and enhancement suggestions |
-| `/consumption` | Client retainer burn and T&E declarations |
-| `/capacity` | Squad staffing gaps and commitment ratios |
-| `/declarations` | Monthly role declarations — review, edit hours, confirm derived entries |
-| `/flags` | Anomaly flags — review and resolve open alerts |
-| `/simulator` | Model staffing changes and forecast impact |
-| `/reports` | Configurable hour-consumption reports for clients, persons, and squads |
-| `/management` | CRUD for squads, persons, clients, and Jira component mappings |
-| `/sync` | Manually trigger Jira data sync and analytics refresh |
+| Route           | Description                                                                            |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `/`             | Overview dashboard — active clients, alert counts, gross margin, burn status breakdown |
+| `/burn`         | Weekly burn rate per client — cumulative vs expected pace, pool exhaustion projection  |
+| `/nonbillable`  | NB hour summaries and enhancement suggestions                                          |
+| `/consumption`  | Client retainer burn and T&E declarations                                              |
+| `/capacity`     | Squad staffing gaps and commitment ratios                                              |
+| `/declarations` | Monthly role declarations — review, edit hours, confirm derived entries                |
+| `/flags`        | Anomaly flags — review and resolve open alerts                                         |
+| `/simulator`    | Model staffing changes and forecast impact                                             |
+| `/reports`      | Configurable hour-consumption reports for clients, persons, and squads                 |
+| `/management`   | CRUD for squads, persons, clients, and Jira component mappings                         |
+| `/sync`         | Manually trigger Jira data sync and analytics refresh                                  |
 
 ## Reports tab
 
@@ -37,25 +37,25 @@ Squad capacity planning and delivery tracking. Tracks staffing gaps, retainer bu
 
 **Clients** — powered by `MonthlyConsumptionSummary`. One row per client × month × role type (or "All roles" when no role filter is active).
 
-| Column | Source |
-|---|---|
-| Declared h | `declaredHours` |
-| Consumed h | `consumedHours` (billable) |
-| Retainer / T&E / CO / SME h | budget-source breakdown |
-| Remaining h | `remainingHours` |
-| NB (Ceremony) h | `CeremonyAttribution.attributedHours` summed per client × month |
-| Utilization % | `utilizationPct` |
-| Billed Rev / Direct Cost / Gross Margin | financial fields (may be null if not computed) |
+| Column                                  | Source                                                          |
+| --------------------------------------- | --------------------------------------------------------------- |
+| Declared h                              | `declaredHours`                                                 |
+| Consumed h                              | `consumedHours` (billable)                                      |
+| Retainer / T&E / CO / SME h             | budget-source breakdown                                         |
+| Remaining h                             | `remainingHours`                                                |
+| NB (Ceremony) h                         | `CeremonyAttribution.attributedHours` summed per client × month |
+| Consumption %                           | `consumptionPct`                                                |
+| Billed Rev / Direct Cost / Gross Margin | financial fields (may be null if not computed)                  |
 
 **Persons** — aggregated from `HourRecord` (billable) and `MonthlyNonBillableSummary` (NB + capacity). One row per person × squad × month. A person in two squads appears twice.
 
-| Column | Source |
-|---|---|
-| Capacity h | `MonthlyNonBillableSummary.capacityHours` (null-category row) |
-| Billable h | `SUM(HourRecord.hours)` for that person × month |
-| NB h | `MonthlyNonBillableSummary.totalHours` |
-| NB % | `MonthlyNonBillableSummary.nonbillablePct` |
-| Utilization | Billable h / Capacity h |
+| Column      | Source                                                        |
+| ----------- | ------------------------------------------------------------- |
+| Capacity h  | `MonthlyNonBillableSummary.capacityHours` (null-category row) |
+| Billable h  | `SUM(HourRecord.hours)` for that person × month               |
+| NB h        | `MonthlyNonBillableSummary.totalHours`                        |
+| NB %        | `MonthlyNonBillableSummary.nonbillablePct`                    |
+| Consumption | Billable h / Capacity h                                       |
 
 **Squads** — aggregated from `HourRecord` and `NonBillableEntry` via `SquadMembership`. One row per squad × month. Capacity is computed as `SUM(weeklyCapacityHours × workingDaysInMonth / 5)` for active members. Filtering by role type affects billable hours only (NB entries have no role).
 
@@ -63,13 +63,13 @@ Squad capacity planning and delivery tracking. Tracks staffing gaps, retainer bu
 
 Open with **Filters & Columns**. Changes are local to the panel until Apply is clicked — the report does not re-run on every keystroke.
 
-| Filter | Available on |
-|---|---|
-| Date range (from / to, month precision, inclusive) | All tabs |
-| Client | Clients tab |
-| Role type | Clients tab, Squads tab |
-| Squad | Persons tab, Squads tab |
-| Employment type | Persons tab |
+| Filter                                             | Available on            |
+| -------------------------------------------------- | ----------------------- |
+| Date range (from / to, month precision, inclusive) | All tabs                |
+| Client                                             | Clients tab             |
+| Role type                                          | Clients tab, Squads tab |
+| Squad                                              | Persons tab, Squads tab |
+| Employment type                                    | Persons tab             |
 
 ### Column visibility
 
@@ -83,11 +83,11 @@ Filename format: `report-{clients|persons|squads}-{from}-{to}.xlsx`
 
 ### API routes
 
-| Route | Params |
-|---|---|
-| `GET /api/reports/clients` | `from`, `to`, `clientId`, `roleType`, `page`, `pageSize` |
+| Route                      | Params                                                        |
+| -------------------------- | ------------------------------------------------------------- |
+| `GET /api/reports/clients` | `from`, `to`, `clientId`, `roleType`, `page`, `pageSize`      |
 | `GET /api/reports/persons` | `from`, `to`, `squadId`, `employmentType`, `page`, `pageSize` |
-| `GET /api/reports/squads` | `from`, `to`, `squadId`, `roleType`, `page`, `pageSize` |
+| `GET /api/reports/squads`  | `from`, `to`, `squadId`, `roleType`, `page`, `pageSize`       |
 
 All routes return `{ data, total, page, pageSize, totalPages }`. Persons and squads use raw SQL (`prisma.$queryRaw`) for the aggregation; clients use the Prisma ORM.
 
@@ -175,7 +175,7 @@ Three sub-tabs:
 
 Six read-only sub-tabs showing computed analytics data:
 
-**Consumption** — `MonthlyConsumptionSummary` rows: client × month × role type, declared/consumed/remaining hours, utilization %.
+**Consumption** — `MonthlyConsumptionSummary` rows: client × month × role type, declared/consumed/remaining hours, consumption %.
 
 **Burn** — `BurnSnapshot` rows: client × week, cumulative vs expected burn, burn-rate ratio, projected end-of-month hours, alert level.
 
@@ -193,15 +193,15 @@ Six read-only sub-tabs showing computed analytics data:
 
 Seven read-only sub-tabs showing append-only history ledgers:
 
-| Sub-tab | Ledger | Searchable by |
-|---|---|---|
-| Declarations | `MonthlyRoleDeclarationHistory` | Declaration ID |
-| Contract Amendments | `ContractHistory` | Contract ID |
-| Extensions | `ContractExtensionHistory` | Extension ID |
-| Change Orders | (change-order history) | Change order ID |
-| Line Items | (line-item history) | Line item ID |
-| SME Engagements | (SME history) | Engagement ID |
-| Sync Logs | `SyncLog` | Source |
+| Sub-tab             | Ledger                          | Searchable by   |
+| ------------------- | ------------------------------- | --------------- |
+| Declarations        | `MonthlyRoleDeclarationHistory` | Declaration ID  |
+| Contract Amendments | `ContractHistory`               | Contract ID     |
+| Extensions          | `ContractExtensionHistory`      | Extension ID    |
+| Change Orders       | (change-order history)          | Change order ID |
+| Line Items          | (line-item history)             | Line item ID    |
+| SME Engagements     | (SME history)                   | Engagement ID   |
+| Sync Logs           | `SyncLog`                       | Source          |
 
 Each ledger row stores a full snapshot of the parent record at the time of change plus `changedAt` and `changedBy`.
 
@@ -244,13 +244,13 @@ Status refreshes automatically after each triggered sync. `SyncLog` rows now per
 
 `HourRecord` carries five denormalized snapshot columns that are written once at insert time and never updated:
 
-| Column | Type | Purpose |
-|---|---|---|
-| `billingRateSnapshot` | `Decimal?` | Billing rate in effect when the record was synced |
-| `costRateSnapshot` | `Decimal?` | Cost rate in effect when the record was synced |
-| `currencySnapshot` | `Currency?` | Currency in effect at sync time |
-| `billedAmountSnapshot` | `Decimal?` | `hours × billingRateSnapshot` |
-| `costAmountSnapshot` | `Decimal?` | `hours × costRateSnapshot` |
+| Column                 | Type        | Purpose                                           |
+| ---------------------- | ----------- | ------------------------------------------------- |
+| `billingRateSnapshot`  | `Decimal?`  | Billing rate in effect when the record was synced |
+| `costRateSnapshot`     | `Decimal?`  | Cost rate in effect when the record was synced    |
+| `currencySnapshot`     | `Currency?` | Currency in effect at sync time                   |
+| `billedAmountSnapshot` | `Decimal?`  | `hours × billingRateSnapshot`                     |
+| `costAmountSnapshot`   | `Decimal?`  | `hours × costRateSnapshot`                        |
 
 `MonthlyConsumptionSummary` refresh reads from these snapshots instead of resolving live rates. This means financial reports remain stable even if billing rates change retroactively.
 
@@ -260,11 +260,11 @@ Status refreshes automatically after each triggered sync. `SyncLog` rows now per
 
 `StaffingGapSnapshot` captures three at-calculation-time columns alongside the existing gap figures:
 
-| Column | Purpose |
-|---|---|
+| Column                | Purpose                                                            |
+| --------------------- | ------------------------------------------------------------------ |
 | `capacityHoursAtTime` | Total squad capacity (hours) at the time the snapshot was computed |
-| `hardBufferPctAtTime` | Hard buffer % in effect at computation time |
-| `softBufferPctAtTime` | Soft buffer % in effect at computation time |
+| `hardBufferPctAtTime` | Hard buffer % in effect at computation time                        |
+| `softBufferPctAtTime` | Soft buffer % in effect at computation time                        |
 
 ### Audit ledgers
 
@@ -390,11 +390,11 @@ npx prisma db seed
 
 Cron routes live under `/api/admin/jobs/`. No auth header is required — use the `/sync` page for manual triggering or restrict network access at the infrastructure level.
 
-| Route | Method | Body | Purpose |
-|---|---|---|---|
-| `/api/admin/jobs/sync` | `POST` | `{ source?: "jira_na"\|"all", date_from?: string, date_to?: string }` | Pulls data from Jira. Defaults: source=`all`, last 30 days. Always runs in `full` mode. |
-| `/api/admin/jobs/sync` | `GET` | — | Returns the latest `SyncLog` entry per source. |
-| `/api/admin/jobs/analytics-refresh` | `POST` | `{ months?: string[] }` | Recomputes analytics for the given months (ISO date strings, first of month). Defaults to current + prior month. |
+| Route                               | Method | Body                                                                  | Purpose                                                                                                          |
+| ----------------------------------- | ------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `/api/admin/jobs/sync`              | `POST` | `{ source?: "jira_na"\|"all", date_from?: string, date_to?: string }` | Pulls data from Jira. Defaults: source=`all`, last 30 days. Always runs in `full` mode.                          |
+| `/api/admin/jobs/sync`              | `GET`  | —                                                                     | Returns the latest `SyncLog` entry per source.                                                                   |
+| `/api/admin/jobs/analytics-refresh` | `POST` | `{ months?: string[] }`                                               | Recomputes analytics for the given months (ISO date strings, first of month). Defaults to current + prior month. |
 
 Example:
 

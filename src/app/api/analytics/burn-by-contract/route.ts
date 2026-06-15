@@ -72,11 +72,11 @@ export async function GET(req: NextRequest) {
         hour_type: contract.hourType,
         consumed_hours: consumed,
         pool_hours: pool,
-        utilization_pct: pool > 0 ? consumed / pool : 0,
+        consumption_pct: pool > 0 ? consumed / pool : 0,
         expected_pct: expectedPct,
         status: classifyContractStatus({ consumedHours: consumed, poolHours: pool, expectedPct }),
       };
-    }),
+    })
   );
 
   return NextResponse.json(rows);
