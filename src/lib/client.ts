@@ -280,18 +280,6 @@ export interface SquadCapacityRow {
 export const fetchSquadCapacity = (params?: { month?: string }) =>
   api.get<SquadCapacityRow[]>("/analytics/squad-capacity", { params }).then((r) => r.data);
 
-export interface PersonCapacityRow {
-  person_id: number;
-  person_name: string;
-  squad_names: string;
-  capacity_hours: number;
-  billable_hours: number;
-  nonbillable_hours: number;
-}
-
-export const fetchPersonCapacity = (params?: { month?: string; squad_id?: number }) =>
-  api.get<PersonCapacityRow[]>("/analytics/person-capacity", { params }).then((r) => r.data);
-
 export interface RoleCapacityRow {
   squad_id: number;
   squad_name: string;

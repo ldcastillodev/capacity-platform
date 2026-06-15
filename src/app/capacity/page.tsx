@@ -8,7 +8,6 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
 import {
   fetchSquadCapacity,
-  fetchPersonCapacity,
   fetchRoleCapacity,
   type SquadCapacityRow,
   type RoleCapacityRow,
@@ -86,6 +85,27 @@ function NumCell({
 }): React.ReactElement {
   return (
     <TableCell className={`text-sm text-center tabular-nums ${strong ? "font-semibold" : ""}`}>
+      {Number(value.toFixed(2)).toString()}
+    </TableCell>
+  );
+}
+
+function availableHours(capacity: number, billable: number, nonbillable: number): number {
+  return capacity - billable - nonbillable;
+}
+
+function AvailableCell({
+  value,
+  strong = false,
+}: {
+  value: number;
+  strong?: boolean;
+}): React.ReactElement {
+  return (
+    <TableCell
+      className={`text-sm text-center tabular-nums ${strong ? "font-semibold" : ""}`}
+      style={value < 0 ? { color: "var(--critical)" } : undefined}
+    >
       {Number(value.toFixed(2)).toString()}
     </TableCell>
   );
@@ -176,6 +196,7 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
                         <ColumnLabel>% Billable</ColumnLabel>
                         <ColumnLabel>Non-Billable (h)</ColumnLabel>
                         <ColumnLabel>% Non-Billable</ColumnLabel>
+                        <ColumnLabel>Available (h)</ColumnLabel>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -199,6 +220,13 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
                               hasCapacity={m.capacity_hours > 0}
                             />
                           </TableCell>
+                          <AvailableCell
+                            value={availableHours(
+                              m.capacity_hours,
+                              m.billable_hours,
+                              m.nonbillable_hours
+                            )}
+                          />
                         </TableRow>
                       ))}
                       <TableRow className="bg-muted/50 hover:bg-muted/50 font-semibold">
@@ -220,6 +248,14 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
                             hasCapacity={totals.capacity > 0}
                           />
                         </TableCell>
+                        <AvailableCell
+                          value={availableHours(
+                            totals.capacity,
+                            totals.billable,
+                            totals.nonbillable
+                          )}
+                          strong
+                        />
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -270,6 +306,7 @@ function RoleSections({ rows }: { rows: RoleCapacityRow[] }): React.ReactElement
                       <ColumnLabel>% Billable</ColumnLabel>
                       <ColumnLabel>Non-Billable (h)</ColumnLabel>
                       <ColumnLabel>% Non-Billable</ColumnLabel>
+                      <ColumnLabel>Available (h)</ColumnLabel>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -296,6 +333,13 @@ function RoleSections({ rows }: { rows: RoleCapacityRow[] }): React.ReactElement
                             hasCapacity={r.capacity_hours > 0}
                           />
                         </TableCell>
+                        <AvailableCell
+                          value={availableHours(
+                            r.capacity_hours,
+                            r.billable_hours,
+                            r.nonbillable_hours
+                          )}
+                        />
                       </TableRow>
                     ))}
                     <TableRow className="bg-muted/50 hover:bg-muted/50 font-semibold">
@@ -318,6 +362,10 @@ function RoleSections({ rows }: { rows: RoleCapacityRow[] }): React.ReactElement
                           hasCapacity={totals.capacity > 0}
                         />
                       </TableCell>
+                      <AvailableCell
+                        value={availableHours(totals.capacity, totals.billable, totals.nonbillable)}
+                        strong
+                      />
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -338,11 +386,6 @@ export default function CapacityPage(): React.ReactElement {
     queryFn: () => fetchSquadCapacity({ month }),
   });
 
-  const { data: persons = [], isLoading: personsLoading } = useQuery({
-    queryKey: ["person-capacity", month],
-    queryFn: () => fetchPersonCapacity({ month }),
-  });
-
   const { data: roleRows = [], isLoading: rolesLoading } = useQuery({
     queryKey: ["role-capacity", month],
     queryFn: () => fetchRoleCapacity({ month }),
@@ -358,7 +401,6 @@ export default function CapacityPage(): React.ReactElement {
       <Tabs defaultValue="squads">
         <TabsList className="mb-5">
           <TabsTrigger value="squads">By Squad</TabsTrigger>
-          <TabsTrigger value="persons">By Person</TabsTrigger>
           <TabsTrigger value="roles">By Role</TabsTrigger>
         </TabsList>
 
@@ -369,61 +411,6 @@ export default function CapacityPage(): React.ReactElement {
             <EmptyCard message="No active squads." />
           ) : (
             <SquadSections rows={squadRows} />
-          )}
-        </TabsContent>
-
-        <TabsContent value="persons">
-          {personsLoading ? (
-            <LoadingCard />
-          ) : persons.length === 0 ? (
-            <EmptyCard message="No active persons." />
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <ColumnLabel align="left">Person</ColumnLabel>
-                        <ColumnLabel align="left">Squad(s)</ColumnLabel>
-                        <ColumnLabel>Capacity (h)</ColumnLabel>
-                        <ColumnLabel>Consumed Billable (h)</ColumnLabel>
-                        <ColumnLabel>% Billable</ColumnLabel>
-                        <ColumnLabel>Non-Billable (h)</ColumnLabel>
-                        <ColumnLabel>% Non-Billable</ColumnLabel>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {persons.map((row) => (
-                        <TableRow key={row.person_id}>
-                          <TableCell className="text-sm font-medium">{row.person_name}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {row.squad_names}
-                          </TableCell>
-                          <NumCell value={row.capacity_hours} />
-                          <NumCell value={row.billable_hours} />
-                          <TableCell className="min-w-[160px] w-[18%]">
-                            <ConsumptionBar
-                              variant="billable"
-                              pct={pctOf(row.billable_hours, row.capacity_hours)}
-                              hasCapacity={row.capacity_hours > 0}
-                            />
-                          </TableCell>
-                          <NumCell value={row.nonbillable_hours} />
-                          <TableCell className="min-w-[160px] w-[18%]">
-                            <ConsumptionBar
-                              variant="nonbillable"
-                              pct={pctOf(row.nonbillable_hours, row.capacity_hours)}
-                              hasCapacity={row.capacity_hours > 0}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
           )}
         </TabsContent>
 
