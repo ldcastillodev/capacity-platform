@@ -12,28 +12,44 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 
-function errMsg(e: unknown) { return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e); }
+function errMsg(e: unknown) {
+  return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e);
+}
 
-const NB_TYPES = ["shared_ceremony","leave","internal_meeting","training","company"];
+const NB_TYPES = ["shared_ceremony", "leave", "internal_meeting", "training", "company"];
 
 interface NbCategoryRow {
-  id: number; name: string; type: string; description: string | null; isActive: boolean;
-  deactivatedAt: string | null; _count: { entries: number; sourceMappings: number };
+  id: number;
+  name: string;
+  type: string;
+  description: string | null;
+  isActive: boolean;
+  deactivatedAt: string | null;
+  _count: { entries: number; sourceMappings: number };
 }
 interface SourceMappingRow {
-  id: number; categoryId: number; source: string; identifierType: string; identifierValue: string;
+  id: number;
+  categoryId: number;
+  source: string;
+  identifierType: string;
+  identifierValue: string;
   category: { id: number; name: string };
-}
-interface EntryRow {
-  id: number; personId: number; categoryId: number; month: string; hours: string; source: string;
-  person: { id: number; name: string }; category: { id: number; name: string };
 }
 
 function CategoriesSection() {
@@ -47,29 +63,71 @@ function CategoriesSection() {
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["mgmt-nb-categories", showArchived],
-    queryFn: () => api.get<NbCategoryRow[]>(`/management/nonbillable-categories?includeArchived=${showArchived}`).then(r => r.data),
+    queryFn: () =>
+      api
+        .get<NbCategoryRow[]>(`/management/nonbillable-categories?includeArchived=${showArchived}`)
+        .then((r) => r.data),
   });
 
   const createMutation = useMutation({
-    mutationFn: (f: typeof form) => api.post("/management/nonbillable-categories", { name: f.name, type: f.type, description: f.description || undefined }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-nb-categories"] }); closeModal(); },
+    mutationFn: (f: typeof form) =>
+      api
+        .post("/management/nonbillable-categories", {
+          name: f.name,
+          type: f.type,
+          description: f.description || undefined,
+        })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mgmt-nb-categories"] });
+      closeModal();
+    },
     onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, f }: { id: number; f: typeof form }) => api.patch(`/management/nonbillable-categories/${id}`, { name: f.name, type: f.type, description: f.description || undefined }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-nb-categories"] }); closeModal(); },
+    mutationFn: ({ id, f }: { id: number; f: typeof form }) =>
+      api
+        .patch(`/management/nonbillable-categories/${id}`, {
+          name: f.name,
+          type: f.type,
+          description: f.description || undefined,
+        })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mgmt-nb-categories"] });
+      closeModal();
+    },
     onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const archiveMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/management/nonbillable-categories/${id}/archive`).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-nb-categories"] }); setArchiveId(null); },
+    mutationFn: (id: number) =>
+      api.post(`/management/nonbillable-categories/${id}/archive`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mgmt-nb-categories"] });
+      setArchiveId(null);
+    },
   });
 
-  function openCreate() { setForm({ name: "", type: "internal_ceremony", description: "" }); setEditing(null); setApiError(null); setModalMode("create"); }
-  function openEdit(row: NbCategoryRow) { setForm({ name: row.name, type: row.type, description: row.description ?? "" }); setEditing(row); setApiError(null); setModalMode("edit"); }
-  function closeModal() { setModalMode(null); setEditing(null); setApiError(null); }
+  function openCreate() {
+    setForm({ name: "", type: "internal_ceremony", description: "" });
+    setEditing(null);
+    setApiError(null);
+    setModalMode("create");
+  }
+  function openEdit(row: NbCategoryRow) {
+    setForm({ name: row.name, type: row.type, description: row.description ?? "" });
+    setEditing(row);
+    setApiError(null);
+    setModalMode("edit");
+  }
+  function closeModal() {
+    setModalMode(null);
+    setEditing(null);
+    setApiError(null);
+  }
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setApiError(null);
+    e.preventDefault();
+    setApiError(null);
     if (modalMode === "create") createMutation.mutate(form);
     else if (editing) updateMutation.mutate({ id: editing.id, f: form });
   }
@@ -81,84 +139,141 @@ function CategoriesSection() {
         <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)}>
           {showArchived ? "Hide Archived" : "Show Archived"}
         </Button>
-        <Button size="sm" onClick={openCreate}>+ Add Category</Button>
+        <Button size="sm" onClick={openCreate}>
+          + Add Category
+        </Button>
       </div>
 
       <Card>
         <CardContent className="p-0">
-          {isLoading
-            ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
-            : rows.length === 0
-              ? <p className="p-6 text-sm text-muted-foreground">No categories found.</p>
-              : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Description</TableHead>
-                        <TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Mappings</TableHead>
-                        <TableHead className="text-center">Status</TableHead><TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map((row) => (
-                        <TableRow key={row.id} className={!row.isActive ? "opacity-60" : undefined}>
-                          <TableCell className="font-medium text-sm">{row.name}</TableCell>
-                          <TableCell className="text-sm">{row.type.replace(/_/g, " ")}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{row.description ?? "—"}</TableCell>
-                          <TableCell className="text-sm text-right">{row._count.entries}</TableCell>
-                          <TableCell className="text-sm text-right">{row._count.sourceMappings}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className={row.isActive ? "bg-[var(--safe-bg)] text-[var(--safe)] border-0" : "bg-muted text-muted-foreground border-0"}>
-                              {row.isActive ? "Active" : "Archived"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {row.isActive && (
-                              <div className="flex gap-2 justify-end">
-                                <Button size="sm" variant="outline" onClick={() => openEdit(row)}>Edit</Button>
-                                <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setArchiveId(row.id)}>Archive</Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )
-          }
+          {isLoading ? (
+            <div className="p-6 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">No categories found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Entries</TableHead>
+                    <TableHead className="text-right">Mappings</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => (
+                    <TableRow key={row.id} className={!row.isActive ? "opacity-60" : undefined}>
+                      <TableCell className="font-medium text-sm">{row.name}</TableCell>
+                      <TableCell className="text-sm">{row.type.replace(/_/g, " ")}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {row.description ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-right">{row._count.entries}</TableCell>
+                      <TableCell className="text-sm text-right">
+                        {row._count.sourceMappings}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant="outline"
+                          className={
+                            row.isActive
+                              ? "bg-[var(--safe-bg)] text-[var(--safe)] border-0"
+                              : "bg-muted text-muted-foreground border-0"
+                          }
+                        >
+                          {row.isActive ? "Active" : "Archived"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.isActive && (
+                          <div className="flex gap-2 justify-end">
+                            <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-destructive text-destructive hover:bg-destructive/10"
+                              onClick={() => setArchiveId(row.id)}
+                            >
+                              Archive
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <ManagementModal isOpen={modalMode !== null} onClose={closeModal} title={modalMode === "create" ? "Add Category" : `Edit Category — ${editing?.name}`}>
+      <ManagementModal
+        isOpen={modalMode !== null}
+        onClose={closeModal}
+        title={modalMode === "create" ? "Add Category" : `Edit Category — ${editing?.name}`}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           {apiError && <p className="text-sm text-destructive">{apiError}</p>}
           <div className="space-y-1.5">
             <Label>Name *</Label>
-            <Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Category name" />
+            <Input
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Category name"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Type *</Label>
-            <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{NB_TYPES.map(t => <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+            <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NB_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>
-            <Input type="text" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional" />
+            <Input
+              type="text"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Optional"
+            />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
-            <Button type="submit" disabled={isPending}>{isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}</Button>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving…" : modalMode === "create" ? "Create" : "Save"}
+            </Button>
           </div>
         </form>
       </ManagementModal>
 
       <ConfirmDialog
         open={archiveId !== null}
-        onOpenChange={v => { if (!v) setArchiveId(null); }}
+        onOpenChange={(v) => {
+          if (!v) setArchiveId(null);
+        }}
         title="Archive category?"
         description="This will hide it from future entries."
         confirmLabel="Archive"
@@ -172,70 +287,121 @@ function CategoriesSection() {
 function SourceMappingsSection() {
   const qc = useQueryClient();
   const [modalMode, setModalMode] = useState<"create" | null>(null);
-  const [form, setForm] = useState({ category_id: "", source: "", identifier_type: "", identifier_value: "" });
+  const [form, setForm] = useState({
+    category_id: "",
+    source: "",
+    identifier_type: "",
+    identifier_value: "",
+  });
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["mgmt-nb-source-mappings"],
-    queryFn: () => api.get<SourceMappingRow[]>("/management/nonbillable-source-mappings").then(r => r.data),
+    queryFn: () =>
+      api.get<SourceMappingRow[]>("/management/nonbillable-source-mappings").then((r) => r.data),
   });
   const { data: categories = [] } = useQuery({
     queryKey: ["mgmt-nb-categories"],
-    queryFn: () => api.get<NbCategoryRow[]>("/management/nonbillable-categories").then(r => r.data),
+    queryFn: () =>
+      api.get<NbCategoryRow[]>("/management/nonbillable-categories").then((r) => r.data),
   });
 
   const createMutation = useMutation({
-    mutationFn: (f: typeof form) => api.post("/management/nonbillable-source-mappings", { category_id: Number(f.category_id), source: f.source, identifier_type: f.identifier_type, identifier_value: f.identifier_value }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-nb-source-mappings"] }); closeModal(); },
+    mutationFn: (f: typeof form) =>
+      api
+        .post("/management/nonbillable-source-mappings", {
+          category_id: Number(f.category_id),
+          source: f.source,
+          identifier_type: f.identifier_type,
+          identifier_value: f.identifier_value,
+        })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mgmt-nb-source-mappings"] });
+      closeModal();
+    },
     onError: (e: unknown) => setApiError(errMsg(e)),
   });
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/management/nonbillable-source-mappings/${id}`).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mgmt-nb-source-mappings"] }); setDeleteId(null); },
+    mutationFn: (id: number) =>
+      api.delete(`/management/nonbillable-source-mappings/${id}`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mgmt-nb-source-mappings"] });
+      setDeleteId(null);
+    },
   });
 
-  function openCreate() { setForm({ category_id: "", source: "", identifier_type: "", identifier_value: "" }); setApiError(null); setModalMode("create"); }
-  function closeModal() { setModalMode(null); setApiError(null); }
-  function handleSubmit(e: React.FormEvent) { e.preventDefault(); setApiError(null); createMutation.mutate(form); }
+  function openCreate() {
+    setForm({ category_id: "", source: "", identifier_type: "", identifier_value: "" });
+    setApiError(null);
+    setModalMode("create");
+  }
+  function closeModal() {
+    setModalMode(null);
+    setApiError(null);
+  }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setApiError(null);
+    createMutation.mutate(form);
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button size="sm" onClick={openCreate}>+ Add Mapping</Button>
+        <Button size="sm" onClick={openCreate}>
+          + Add Mapping
+        </Button>
       </div>
 
       <Card>
         <CardContent className="p-0">
-          {isLoading
-            ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
-            : rows.length === 0
-              ? <p className="p-6 text-sm text-muted-foreground">No source mappings found.</p>
-              : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Category</TableHead><TableHead>Source / Type</TableHead>
-                        <TableHead>Identifier Value</TableHead><TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell className="font-medium text-sm">{row.category.name}</TableCell>
-                          <TableCell className="text-sm">{row.source} / {row.identifierType}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{row.identifierValue}</TableCell>
-                          <TableCell className="text-right">
-                            <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(row.id)}>Delete</Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )
-          }
+          {isLoading ? (
+            <div className="p-6 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">No source mappings found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Source / Type</TableHead>
+                    <TableHead>Identifier Value</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium text-sm">{row.category.name}</TableCell>
+                      <TableCell className="text-sm">
+                        {row.source} / {row.identifierType}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {row.identifierValue}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-destructive text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteId(row.id)}
+                        >
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -244,18 +410,36 @@ function SourceMappingsSection() {
           {apiError && <p className="text-sm text-destructive">{apiError}</p>}
           <div className="space-y-1.5">
             <Label>Category *</Label>
-            <Select required value={form.category_id || "none"} onValueChange={v => setForm({ ...form, category_id: v === "none" ? "" : v })}>
-              <SelectTrigger><SelectValue placeholder="— Select category —" /></SelectTrigger>
+            <Select
+              required
+              value={form.category_id || "none"}
+              onValueChange={(v) => setForm({ ...form, category_id: v === "none" ? "" : v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="— Select category —" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Select category —</SelectItem>
-                {categories.filter(c => c.isActive).map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                {categories
+                  .filter((c) => c.isActive)
+                  .map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Source *</Label>
-            <Select required value={form.source || "none"} onValueChange={v => setForm({ ...form, source: v === "none" ? "" : v })}>
-              <SelectTrigger><SelectValue placeholder="— Select source —" /></SelectTrigger>
+            <Select
+              required
+              value={form.source || "none"}
+              onValueChange={(v) => setForm({ ...form, source: v === "none" ? "" : v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="— Select source —" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Select source —</SelectItem>
                 <SelectItem value="jira_na">Jira NA</SelectItem>
@@ -264,8 +448,14 @@ function SourceMappingsSection() {
           </div>
           <div className="space-y-1.5">
             <Label>Identifier Type *</Label>
-            <Select required value={form.identifier_type || "none"} onValueChange={v => setForm({ ...form, identifier_type: v === "none" ? "" : v })}>
-              <SelectTrigger><SelectValue placeholder="— Select type —" /></SelectTrigger>
+            <Select
+              required
+              value={form.identifier_type || "none"}
+              onValueChange={(v) => setForm({ ...form, identifier_type: v === "none" ? "" : v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="— Select type —" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Select type —</SelectItem>
                 <SelectItem value="issue_key">Issue Key (ex: MP-XXXX)</SelectItem>
@@ -276,18 +466,29 @@ function SourceMappingsSection() {
           </div>
           <div className="space-y-1.5">
             <Label>Identifier Value *</Label>
-            <Input required value={form.identifier_value} onChange={e => setForm({ ...form, identifier_value: e.target.value })} placeholder="e.g. CAAS-001" />
+            <Input
+              required
+              value={form.identifier_value}
+              onChange={(e) => setForm({ ...form, identifier_value: e.target.value })}
+              placeholder="e.g. CAAS-001"
+            />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
-            <Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Saving…" : "Create"}</Button>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Saving…" : "Create"}
+            </Button>
           </div>
         </form>
       </ManagementModal>
 
       <ConfirmDialog
         open={deleteId !== null}
-        onOpenChange={v => { if (!v) setDeleteId(null); }}
+        onOpenChange={(v) => {
+          if (!v) setDeleteId(null);
+        }}
         title="Delete mapping?"
         description="This action is permanent and cannot be undone."
         confirmLabel="Delete"
@@ -298,82 +499,19 @@ function SourceMappingsSection() {
   );
 }
 
-function EntriesSection() {
-  const [personFilter, setPersonFilter] = useState("");
-  const [monthFilter, setMonthFilter] = useState("");
-  const [submitted, setSubmitted] = useState({ person: "", month: "" });
-
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-nb-entries", submitted],
-    queryFn: () => {
-      const params: Record<string, string> = {};
-      if (submitted.person) params.personName = submitted.person;
-      if (submitted.month) params.month = submitted.month;
-      return api.get<EntryRow[]>("/management/nonbillable-entries", { params }).then(r => r.data);
-    },
-  });
-
-  return (
-    <div className="space-y-4">
-      <form onSubmit={e => { e.preventDefault(); setSubmitted({ person: personFilter, month: monthFilter }); }} className="flex gap-3 items-end">
-        <div className="space-y-1.5">
-          <Label>Person name</Label>
-          <Input type="text" value={personFilter} onChange={e => setPersonFilter(e.target.value)} placeholder="Filter by name" className="w-48" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Month</Label>
-          <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-40" />
-        </div>
-        <Button type="submit">Apply</Button>
-      </form>
-
-      <Card>
-        <CardContent className="p-0">
-          {isLoading
-            ? <div className="p-6 space-y-2">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-10 w-full"/>)}</div>
-            : rows.length === 0
-              ? <p className="p-6 text-sm text-muted-foreground">No entries found.</p>
-              : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Person</TableHead><TableHead>Category</TableHead><TableHead>Month</TableHead>
-                        <TableHead className="text-right">Hours</TableHead><TableHead>Source</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell className="font-medium text-sm">{row.person.name}</TableCell>
-                          <TableCell className="text-sm">{row.category.name}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{row.month?.split("T")[0] ?? "—"}</TableCell>
-                          <TableCell className="text-sm text-right">{parseFloat(row.hours).toFixed(1)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{row.source}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )
-          }
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 export function NonBillableTab() {
   return (
     <Tabs defaultValue="categories">
       <TabsList className="mb-5">
         <TabsTrigger value="categories">Categories</TabsTrigger>
         <TabsTrigger value="mappings">Source Mappings</TabsTrigger>
-        <TabsTrigger value="entries">Entries</TabsTrigger>
       </TabsList>
-      <TabsContent value="categories"><CategoriesSection /></TabsContent>
-      <TabsContent value="mappings"><SourceMappingsSection /></TabsContent>
-      <TabsContent value="entries"><EntriesSection /></TabsContent>
+      <TabsContent value="categories">
+        <CategoriesSection />
+      </TabsContent>
+      <TabsContent value="mappings">
+        <SourceMappingsSection />
+      </TabsContent>
     </Tabs>
   );
 }
