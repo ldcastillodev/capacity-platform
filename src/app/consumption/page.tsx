@@ -18,30 +18,37 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/app/StatusBadge";
+import { cn } from "@/lib/utils";
 
 type View = "by_contract";
+
+type Tone = "safe" | "watch" | "critical" | "muted";
 
 function fmtHours(h: number): string {
   return h.toFixed(1) + "h";
 }
 
-function consumptionColor(pct: number, declared: number): string {
-  if (declared === 0) return "var(--text-muted)";
-  if (pct > 1.1) return "var(--critical)";
-  if (pct < 0.2) return "var(--critical)";
-  if (pct >= 0.9) return "var(--watch)";
-  if (pct >= 0.4) return "var(--safe)";
-  return "var(--watch)";
+function consumptionTone(pct: number, declared: number): Tone {
+  if (declared === 0) return "muted";
+  if (pct > 1.1) return "critical";
+  if (pct < 0.2) return "critical";
+  if (pct >= 0.9) return "watch";
+  if (pct >= 0.4) return "safe";
+  return "watch";
 }
 
-function consumptionBarColor(pct: number, declared: number): string {
-  if (declared === 0) return "hsl(var(--border))";
-  if (pct > 1.1) return "var(--critical)";
-  if (pct < 0.2) return "var(--critical)";
-  if (pct >= 0.9) return "var(--watch)";
-  if (pct >= 0.4) return "var(--safe)";
-  return "var(--watch)";
-}
+const TONE_TEXT: Record<Tone, string> = {
+  safe: "text-safe",
+  watch: "text-watch",
+  critical: "text-critical",
+  muted: "text-muted-foreground",
+};
+const TONE_FILL: Record<Tone, string> = {
+  safe: "bg-safe",
+  watch: "bg-watch",
+  critical: "bg-critical",
+  muted: "bg-border",
+};
 
 export default function ConsumptionPage() {
   const [month, setMonth] = useMonth();
@@ -91,8 +98,7 @@ export default function ConsumptionPage() {
                   <TableBody>
                     {(contractRows ?? []).map((row) => {
                       const clampedPct = Math.min(row.consumption_pct, 1);
-                      const barFill = consumptionBarColor(row.consumption_pct, row.declared_hours);
-                      const textColor = consumptionColor(row.consumption_pct, row.declared_hours);
+                      const tone = consumptionTone(row.consumption_pct, row.declared_hours);
                       return (
                         <TableRow key={row.contract_id}>
                           <TableCell className="text-muted-foreground">{row.client_name}</TableCell>
@@ -115,27 +121,24 @@ export default function ConsumptionPage() {
                             {fmtHours(row.consumed_hours)}
                           </TableCell>
                           <TableCell
-                            className="text-right"
-                            style={{
-                              color: row.remaining_hours < 0 ? "var(--critical)" : undefined,
-                            }}
+                            className={cn("text-right", row.remaining_hours < 0 && "text-critical")}
                           >
                             {fmtHours(row.remaining_hours)}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-2 rounded-full overflow-hidden bg-border min-w-[80px]">
+                                {/* width is data-driven — inline style is the idiomatic exception */}
                                 <div
-                                  className="h-full rounded-full"
-                                  style={{
-                                    width: `${(clampedPct * 100).toFixed(1)}%`,
-                                    background: barFill,
-                                  }}
+                                  className={cn("h-full rounded-full", TONE_FILL[tone])}
+                                  style={{ width: `${(clampedPct * 100).toFixed(1)}%` }}
                                 />
                               </div>
                               <span
-                                className="text-xs font-semibold min-w-[46px] text-right"
-                                style={{ color: textColor }}
+                                className={cn(
+                                  "text-xs font-semibold min-w-[46px] text-right",
+                                  TONE_TEXT[tone]
+                                )}
                               >
                                 {(row.consumption_pct * 100).toFixed(1)}%
                               </span>

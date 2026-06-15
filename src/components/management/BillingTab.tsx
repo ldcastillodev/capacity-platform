@@ -1,9 +1,5 @@
 "use client";
 
 export function BillingTab() {
-  return (
-    <p style={{ color: "var(--text-muted)", padding: 24 }}>
-      Billing configuration has been removed.
-    </p>
-  );
+  return <p className="p-6 text-muted-foreground">Billing configuration has been removed.</p>;
 }

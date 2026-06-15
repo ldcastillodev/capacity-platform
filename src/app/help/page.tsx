@@ -11,6 +11,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
+type AlertTone = "safe" | "watch" | "warning" | "critical";
+const TAG_TONE: Record<AlertTone, string> = {
+  safe: "bg-safe-bg text-safe",
+  watch: "bg-watch-bg text-watch",
+  warning: "bg-warning-bg text-warning",
+  critical: "bg-critical-bg text-critical",
+};
 
 function Section({
   title,
@@ -54,12 +63,9 @@ function FormulaBox({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Tag({ color, children }: { color: string; children: React.ReactNode }) {
+function Tag({ tone, children }: { tone: AlertTone; children: React.ReactNode }) {
   return (
-    <span
-      className="inline-block px-2 py-0.5 rounded-full text-xs font-bold"
-      style={{ background: color + "22", color }}
-    >
+    <span className={cn("inline-block px-2 py-0.5 rounded-full text-xs font-bold", TAG_TONE[tone])}>
       {children}
     </span>
   );
@@ -95,36 +101,36 @@ export default function HelpPage() {
               {[
                 {
                   level: "Safe",
-                  color: "var(--safe)",
+                  tone: "safe" as AlertTone,
                   over: "Proj. EOM ≤ 95% of pool",
                   under: "Burn ratio ≥ 60%",
                   desc: "Consuming hours at a healthy pace. No action needed.",
                 },
                 {
                   level: "Watch",
-                  color: "var(--watch)",
+                  tone: "watch" as AlertTone,
                   over: "Proj. EOM > 95% of pool",
                   under: "Burn ratio < 60%",
                   desc: "Slightly ahead of pace or underutilising. Worth monitoring.",
                 },
                 {
                   level: "Warning",
-                  color: "var(--warning)",
+                  tone: "warning" as AlertTone,
                   over: "Proj. EOM > 100% of pool",
                   under: "Burn ratio < 40%",
                   desc: "Overrun likely, or significantly below pace. Needs attention.",
                 },
                 {
                   level: "Critical",
-                  color: "var(--critical)",
+                  tone: "critical" as AlertTone,
                   over: "Proj. EOM > 110% of pool",
                   under: "Burn ratio < 20%",
                   desc: "Overrun almost certain, or near-zero activity. Act now.",
                 },
-              ].map(({ level, color, over, under, desc }) => (
+              ].map(({ level, tone, over, under, desc }) => (
                 <TableRow key={level}>
                   <TableCell>
-                    <Tag color={color}>{level}</Tag>
+                    <Tag tone={tone}>{level}</Tag>
                   </TableCell>
                   <TableCell>{over}</TableCell>
                   <TableCell>{under}</TableCell>
@@ -182,7 +188,7 @@ projected_eom = (hours_to_date ÷ days_elapsed) × days_in_month`}</FormulaBox>
             <TableBody>
               <TableRow>
                 <TableCell>
-                  <strong style={{ color: "hsl(var(--primary))" }}>Actual</strong> (solid)
+                  <strong className="text-primary">Actual</strong> (solid)
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   Cumulative hours logged from the 1st of the month to the end of each week.
@@ -199,7 +205,7 @@ projected_eom = (hours_to_date ÷ days_elapsed) × days_in_month`}</FormulaBox>
               </TableRow>
               <TableRow>
                 <TableCell>
-                  <strong style={{ color: "var(--critical)" }}>Pool limit</strong> (red dashed)
+                  <strong className="text-critical">Pool limit</strong> (red dashed)
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   The client&apos;s contracted pool hours for the month. The actual line crossing

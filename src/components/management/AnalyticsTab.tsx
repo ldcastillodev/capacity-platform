@@ -25,29 +25,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 function errMsg(e: unknown) {
   return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e);
 }
 
-const STATUS_TONE: Record<string, { bg: string; color: string }> = {
-  active: { bg: "var(--safe-bg)", color: "var(--safe)" },
-  open: { bg: "var(--watch-bg)", color: "var(--watch)" },
-  acknowledged: { bg: "var(--warning-bg)", color: "var(--warning)" },
-  applied: { bg: "var(--safe-bg)", color: "var(--safe)" },
-  dismissed: { bg: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" },
+const STATUS_TONE: Record<string, string> = {
+  active: "bg-[var(--safe-bg)] text-[var(--safe)]",
+  open: "bg-[var(--watch-bg)] text-[var(--watch)]",
+  acknowledged: "bg-[var(--warning-bg)] text-[var(--warning)]",
+  applied: "bg-[var(--safe-bg)] text-[var(--safe)]",
+  dismissed: "bg-muted text-muted-foreground",
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_TONE[status] ?? {
-    bg: "hsl(var(--muted))",
-    color: "hsl(var(--muted-foreground))",
-  };
+  const cls = STATUS_TONE[status] ?? "bg-muted text-muted-foreground";
   return (
-    <span
-      className="text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
-      style={{ background: s.bg, color: s.color }}
-    >
+    <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap", cls)}>
       {status.replace(/_/g, " ")}
     </span>
   );

@@ -27,13 +27,13 @@
     --radius: 0.75rem;
 
     /* legacy tokens — kept until per-page migration completes */
-    --legacy-primary: #FF481A;
+    --legacy-primary: #ff481a;
     --legacy-border: #e4e7ec;
-    --bg: #FFF6F4;
-    --surface: #FDFDFD;
-    --text: #282A33;
+    --bg: #fff6f4;
+    --surface: #fdfdfd;
+    --text: #282a33;
     --text-muted: #667085;
-    --primary-light: #FFF6F4;
+    --primary-light: #fff6f4;
     --safe: #16a34a;
     --safe-bg: #f0fdf4;
     --watch: #d97706;
@@ -86,11 +86,56 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
     font-size: 14px;
     min-height: 100vh;
   }
 
-  a { color: inherit; text-decoration: none; }
-  button { cursor: pointer; font-family: inherit; }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button {
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer utilities {
+  /* Thin, theme-aware scrollbars for scroll regions (tables, sheets) */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Accessibility: honor reduced-motion across all animations + transitions */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

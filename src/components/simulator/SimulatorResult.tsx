@@ -15,8 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatCard } from "@/components/app/StatCard";
+import { StatCard, type StatTone } from "@/components/app/StatCard";
 import { StatusBadge } from "@/components/app/StatusBadge";
+import { cn } from "@/lib/utils";
 
 const VERDICT_TONE: Record<SimulationVerdict, "safe" | "watch" | "critical"> = {
   ok: "safe",
@@ -88,11 +89,16 @@ function memberBadge(m: SimulationMember) {
 
 export function SimulatorResult({ result }: Props) {
   const tone = VERDICT_TONE[result.verdict];
-  const gapColor =
-    result.gapHours > 0 ? "var(--critical)" : result.gapHours < 0 ? "var(--safe)" : undefined;
+  const gapTone: StatTone | undefined =
+    result.gapHours > 0 ? "critical" : result.gapHours < 0 ? "safe" : undefined;
+  const verdictClass =
+    result.verdict === "ok"
+      ? "text-safe border-safe"
+      : result.verdict === "over"
+        ? "text-critical border-critical"
+        : "border-border";
 
-  const squadHasNoCapacity =
-    result.members.length > 0 && !result.members.some(memberHasCapacity);
+  const squadHasNoCapacity = result.members.length > 0 && !result.members.some(memberHasCapacity);
 
   const overRoles = result.roleBreakdown.filter((r) => r.verdict === "over");
   const ambiguousRoles = result.roleBreakdown.filter((r) => r.verdict === "ambiguous");
@@ -118,28 +124,12 @@ export function SimulatorResult({ result }: Props) {
             This squad has no available capacity to absorb the requested hours.
           </div>
         )}
-        <p
-          className="text-sm rounded-md border px-3 py-2"
-          style={{
-            color:
-              result.verdict === "ok"
-                ? "var(--safe)"
-                : result.verdict === "over"
-                  ? "var(--critical)"
-                  : undefined,
-            borderColor:
-              result.verdict === "ok"
-                ? "var(--safe)"
-                : result.verdict === "over"
-                  ? "var(--critical)"
-                  : "hsl(var(--border))",
-          }}
-        >
+        <p className={cn("text-sm rounded-md border px-3 py-2", verdictClass)}>
           {result.verdict === "ok" ? (
             <>
               <strong>{result.squadName} CAN absorb this engagement.</strong>{" "}
-              {fmtHours(result.availableHours)} available vs {fmtHours(result.requiredHours)} required
-              ({fmtHours(-result.gapHours)} to spare).
+              {fmtHours(result.availableHours)} available vs {fmtHours(result.requiredHours)}{" "}
+              required ({fmtHours(-result.gapHours)} to spare).
             </>
           ) : result.verdict === "over" ? (
             <>
@@ -172,13 +162,13 @@ export function SimulatorResult({ result }: Props) {
             </span>
           )}
         </p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <StatCard label="Required" value={fmtHours(result.requiredHours)} />
           <StatCard label="Available" value={fmtHours(result.availableHours)} />
           <StatCard
             label="Gap"
             value={fmtHours(result.gapHours)}
-            valueColor={gapColor}
+            valueTone={gapTone}
             subtitle={result.gapHours > 0 ? "Short" : result.gapHours < 0 ? "Slack" : "Even"}
           />
         </div>
@@ -199,12 +189,8 @@ export function SimulatorResult({ result }: Props) {
               </TableHeader>
               <TableBody>
                 {result.roleBreakdown.map((r) => {
-                  const gapColor =
-                    r.gapHours > 0
-                      ? "var(--critical)"
-                      : r.gapHours < 0
-                        ? "var(--safe)"
-                        : undefined;
+                  const gapClass =
+                    r.gapHours > 0 ? "text-critical" : r.gapHours < 0 ? "text-safe" : undefined;
                   return (
                     <TableRow key={r.roleType}>
                       <TableCell className="font-medium">
@@ -216,7 +202,7 @@ export function SimulatorResult({ result }: Props) {
                       <TableCell className="text-right font-semibold">
                         {fmtHours(r.availableHours)}
                       </TableCell>
-                      <TableCell className="text-right" style={{ color: gapColor }}>
+                      <TableCell className={cn("text-right", gapClass)}>
                         {fmtHours(r.gapHours)}
                       </TableCell>
                       <TableCell className="text-right">
@@ -234,9 +220,7 @@ export function SimulatorResult({ result }: Props) {
         )}
 
         {result.members.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No active squad members in this month.
-          </p>
+          <p className="text-sm text-muted-foreground">No active squad members in this month.</p>
         ) : matchingMembers.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No members in this squad hold the requested role(s).
@@ -261,7 +245,9 @@ export function SimulatorResult({ result }: Props) {
                 </div>
                 <p className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
                   {result.monthlyLabels
-                    .map((label, idx) => `${fmtMonth(label)} ${fmtHours(m.monthlyBillable[idx] ?? 0)}`)
+                    .map(
+                      (label, idx) => `${fmtMonth(label)} ${fmtHours(m.monthlyBillable[idx] ?? 0)}`
+                    )
                     .join(" · ")}
                 </p>
                 <div className="px-3 py-2 space-y-1">
@@ -270,13 +256,10 @@ export function SimulatorResult({ result }: Props) {
                       key={r.roleType}
                       className="flex items-center justify-between gap-2 text-sm"
                     >
-                      <span className="font-medium">
-                        {ROLE_LABELS[r.roleType] ?? r.roleType}
-                      </span>
+                      <span className="font-medium">{ROLE_LABELS[r.roleType] ?? r.roleType}</span>
                       <span className="flex items-center gap-3">
                         <span>
-                          avail{" "}
-                          <span className="font-semibold">{fmtHours(r.availableHours)}</span>
+                          avail <span className="font-semibold">{fmtHours(r.availableHours)}</span>
                         </span>
                         <span className="text-muted-foreground">
                           req {fmtHours(r.requiredHours)}
