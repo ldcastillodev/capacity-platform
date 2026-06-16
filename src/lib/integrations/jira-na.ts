@@ -1,4 +1,13 @@
-import prisma from "../prisma";
+import {
+  syncService,
+  personService,
+  nonBillableService,
+  componentMappingService,
+  squadService,
+  hourRecordService,
+  contractService,
+  declarationService,
+} from "../db";
 import { addUtcDays, toUtcDateOnly } from "../temporal";
 import { upsertAnomaly } from "../analytics/refresh";
 import type {
@@ -117,13 +126,11 @@ export class JiraNAConnector {
       inactiveTarget: 0,
       errors: [],
     };
-    const log = await prisma.syncLog.create({
-      data: {
-        source: "jira_na",
-        startedAt: new Date(),
-        dateFrom: new Date(dateFrom),
-        dateTo: new Date(dateTo),
-      },
+    const log = await syncService.createSyncLog({
+      source: "jira_na",
+      startedAt: new Date(),
+      dateFrom: new Date(dateFrom),
+      dateTo: new Date(dateTo),
     });
 
     try {
@@ -149,44 +156,20 @@ export class JiraNAConnector {
         consumedRows,
         declarations,
       ] = await Promise.all([
-        prisma.person.findMany(),
-        prisma.nonBillableSourceMapping.findMany({ where: { source: "jira_na" } }),
-        prisma.jiraComponentClientMapping.findMany({
-          include: { contract: { include: { sow: { include: { client: true } } } } },
-          orderBy: { effectiveFrom: "desc" },
-        }),
-        prisma.personRole.findMany({ orderBy: { effectiveFrom: "desc" } }),
-        prisma.squadMembership.findMany({ orderBy: { effectiveFrom: "desc" } }),
-        prisma.hourRecord.findMany({
-          where: { externalRef: { in: allExternalRefs } },
-          select: { externalRef: true },
-        }),
-        prisma.contract.findMany({
-          select: {
-            id: true,
-            assignedHours: true,
-            childContracts: { select: { id: true, type: true } },
-          },
-        }),
-        prisma.hourRecord.groupBy({
-          by: ["contractId"],
-          _sum: { hours: true },
-          where: { contractId: { not: null } },
-        }),
-        prisma.monthlyRoleDeclaration.findMany({
-          where: {
-            contractId: { not: null },
-            month: {
-              gte: new Date(
-                Date.UTC(new Date(dateFrom).getUTCFullYear(), new Date(dateFrom).getUTCMonth(), 1)
-              ),
-              lte: new Date(
-                Date.UTC(new Date(dateTo).getUTCFullYear(), new Date(dateTo).getUTCMonth(), 1)
-              ),
-            },
-          },
-          select: { contractId: true, squadId: true, month: true },
-        }),
+        personService.listPersonsForSync(),
+        nonBillableService.listSourceMappingsForSync(),
+        componentMappingService.listMappingsWithContractForSync(),
+        personService.listPersonRolesForSync(),
+        squadService.listMembershipsForSync(),
+        hourRecordService.listExistingHourRecordRefs(allExternalRefs),
+        contractService.listContractsForSync(),
+        hourRecordService.sumLifetimeBillableHoursByContract(),
+        declarationService.listDeclarationsForSync(
+          new Date(
+            Date.UTC(new Date(dateFrom).getUTCFullYear(), new Date(dateFrom).getUTCMonth(), 1)
+          ),
+          new Date(Date.UTC(new Date(dateTo).getUTCFullYear(), new Date(dateTo).getUTCMonth(), 1))
+        ),
       ]);
 
       // Build lookup maps
@@ -231,21 +214,15 @@ export class JiraNAConnector {
         result.missingMapping +
         result.missingDeclaration +
         result.inactiveTarget;
-      await prisma.syncLog.update({
-        where: { id: log.id },
-        data: {
-          completedAt: new Date(),
-          recordsFetched: result.created + result.skipped + conflicted,
-          recordsCreated: result.created,
-          recordsSkipped: result.skipped,
-          recordsConflicted: conflicted,
-        },
+      await syncService.updateSyncLog(log.id, {
+        completedAt: new Date(),
+        recordsFetched: result.created + result.skipped + conflicted,
+        recordsCreated: result.created,
+        recordsSkipped: result.skipped,
+        recordsConflicted: conflicted,
       });
     } catch (err) {
-      await prisma.syncLog.update({
-        where: { id: log.id },
-        data: { completedAt: new Date() },
-      });
+      await syncService.updateSyncLog(log.id, { completedAt: new Date() });
       throw err;
     }
 
@@ -545,19 +522,16 @@ export class JiraNAConnector {
 
     const BATCH_SIZE = 500;
     for (let i = 0; i < hourRecordsToCreate.length; i += BATCH_SIZE) {
-      await prisma.hourRecord.createMany({
-        data: hourRecordsToCreate.slice(i, i + BATCH_SIZE),
-        skipDuplicates: true,
-      });
+      await hourRecordService.createHourRecordsBatch(hourRecordsToCreate.slice(i, i + BATCH_SIZE));
     }
 
     // Persist one auditable row per conflicted worklog. Upsert by externalRef so
     // re-syncs refresh lastSeenAt instead of duplicating.
     const now = new Date();
     for (const c of conflictsToRecord) {
-      await prisma.syncConflict.upsert({
-        where: { externalRef: c.externalRef },
-        update: {
+      await syncService.upsertSyncConflictByRef(
+        c.externalRef,
+        {
           category: c.category,
           authorEmail: c.authorEmail,
           issueKey: c.issueKey,
@@ -567,8 +541,8 @@ export class JiraNAConnector {
           detail: c.detail,
           lastSeenAt: now,
         },
-        create: { ...c, source: "jira_na", lastSeenAt: now },
-      });
+        { ...c, source: "jira_na", lastSeenAt: now }
+      );
     }
     // Clear conflicts for worklogs that imported this run (e.g. person added or
     // declaration created since the previous sync).
@@ -576,7 +550,7 @@ export class JiraNAConnector {
       .map((r) => r.externalRef)
       .filter((r): r is string => typeof r === "string");
     if (createdRefs.length > 0) {
-      await prisma.syncConflict.deleteMany({ where: { externalRef: { in: createdRefs } } });
+      await syncService.deleteSyncConflictsByRefs(createdRefs);
     }
 
     for (const [key, month] of missingDeclarationFlags) {
@@ -603,14 +577,12 @@ export class JiraNAConnector {
 
   private async fetchIssuesWithWorklogs(dateFrom: string, dateTo: string): Promise<JiraIssue[]> {
     // get non-billable mappings to filter in jql
-    const nonBillableSourceMappings = await prisma.nonBillableSourceMapping.findMany({
-      where: { source: "jira_na" },
-    });
+    const nonBillableSourceMappings = await nonBillableService.listSourceMappingsForSync();
     const nonBillableTicketkeys = nonBillableSourceMappings
       .filter((m) => m.identifierType === "issue_key")
       .map((m) => m.identifierValue);
     // get components to filter in jql
-    const components = (await prisma.jiraComponentClientMapping.findMany()).map(
+    const components = (await componentMappingService.listAllComponentMappings()).map(
       (component) => component.componentKey
     );
 

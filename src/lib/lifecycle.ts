@@ -1,4 +1,4 @@
-import prisma from "./prisma";
+import { contractService, componentMappingService } from "./db";
 import { toUtcDateOnly } from "./temporal";
 
 /**
@@ -8,30 +8,17 @@ import { toUtcDateOnly } from "./temporal";
  * Runs at the start of every sync and via /api/admin/jobs/expiry-sweep
  * (intended for a nightly Cloud Scheduler trigger).
  */
-export async function runExpirySweep(): Promise<{ contractsClosed: number; mappingsEnded: number }> {
+export async function runExpirySweep(): Promise<{
+  contractsClosed: number;
+  mappingsEnded: number;
+}> {
   const today = toUtcDateOnly(new Date());
 
-  const closed = await prisma.contract.updateMany({
-    where: {
-      status: "active",
-      OR: [
-        { endDate: { lt: today } },
-        { sow: { endDate: { lt: today } } },
-      ],
-    },
-    data: { status: "closed" },
-  });
+  const closed = await contractService.closeExpiredContracts(today);
 
   // effectiveFrom <= today guard: a future-dated mapping cannot be end-dated
   // before it starts (effectiveTo is inclusive and must be >= effectiveFrom).
-  const ended = await prisma.jiraComponentClientMapping.updateMany({
-    where: {
-      effectiveTo: null,
-      effectiveFrom: { lte: today },
-      contract: { status: "closed" },
-    },
-    data: { effectiveTo: today },
-  });
+  const ended = await componentMappingService.endOpenMappingsForClosedContracts(today);
 
   return { contractsClosed: closed.count, mappingsEnded: ended.count };
 }
