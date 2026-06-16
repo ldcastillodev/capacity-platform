@@ -222,6 +222,7 @@ export const fetchBurnByContract = (params?: { month?: string }) =>
 export interface ConsumptionByContractRow {
   contract_id: number;
   contract_name: string;
+  contract_type: "base" | "change_order" | "extension" | null;
   client_id: number;
   client_name: string;
   hour_type: "monthly" | "total";
@@ -235,6 +236,22 @@ export interface ConsumptionByContractRow {
 export const fetchConsumptionByContract = (params?: { month?: string }) =>
   api
     .get<ConsumptionByContractRow[]>("/analytics/consumption-by-contract", { params })
+    .then((r) => r.data);
+
+export interface ContractDailyHoursRow {
+  day: number;
+  hours: number;
+}
+
+export const fetchContractDailyHours = (params: {
+  contractId: number;
+  year: number;
+  month: number;
+}) =>
+  api
+    .get<ContractDailyHoursRow[]>(`/contracts/${params.contractId}/daily-hours`, {
+      params: { year: params.year, month: params.month },
+    })
     .then((r) => r.data);
 
 export interface NbByClientRow {

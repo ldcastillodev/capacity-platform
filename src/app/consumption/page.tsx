@@ -1,9 +1,11 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { fetchConsumptionByContract } from "@/lib/client";
+import { DailyHoursChart } from "@/components/consumption/DailyHoursChart";
 import { MonthNavigator } from "@/components/app/MonthNavigator";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
@@ -37,6 +39,12 @@ function consumptionTone(pct: number, declared: number): Tone {
   return "watch";
 }
 
+const CONTRACT_TYPE_LABEL: Record<"base" | "change_order" | "extension", string> = {
+  base: "Base",
+  change_order: "Change Order",
+  extension: "Extension",
+};
+
 const TONE_TEXT: Record<Tone, string> = {
   safe: "text-safe",
   watch: "text-watch",
@@ -53,6 +61,7 @@ const TONE_FILL: Record<Tone, string> = {
 export default function ConsumptionPage() {
   const [month, setMonth] = useMonth();
   const [view] = useState<View>("by_contract");
+  const [openId, setOpenId] = useState<number | null>(null);
 
   const { data: contractRows, isLoading } = useQuery({
     queryKey: ["consumption-by-contract", month],
@@ -87,7 +96,8 @@ export default function ConsumptionPage() {
                     <TableRow>
                       <TableHead>Client</TableHead>
                       <TableHead>Contract</TableHead>
-                      <TableHead>Type</TableHead>
+                      <TableHead>Contract Type</TableHead>
+                      <TableHead>Hour Type</TableHead>
                       <TableHead className="text-right">Declared / Pool</TableHead>
                       <TableHead className="text-right">Prior Months</TableHead>
                       <TableHead className="text-right">Consumed (month)</TableHead>
@@ -99,52 +109,83 @@ export default function ConsumptionPage() {
                     {(contractRows ?? []).map((row) => {
                       const clampedPct = Math.min(row.consumption_pct, 1);
                       const tone = consumptionTone(row.consumption_pct, row.declared_hours);
+                      const isOpen = openId === row.contract_id;
                       return (
-                        <TableRow key={row.contract_id}>
-                          <TableCell className="text-muted-foreground">{row.client_name}</TableCell>
-                          <TableCell className="font-medium">{row.contract_name}</TableCell>
-                          <TableCell>
-                            <StatusBadge
-                              tone="default"
-                              label={row.hour_type === "total" ? "Total Pool" : "Monthly"}
-                            />
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {fmtHours(row.declared_hours)}
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {row.prior_consumed_hours == null
-                              ? "—"
-                              : fmtHours(row.prior_consumed_hours)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {fmtHours(row.consumed_hours)}
-                          </TableCell>
-                          <TableCell
-                            className={cn("text-right", row.remaining_hours < 0 && "text-critical")}
+                        <Fragment key={row.contract_id}>
+                          <TableRow
+                            className="cursor-pointer"
+                            onClick={() => setOpenId(isOpen ? null : row.contract_id)}
                           >
-                            {fmtHours(row.remaining_hours)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-2 rounded-full overflow-hidden bg-border min-w-[80px]">
-                                {/* width is data-driven — inline style is the idiomatic exception */}
-                                <div
-                                  className={cn("h-full rounded-full", TONE_FILL[tone])}
-                                  style={{ width: `${(clampedPct * 100).toFixed(1)}%` }}
+                            <TableCell className="text-muted-foreground">
+                              {row.client_name}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              <span className="inline-flex items-center gap-1.5">
+                                <ChevronDown
+                                  className={cn(
+                                    "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                                    isOpen && "rotate-180"
+                                  )}
                                 />
-                              </div>
-                              <span
-                                className={cn(
-                                  "text-xs font-semibold min-w-[46px] text-right",
-                                  TONE_TEXT[tone]
-                                )}
-                              >
-                                {(row.consumption_pct * 100).toFixed(1)}%
+                                {row.contract_name}
                               </span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {row.contract_type ? CONTRACT_TYPE_LABEL[row.contract_type] : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge
+                                tone="default"
+                                label={row.hour_type === "total" ? "Total Pool" : "Monthly"}
+                              />
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {fmtHours(row.declared_hours)}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {row.prior_consumed_hours == null
+                                ? "—"
+                                : fmtHours(row.prior_consumed_hours)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {fmtHours(row.consumed_hours)}
+                            </TableCell>
+                            <TableCell
+                              className={cn(
+                                "text-right",
+                                row.remaining_hours < 0 && "text-critical"
+                              )}
+                            >
+                              {fmtHours(row.remaining_hours)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 rounded-full overflow-hidden bg-border min-w-[80px]">
+                                  {/* width is data-driven — inline style is the idiomatic exception */}
+                                  <div
+                                    className={cn("h-full rounded-full", TONE_FILL[tone])}
+                                    style={{ width: `${(clampedPct * 100).toFixed(1)}%` }}
+                                  />
+                                </div>
+                                <span
+                                  className={cn(
+                                    "text-xs font-semibold min-w-[46px] text-right",
+                                    TONE_TEXT[tone]
+                                  )}
+                                >
+                                  {(row.consumption_pct * 100).toFixed(1)}%
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isOpen && (
+                            <TableRow>
+                              <TableCell colSpan={9} className="bg-muted/30 p-4">
+                                <DailyHoursChart contractId={row.contract_id} month={month} />
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </TableBody>

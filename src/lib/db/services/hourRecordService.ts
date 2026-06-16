@@ -147,6 +147,18 @@ export function sumBillableHoursByContract(
 }
 
 /**
+ * Sum a contract's billable (actual) hours per calendar day within a window.
+ * Newest grouping order is not guaranteed. Empty → [].
+ */
+export function sumHoursByDayForContract(contractId: number, window: DateWindow, db: Db = prisma) {
+  return db.hourRecord.groupBy({
+    by: ["date"],
+    where: { contractId, isNonBillable: false, date: dateFilter(window) },
+    _sum: { hours: true },
+  });
+}
+
+/**
  * Sum billable (actual) hours per (contractId, roleType) for the given
  * contracts within a month. Empty → [].
  */

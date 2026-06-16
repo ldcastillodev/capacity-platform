@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
         return {
           contract_id: contract.id,
           contract_name: contract.name,
+          contract_type: contract.type,
           client_id: contract.sow.clientId,
           client_name: contract.sow.client.name,
           hour_type: contract.hourType,
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
       return {
         contract_id: contract.id,
         contract_name: contract.name,
+        contract_type: contract.type,
         client_id: contract.sow.clientId,
         client_name: contract.sow.client.name,
         hour_type: contract.hourType,
