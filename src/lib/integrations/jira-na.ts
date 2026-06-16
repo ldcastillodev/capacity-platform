@@ -8,6 +8,7 @@ import {
   contractService,
   declarationService,
 } from "../db";
+import pLimit from "p-limit";
 import { addUtcDays, toUtcDateOnly } from "../temporal";
 import { upsertAnomaly } from "../analytics/refresh";
 import type {
@@ -56,6 +57,7 @@ interface JiraIssue {
   fields: {
     components?: Array<{ name: string }>;
     issuetype?: { name: string };
+    worklog?: { total: number; maxResults: number; worklogs: JiraWorklog[] };
   };
   worklogs?: JiraWorklog[];
 }
@@ -90,9 +92,11 @@ interface ConflictRecord {
 interface WorklogLookupContext {
   personByEmail: Map<string, Person>;
   sourceMappingByPrefix: Map<string, NonBillableSourceMapping>;
-  clientMappings: JiraMappingWithContract[];
-  personRoles: PersonRole[];
-  squadMemberships: SquadMembership[];
+  // Pre-indexed for O(1) per-worklog lookups (insertion order preserved so
+  // first-match / [0] semantics are identical to the prior linear scans).
+  mappingsByComponent: Map<string, JiraMappingWithContract[]>;
+  rolesByPerson: Map<number, PersonRole[]>;
+  membershipsByPerson: Map<number, SquadMembership[]>;
   existingRefs: Set<string | null>;
   contractById: Map<number, ContractWithExtension>;
   consumedByContract: Map<number, number>;
@@ -134,24 +138,15 @@ export class JiraNAConnector {
     });
 
     try {
-      const issues = await this.fetchIssuesWithWorklogs(dateFrom, dateTo);
-
-      // Collect all externalRefs upfront for batch existence check
-      const allExternalRefs: string[] = [];
-      for (const issue of issues) {
-        for (const wl of issue.worklogs ?? []) {
-          allExternalRefs.push(`jira_na:${wl.id}`);
-        }
-      }
-
-      // Pre-fetch all lookup data in parallel
+      // Issue-independent lookups first — these also drive the JQL filter, so we
+      // fetch them before hitting Jira (eliminates the duplicate source-mapping
+      // and component-mapping queries the fetch method used to make).
       const [
         persons,
         nonBillableSourceMappings,
         clientMappings,
         personRoles,
         squadMemberships,
-        existingHourRecords,
         allContracts,
         consumedRows,
         declarations,
@@ -161,7 +156,6 @@ export class JiraNAConnector {
         componentMappingService.listMappingsWithContractForSync(),
         personService.listPersonRolesForSync(),
         squadService.listMembershipsForSync(),
-        hourRecordService.listExistingHourRecordRefs(allExternalRefs),
         contractService.listContractsForSync(),
         hourRecordService.sumLifetimeBillableHoursByContract(),
         declarationService.listDeclarationsForSync(
@@ -172,12 +166,56 @@ export class JiraNAConnector {
         ),
       ]);
 
+      // JQL filters derived from already-fetched data (no extra DB round trips).
+      const nonBillableTicketKeys = nonBillableSourceMappings
+        .filter((m) => m.identifierType === "issue_key")
+        .map((m) => m.identifierValue);
+      const componentKeys = [...new Set(clientMappings.map((m) => m.componentKey))];
+
+      const issues = await this.fetchIssuesWithWorklogs(
+        dateFrom,
+        dateTo,
+        nonBillableTicketKeys,
+        componentKeys
+      );
+
+      // Collect all externalRefs upfront for batch existence check
+      const allExternalRefs: string[] = [];
+      for (const issue of issues) {
+        for (const wl of issue.worklogs ?? []) {
+          allExternalRefs.push(`jira_na:${wl.id}`);
+        }
+      }
+
+      const existingHourRecords =
+        await hourRecordService.listExistingHourRecordRefs(allExternalRefs);
+
       // Build lookup maps
       const personByEmail = new Map(persons.map((p) => [p.email, p]));
       const sourceMappingByPrefix = new Map(
         nonBillableSourceMappings.map((m) => [m.identifierValue, m])
       );
       const existingRefs = new Set(existingHourRecords.map((r) => r.externalRef));
+
+      // Pre-index per-worklog lookups (preserve source order within each group).
+      const mappingsByComponent = new Map<string, JiraMappingWithContract[]>();
+      for (const m of clientMappings) {
+        const list = mappingsByComponent.get(m.componentKey);
+        if (list) list.push(m);
+        else mappingsByComponent.set(m.componentKey, [m]);
+      }
+      const rolesByPerson = new Map<number, PersonRole[]>();
+      for (const r of personRoles) {
+        const list = rolesByPerson.get(r.personId);
+        if (list) list.push(r);
+        else rolesByPerson.set(r.personId, [r]);
+      }
+      const membershipsByPerson = new Map<number, SquadMembership[]>();
+      for (const sm of squadMemberships) {
+        const list = membershipsByPerson.get(sm.personId);
+        if (list) list.push(sm);
+        else membershipsByPerson.set(sm.personId, [sm]);
+      }
       const contractById = new Map(
         allContracts.map((c) => [
           c.id,
@@ -197,9 +235,9 @@ export class JiraNAConnector {
       const ctx: WorklogLookupContext = {
         personByEmail,
         sourceMappingByPrefix,
-        clientMappings,
-        personRoles,
-        squadMemberships,
+        mappingsByComponent,
+        rolesByPerson,
+        membershipsByPerson,
         existingRefs,
         contractById,
         consumedByContract,
@@ -287,11 +325,8 @@ export class JiraNAConnector {
             continue;
           }
 
-          const activeMemberships = ctx.squadMemberships.filter(
-            (sm) =>
-              sm.personId === person.id &&
-              sm.effectiveFrom <= date &&
-              (sm.effectiveTo === null || sm.effectiveTo >= date)
+          const activeMemberships = (ctx.membershipsByPerson.get(person.id) ?? []).filter(
+            (sm) => sm.effectiveFrom <= date && (sm.effectiveTo === null || sm.effectiveTo >= date)
           );
 
           if (activeMemberships.length === 0) {
@@ -327,11 +362,8 @@ export class JiraNAConnector {
             }
             // Snapshot the role effective on the worklog date so nb-hours-by-role
             // can group by the stored roleType; null is allowed for NB records.
-            const nbRole = ctx.personRoles.find(
-              (r) =>
-                r.personId === person.id &&
-                r.effectiveFrom <= date &&
-                (r.effectiveTo === null || r.effectiveTo >= date)
+            const nbRole = (ctx.rolesByPerson.get(person.id) ?? []).find(
+              (r) => r.effectiveFrom <= date && (r.effectiveTo === null || r.effectiveTo >= date)
             );
             if (!nbRole) result.missingRole++;
             // NB worklogs carry no contract, so BR-10's declaration resolution
@@ -369,11 +401,8 @@ export class JiraNAConnector {
             continue;
           }
 
-          const clientMapping = ctx.clientMappings.find(
-            (m) =>
-              m.componentKey === componentName &&
-              m.effectiveFrom <= date &&
-              (m.effectiveTo === null || m.effectiveTo >= date)
+          const clientMapping = (ctx.mappingsByComponent.get(componentName) ?? []).find(
+            (m) => m.effectiveFrom <= date && (m.effectiveTo === null || m.effectiveTo >= date)
           );
           if (!clientMapping) {
             result.missingMapping++;
@@ -427,11 +456,8 @@ export class JiraNAConnector {
             continue;
           }
 
-          const role = ctx.personRoles.find(
-            (r) =>
-              r.personId === person.id &&
-              r.effectiveFrom <= date &&
-              (r.effectiveTo === null || r.effectiveTo >= date)
+          const role = (ctx.rolesByPerson.get(person.id) ?? []).find(
+            (r) => r.effectiveFrom <= date && (r.effectiveTo === null || r.effectiveTo >= date)
           );
           if (!role) {
             result.missingRole++;
@@ -528,20 +554,22 @@ export class JiraNAConnector {
     // Persist one auditable row per conflicted worklog. Upsert by externalRef so
     // re-syncs refresh lastSeenAt instead of duplicating.
     const now = new Date();
-    for (const c of conflictsToRecord) {
-      await syncService.upsertSyncConflictByRef(
-        c.externalRef,
-        {
-          category: c.category,
-          authorEmail: c.authorEmail,
-          issueKey: c.issueKey,
-          componentKey: c.componentKey,
-          date: c.date,
-          hours: c.hours,
-          detail: c.detail,
-          lastSeenAt: now,
-        },
-        { ...c, source: "jira_na", lastSeenAt: now }
+    if (conflictsToRecord.length > 0) {
+      await syncService.upsertSyncConflictsBatch(
+        conflictsToRecord.map((c) => ({
+          externalRef: c.externalRef,
+          update: {
+            category: c.category,
+            authorEmail: c.authorEmail,
+            issueKey: c.issueKey,
+            componentKey: c.componentKey,
+            date: c.date,
+            hours: c.hours,
+            detail: c.detail,
+            lastSeenAt: now,
+          },
+          create: { ...c, source: "jira_na", lastSeenAt: now },
+        }))
       );
     }
     // Clear conflicts for worklogs that imported this run (e.g. person added or
@@ -553,42 +581,49 @@ export class JiraNAConnector {
       await syncService.deleteSyncConflictsByRefs(createdRefs);
     }
 
-    for (const [key, month] of missingDeclarationFlags) {
-      await upsertAnomaly(
-        Number(key.split(":")[0]),
-        month,
-        null,
-        "missing_data",
-        "high",
-        "Worklog(s) skipped: person has multiple active squad memberships and no role declaration resolves the contract's squad for this month. Create the declaration and re-sync."
-      );
-    }
-    for (const [key, month] of inactiveTargetFlags) {
-      await upsertAnomaly(
-        Number(key.split(":")[0]),
-        month,
-        null,
-        "missing_data",
-        "high",
-        "Worklog(s) skipped: the mapped contract is closed/expired, its SOW has ended, or the client is archived. Renew or remap the component, then re-sync."
-      );
-    }
+    await Promise.all([
+      ...[...missingDeclarationFlags].map(([key, month]) =>
+        upsertAnomaly(
+          Number(key.split(":")[0]),
+          month,
+          null,
+          "missing_data",
+          "high",
+          "Worklog(s) skipped: person has multiple active squad memberships and no role declaration resolves the contract's squad for this month. Create the declaration and re-sync."
+        )
+      ),
+      ...[...inactiveTargetFlags].map(([key, month]) =>
+        upsertAnomaly(
+          Number(key.split(":")[0]),
+          month,
+          null,
+          "missing_data",
+          "high",
+          "Worklog(s) skipped: the mapped contract is closed/expired, its SOW has ended, or the client is archived. Renew or remap the component, then re-sync."
+        )
+      ),
+    ]);
   }
 
-  private async fetchIssuesWithWorklogs(dateFrom: string, dateTo: string): Promise<JiraIssue[]> {
-    // get non-billable mappings to filter in jql
-    const nonBillableSourceMappings = await nonBillableService.listSourceMappingsForSync();
-    const nonBillableTicketkeys = nonBillableSourceMappings
-      .filter((m) => m.identifierType === "issue_key")
-      .map((m) => m.identifierValue);
-    // get components to filter in jql
-    const components = (await componentMappingService.listAllComponentMappings()).map(
-      (component) => component.componentKey
-    );
+  private async fetchIssuesWithWorklogs(
+    dateFrom: string,
+    dateTo: string,
+    nonBillableTicketKeys: string[],
+    componentKeys: string[]
+  ): Promise<JiraIssue[]> {
+    const jql = this.generateJql(dateFrom, dateTo, nonBillableTicketKeys, componentKeys);
 
-    const jql = this.generateJql(dateFrom, dateTo, nonBillableTicketkeys, components);
+    const from = new Date(dateFrom).getTime();
+    const to = new Date(dateTo).getTime();
+    const inRange = (wl: JiraWorklog) => {
+      const t = new Date(wl.started).getTime();
+      return t >= from && t <= to;
+    };
 
-    const issues: JiraIssue[] = [];
+    // Worklogs arrive embedded in the search response; only issues that overflow
+    // the embedded page (total > maxResults) need a per-issue follow-up fetch.
+    const rawIssues: JiraIssue[] = [];
+    const overflowIssues: JiraIssue[] = [];
     let nextPageToken: string | undefined;
     const maxResults = 100;
 
@@ -596,7 +631,7 @@ export class JiraNAConnector {
       const body: Record<string, unknown> = {
         jql,
         maxResults,
-        fields: ["key", "components", "issuetype"],
+        fields: ["key", "components", "issuetype", "worklog"],
       };
       if (nextPageToken) body.nextPageToken = nextPageToken;
 
@@ -617,15 +652,43 @@ export class JiraNAConnector {
       };
 
       for (const issue of data.issues) {
-        const worklogs = await this.fetchWorklogs(issue.key, dateFrom, dateTo);
-        issues.push({ ...issue, worklogs });
+        const embedded = issue.fields.worklog;
+        // Trust the embedded set only when it actually contains every worklog
+        // (length >= total). The search endpoint can report a large maxResults
+        // while returning a truncated worklogs array, so comparing against
+        // maxResults would silently drop the missing worklogs.
+        const complete =
+          embedded != null &&
+          Array.isArray(embedded.worklogs) &&
+          embedded.worklogs.length >= embedded.total;
+        if (complete) {
+          rawIssues.push({ ...issue, worklogs: embedded.worklogs.filter(inRange) });
+        } else {
+          // Incomplete embedded set — fetch the full worklog list separately.
+          overflowIssues.push(issue);
+        }
       }
 
       if (data.isLast || !data.nextPageToken) break;
       nextPageToken = data.nextPageToken;
     }
 
-    return issues.filter((issue) => issue.worklogs && issue.worklogs.length > 0);
+    // Overflow issues fetched in parallel with capped concurrency to avoid
+    // tripping Jira rate limits; per-issue errors fall back to [] (handled in
+    // fetchWorklogs), consistent with prior behavior.
+    const limit = pLimit(5);
+    const resolvedOverflow = await Promise.all(
+      overflowIssues.map((issue) =>
+        limit(async () => ({
+          ...issue,
+          worklogs: await this.fetchWorklogs(issue.key, dateFrom, dateTo),
+        }))
+      )
+    );
+
+    return [...rawIssues, ...resolvedOverflow].filter(
+      (issue) => issue.worklogs && issue.worklogs.length > 0
+    );
   }
 
   private async fetchWorklogs(

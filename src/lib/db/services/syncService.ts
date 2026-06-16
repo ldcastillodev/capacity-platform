@@ -115,6 +115,28 @@ export function upsertSyncConflictByRef(
   return db.syncConflict.upsert({ where: { externalRef }, update, create });
 }
 
+/**
+ * Upsert many conflicts by externalRef in a single transaction (one round trip)
+ * instead of one await per record.
+ */
+export function upsertSyncConflictsBatch(
+  records: {
+    externalRef: string;
+    update: Prisma.SyncConflictUpdateInput;
+    create: Prisma.SyncConflictUncheckedCreateInput;
+  }[]
+) {
+  return prisma.$transaction(
+    records.map((r) =>
+      prisma.syncConflict.upsert({
+        where: { externalRef: r.externalRef },
+        update: r.update,
+        create: r.create,
+      })
+    )
+  );
+}
+
 /** Delete conflicts whose worklogs imported this run. */
 export function deleteSyncConflictsByRefs(externalRefs: string[], db: Db = prisma) {
   return db.syncConflict.deleteMany({ where: { externalRef: { in: externalRefs } } });
