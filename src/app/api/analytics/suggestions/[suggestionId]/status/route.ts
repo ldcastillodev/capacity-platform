@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { anomalyService } from "@/lib/db";
+import type { SuggestionStatus } from "@prisma/client";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ suggestionId: string }> },
+  { params }: { params: Promise<{ suggestionId: string }> }
 ) {
   const { suggestionId } = await params;
-  const body = await req.json() as { status: string; dismissed_reason?: string };
+  const body = (await req.json()) as { status: string; dismissed_reason?: string };
 
-  const suggestion = await prisma.nonBillableEnhancementSuggestion.update({
-    where: { id: Number(suggestionId) },
-    data: {
-      status: body.status as never,
-    },
-  });
+  const suggestion = await anomalyService.updateSuggestionStatus(
+    Number(suggestionId),
+    body.status as SuggestionStatus
+  );
   return NextResponse.json(suggestion);
 }

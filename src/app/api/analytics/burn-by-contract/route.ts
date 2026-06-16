@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { contractService, hourRecordService, declarationService } from "@/lib/db";
 import { classifyContractStatus, expectedPaceFraction } from "@/lib/analytics/contract-status";
 
 export async function GET(req: NextRequest) {
@@ -11,14 +11,7 @@ export async function GET(req: NextRequest) {
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
   const asOf = new Date(Math.min(Date.now(), monthEnd.getTime()));
 
-  const contracts = await prisma.contract.findMany({
-    where: {
-      status: "active",
-      startDate: { lte: monthDate },
-      OR: [{ endDate: null }, { endDate: { gte: monthDate } }],
-    },
-    include: { sow: { include: { client: { select: { id: true, name: true } } } } },
-  });
+  const contracts = await contractService.listActiveContractsForMonth(monthDate);
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
@@ -29,13 +22,9 @@ export async function GET(req: NextRequest) {
       if (contract.hourType === "total") {
         // Total-pool contract: cumulative consumption from contract start
         // through the selected month, against the lifetime pool.
-        const agg = await prisma.hourRecord.aggregate({
-          where: {
-            contractId: contract.id,
-            isNonBillable: false,
-            date: { gte: contract.startDate, lte: monthEnd },
-          },
-          _sum: { hours: true },
+        const agg = await hourRecordService.sumBillableHoursByContract(contract.id, {
+          gte: contract.startDate,
+          lte: monthEnd,
         });
         consumed = parseFloat(String(agg._sum.hours ?? 0));
         pool = parseFloat(String(contract.assignedHours));
@@ -44,18 +33,11 @@ export async function GET(req: NextRequest) {
           : null;
       } else {
         const [agg, declEntries] = await Promise.all([
-          prisma.hourRecord.aggregate({
-            where: {
-              contractId: contract.id,
-              isNonBillable: false,
-              date: { gte: monthDate, lte: monthEnd },
-            },
-            _sum: { hours: true },
+          hourRecordService.sumBillableHoursByContract(contract.id, {
+            gte: monthDate,
+            lte: monthEnd,
           }),
-          prisma.declarationRoleEntry.aggregate({
-            where: { declaration: { contractId: contract.id, month: monthDate } },
-            _sum: { declaredHours: true },
-          }),
+          declarationService.sumDeclaredHoursByContract(contract.id, monthDate),
         ]);
         consumed = parseFloat(String(agg._sum.hours ?? 0));
         pool =

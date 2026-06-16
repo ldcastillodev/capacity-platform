@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { squadService } from "@/lib/db";
 
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const squad = await prisma.squad.update({
-    where: { id: Number(id) },
-    data: { isActive: true },
-    select: { id: true, name: true, isActive: true },
-  });
+  const squad = await squadService.setSquadActive(Number(id), true);
 
   return NextResponse.json(squad);
 }

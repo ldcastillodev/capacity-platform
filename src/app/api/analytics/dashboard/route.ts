@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { clientService, anomalyService, personService, squadService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -11,10 +11,10 @@ export async function GET(req: NextRequest) {
     : new Date(today.getFullYear(), today.getMonth(), 1);
 
   const [totalClients, openFlags, personsCount, squadsCount] = await Promise.all([
-    prisma.client.count({ where: { isActive: true } }),
-    prisma.anomalyFlag.count({ where: { month: monthDate, resolvedAt: null } }),
-    prisma.person.count({ where: { isActive: true } }),
-    prisma.squad.count({ where: { isActive: true } }),
+    clientService.countActiveClients(),
+    anomalyService.countOpenAnomalyFlags(monthDate),
+    personService.countActivePersons(),
+    squadService.countActiveSquads(),
   ]);
 
   return NextResponse.json({

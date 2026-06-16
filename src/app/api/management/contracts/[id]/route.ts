@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { contractService } from "@/lib/db";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,37 +13,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     status?: "active" | "paused" | "closed";
   };
 
-  const contract = await prisma.contract.update({
-    where: { id: Number(id) },
-    data: {
-      ...(body.name !== undefined && { name: body.name }),
-      ...(body.hour_type !== undefined && { hourType: body.hour_type }),
-      ...(body.type !== undefined && { type: body.type }),
-      ...(body.assigned_hours !== undefined && { assignedHours: body.assigned_hours }),
-      ...(body.start_date !== undefined && { startDate: new Date(body.start_date) }),
-      ...(body.end_date !== undefined && {
-        endDate: body.end_date ? new Date(body.end_date) : null,
-      }),
-      ...(body.status !== undefined && { status: body.status }),
-    },
-    select: {
-      id: true,
-      name: true,
-      sowId: true,
-      hourType: true,
-      type: true,
-      assignedHours: true,
-      startDate: true,
-      endDate: true,
-      status: true,
-      sow: {
-        select: {
-          id: true,
-          name: true,
-          client: { select: { id: true, name: true } },
-        },
-      },
-    },
+  const contract = await contractService.updateContract(Number(id), {
+    ...(body.name !== undefined && { name: body.name }),
+    ...(body.hour_type !== undefined && { hourType: body.hour_type }),
+    ...(body.type !== undefined && { type: body.type }),
+    ...(body.assigned_hours !== undefined && { assignedHours: body.assigned_hours }),
+    ...(body.start_date !== undefined && { startDate: new Date(body.start_date) }),
+    ...(body.end_date !== undefined && {
+      endDate: body.end_date ? new Date(body.end_date) : null,
+    }),
+    ...(body.status !== undefined && { status: body.status }),
   });
   return NextResponse.json(contract);
 }

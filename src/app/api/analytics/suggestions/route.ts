@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { anomalyService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -7,13 +7,9 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month");
   const status = searchParams.get("status");
 
-  const suggestions = await prisma.nonBillableEnhancementSuggestion.findMany({
-    where: {
-      ...(squadId ? { squadId: Number(squadId) } : {}),
-      ...(month ? { month: new Date(month) } : {}),
-    },
-    include: { person: true, squad: true },
-    orderBy: [{ month: "desc" }, { squadId: "asc" }],
+  const suggestions = await anomalyService.listSuggestions({
+    squadId: squadId ? Number(squadId) : undefined,
+    month: month ? new Date(month) : undefined,
   });
 
   // Filter status in JS to avoid PostgreSQL enum type mismatch

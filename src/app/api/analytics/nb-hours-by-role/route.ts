@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { hourRecordService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,25 +13,10 @@ export async function GET(req: NextRequest) {
   const monthDate = new Date(month);
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
-  const entries = await prisma.hourRecord.findMany({
-    where: {
-      isNonBillable: true,
-      ...(squadId
-        ? {
-            person: {
-              squadMemberships: {
-                some: {
-                  squadId: Number(squadId),
-                  effectiveFrom: { lte: monthEnd },
-                  OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthDate } }],
-                },
-              },
-            },
-          }
-        : {}),
-      date: { gte: monthDate, lte: monthEnd },
-    },
-    select: { roleType: true, hours: true },
+  const entries = await hourRecordService.listNonBillableHoursForRoleBreakdown({
+    monthStart: monthDate,
+    monthEnd,
+    squadId: squadId ? Number(squadId) : undefined,
   });
 
   const byRole: Record<string, number> = {};

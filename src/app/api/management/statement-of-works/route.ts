@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { contractService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get("clientId");
   const includeArchived = searchParams.get("includeArchived") === "true";
 
-  const sows = await prisma.statementOfWork.findMany({
-    where: {
-      ...(clientId ? { clientId: Number(clientId) } : {}),
-      ...(includeArchived ? {} : { isActive: true }),
-    },
-    orderBy: [{ clientId: "asc" }, { startDate: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      clientId: true,
-      isActive: true,
-      startDate: true,
-      endDate: true,
-      client: { select: { id: true, name: true } },
-    },
+  const sows = await contractService.listStatementsOfWork({
+    clientId: clientId ? Number(clientId) : undefined,
+    includeArchived,
   });
   return NextResponse.json(sows);
 }
@@ -33,22 +21,11 @@ export async function POST(req: NextRequest) {
     end_date?: string;
   };
 
-  const sow = await prisma.statementOfWork.create({
-    data: {
-      name: body.name,
-      clientId: body.client_id,
-      startDate: new Date(body.start_date),
-      endDate: body.end_date ? new Date(body.end_date) : null,
-    },
-    select: {
-      id: true,
-      name: true,
-      clientId: true,
-      isActive: true,
-      startDate: true,
-      endDate: true,
-      client: { select: { id: true, name: true } },
-    },
+  const sow = await contractService.createStatementOfWork({
+    name: body.name,
+    clientId: body.client_id,
+    startDate: new Date(body.start_date),
+    endDate: body.end_date ? new Date(body.end_date) : null,
   });
   return NextResponse.json(sow, { status: 201 });
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { hourRecordService, clientService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -9,22 +9,11 @@ export async function GET(req: NextRequest) {
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
-  const grouped = await prisma.hourRecord.groupBy({
-    by: ["clientId"],
-    where: {
-      isNonBillable: true,
-      clientId: { not: null },
-      date: { gte: monthDate, lte: monthEnd },
-    },
-    _sum: { hours: true },
-  });
+  const grouped = await hourRecordService.sumNonBillableHoursByClient(monthDate, monthEnd);
 
   if (grouped.length === 0) return NextResponse.json([]);
 
-  const clients = await prisma.client.findMany({
-    where: { id: { in: grouped.map((r) => r.clientId!) } },
-    select: { id: true, name: true },
-  });
+  const clients = await clientService.listClientsByIds(grouped.map((r) => r.clientId!));
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.name]));
 
   const rows = grouped.map((r) => ({

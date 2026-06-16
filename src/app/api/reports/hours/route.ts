@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { reportsService } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
 type Dimension =
@@ -87,7 +87,10 @@ function parseIds(raw: string | null): number[] {
 
 function parseStrings(raw: string | null): string[] {
   if (!raw) return [];
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export async function GET(req: NextRequest) {
@@ -112,9 +115,7 @@ export async function GET(req: NextRequest) {
   const fromDate = from
     ? new Date(from)
     : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
-  const toDate = to
-    ? new Date(to)
-    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const toDate = to ? new Date(to) : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const toMonthEnd = new Date(Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth() + 1, 0));
 
   // ── Shared hour_records filters ────────────────────────────────────────────
@@ -127,9 +128,11 @@ export async function GET(req: NextRequest) {
   if (personIds.length) hrFilters.push(Prisma.sql`hr.person_id IN (${Prisma.join(personIds)})`);
   if (squadIds.length) hrFilters.push(Prisma.sql`hr.squad_id IN (${Prisma.join(squadIds)})`);
   if (clientIds.length) hrFilters.push(Prisma.sql`hr.client_id IN (${Prisma.join(clientIds)})`);
-  if (contractIds.length) hrFilters.push(Prisma.sql`hr.contract_id IN (${Prisma.join(contractIds)})`);
+  if (contractIds.length)
+    hrFilters.push(Prisma.sql`hr.contract_id IN (${Prisma.join(contractIds)})`);
   if (sowIds.length) hrFilters.push(Prisma.sql`c.sow_id IN (${Prisma.join(sowIds)})`);
-  if (roleTypes.length) hrFilters.push(Prisma.sql`hr.role_type::text IN (${Prisma.join(roleTypes)})`);
+  if (roleTypes.length)
+    hrFilters.push(Prisma.sql`hr.role_type::text IN (${Prisma.join(roleTypes)})`);
   const hrWhere = Prisma.join(hrFilters, " AND ");
 
   const fromJoins = Prisma.sql`
@@ -145,23 +148,20 @@ export async function GET(req: NextRequest) {
   const dimSelect = Prisma.join(
     dimensions.map(
       (d, i) =>
-        Prisma.sql`${DIMENSIONS[d].key} AS ${Prisma.raw(`d${i}_key`)}, ${DIMENSIONS[d].label} AS ${Prisma.raw(`d${i}_label`)}`,
+        Prisma.sql`${DIMENSIONS[d].key} AS ${Prisma.raw(`d${i}_key`)}, ${DIMENSIONS[d].label} AS ${Prisma.raw(`d${i}_label`)}`
     ),
-    ", ",
+    ", "
   );
   const dimAliases = dimensions.flatMap((_, i) => [`d${i}_key`, `d${i}_label`]).join(", ");
   const labelAliases = dimensions.map((_, i) => `d${i}_label`).join(", ");
 
-  const actualRows = await prisma.$queryRaw<Record<string, string | number>[]>(Prisma.sql`
-    SELECT
-      ${dimSelect},
-      SUM(CASE WHEN hr.is_non_billable = false THEN hr.hours ELSE 0 END)::float AS billable_hours,
-      SUM(CASE WHEN hr.is_non_billable = true  THEN hr.hours ELSE 0 END)::float AS nb_hours
-    ${fromJoins}
-    WHERE ${hrWhere}
-    GROUP BY ${Prisma.raw(dimAliases)}
-    ORDER BY ${Prisma.raw(labelAliases)}
-  `);
+  const actualRows = await reportsService.getHoursReportRows({
+    dimSelect,
+    fromJoins,
+    hrWhere,
+    dimAliases,
+    labelAliases,
+  });
 
   const rows = actualRows.map((r) => {
     const labels: Record<string, string> = {};
@@ -179,18 +179,11 @@ export async function GET(req: NextRequest) {
   });
 
   // ── Chart series: per-period billable / non-billable ───────────────────────
-  const seriesRows = await prisma.$queryRaw<
-    { period: string; billable: number; non_billable: number }[]
-  >(Prisma.sql`
-    SELECT
-      ${GRANULARITY_EXPR[granularity]} AS period,
-      SUM(CASE WHEN hr.is_non_billable = false THEN hr.hours ELSE 0 END)::float AS billable,
-      SUM(CASE WHEN hr.is_non_billable = true  THEN hr.hours ELSE 0 END)::float AS non_billable
-    ${fromJoins}
-    WHERE ${hrWhere}
-    GROUP BY period
-    ORDER BY period
-  `);
+  const seriesRows = await reportsService.getHoursReportSeries({
+    periodExpr: GRANULARITY_EXPR[granularity],
+    fromJoins,
+    hrWhere,
+  });
 
   const series = seriesRows.map((r) => ({
     period: r.period,

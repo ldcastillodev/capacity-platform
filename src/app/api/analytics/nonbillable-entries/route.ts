@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { hourRecordService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,22 +13,21 @@ export async function GET(req: NextRequest) {
   const monthDate = new Date(month);
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
-  const entries = await prisma.hourRecord.findMany({
-    where: {
-      personId: Number(personId),
-      isNonBillable: true,
-      date: { gte: monthDate, lte: monthEnd },
-    },
-    include: { nonBillableCategory: true },
-    orderBy: { date: "asc" },
-  });
+  const entries = await hourRecordService.listNonBillableEntriesForPersonMonth(
+    Number(personId),
+    monthDate,
+    monthEnd
+  );
 
-  const groups: Record<string, {
-    category_type: string;
-    category_name: string;
-    total_hours: number;
-    entries: Array<{ date: string; hours: number; issue_key: string | null }>;
-  }> = {};
+  const groups: Record<
+    string,
+    {
+      category_type: string;
+      category_name: string;
+      total_hours: number;
+      entries: Array<{ date: string; hours: number; issue_key: string | null }>;
+    }
+  > = {};
 
   for (const e of entries) {
     if (!e.nonBillableCategory) continue;

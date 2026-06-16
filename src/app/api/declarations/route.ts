@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { declarationService, hourRecordService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -10,37 +10,20 @@ export async function GET(req: NextRequest) {
     ? new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0))
     : null;
 
-  const decls = await prisma.monthlyRoleDeclaration.findMany({
-    where: monthDate ? { month: monthDate } : {},
-    orderBy: [{ month: "desc" }, { clientId: "asc" }],
-    select: {
-      id: true,
-      contractId: true,
-      clientId: true,
-      squadId: true,
-      month: true,
-      status: true,
-      client: { select: { id: true, name: true } },
-      squad: { select: { id: true, name: true } },
-      contract: { select: { id: true, name: true } },
-      roles: { select: { roleType: true, declaredHours: true } },
-    },
-  });
+  const decls = await declarationService.listDeclarationsForMonth(monthDate);
 
   // aggregate consumed hours per (contractId, roleType) for the month
-  const contractIds = [...new Set(decls.map((d) => d.contractId).filter((id): id is number => id !== null))];
+  const contractIds = [
+    ...new Set(decls.map((d) => d.contractId).filter((id): id is number => id !== null)),
+  ];
   const consumed: Record<string, number> = {};
 
   if (contractIds.length > 0 && monthDate && monthEnd) {
-    const hourGroups = await prisma.hourRecord.groupBy({
-      by: ["contractId", "roleType"],
-      where: {
-        contractId: { in: contractIds },
-        isNonBillable: false,
-        date: { gte: monthDate, lte: monthEnd },
-      },
-      _sum: { hours: true },
-    });
+    const hourGroups = await hourRecordService.sumConsumedHoursByContractRole(
+      contractIds,
+      monthDate,
+      monthEnd
+    );
     for (const g of hourGroups) {
       if (g.contractId !== null && g.roleType !== null) {
         consumed[`${g.contractId}:${g.roleType}`] = Number(g._sum.hours ?? 0);

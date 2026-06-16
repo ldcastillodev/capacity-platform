@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { anomalyService } from "@/lib/db";
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ flagId: string }> },
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ flagId: string }> }) {
   const { flagId } = await params;
-  const body = await req.json() as { resolution_notes?: string };
+  const body = (await req.json()) as { resolution_notes?: string };
 
-  const flag = await prisma.anomalyFlag.update({
-    where: { id: Number(flagId) },
-    data: {
-      resolvedAt: new Date(),
-      resolutionNotes: body.resolution_notes ?? null,
-    },
-  });
+  const flag = await anomalyService.resolveAnomalyFlag(
+    Number(flagId),
+    body.resolution_notes ?? null
+  );
   return NextResponse.json(flag);
 }

@@ -1,39 +1,15 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { personService, squadService, clientService, contractService } from "@/lib/db";
 
 export async function GET() {
   const today = new Date();
   const [persons, memberships, squads, clients, contracts, sows] = await Promise.all([
-    prisma.person.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.squadMembership.findMany({
-      where: {
-        effectiveFrom: { lte: today },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: today } }],
-      },
-      select: { personId: true, squadId: true },
-    }),
-    prisma.squad.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.client.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.contract.findMany({
-      select: { id: true, name: true, sowId: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.statementOfWork.findMany({
-      select: { id: true, name: true, clientId: true },
-      orderBy: { name: "asc" },
-    }),
+    personService.listActivePersonOptions(),
+    squadService.listActiveMembershipPairs(today),
+    squadService.listActiveSquadOptions(),
+    clientService.listActiveClientOptions(),
+    contractService.listContractFilterOptions(),
+    contractService.listStatementOfWorkFilterOptions(),
   ]);
 
   const squadIdsByPerson = new Map<number, number[]>();

@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { syncService } from "@/lib/db";
+import type { SyncConflictCategory } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
   try {
-    const rows = await prisma.syncConflict.findMany({
-      where: category ? { category: category as never } : undefined,
-      orderBy: { lastSeenAt: "desc" },
-      take: 200,
-      select: {
-        id: true, source: true, externalRef: true, category: true,
-        authorEmail: true, issueKey: true, componentKey: true,
-        date: true, hours: true, detail: true, lastSeenAt: true,
-      },
+    const rows = await syncService.listSyncConflicts({
+      category: category ? (category as SyncConflictCategory) : undefined,
     });
     return NextResponse.json(rows);
   } catch (e) {

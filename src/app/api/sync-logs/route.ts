@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { syncService } from "@/lib/db";
+import type { SyncSource } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const source = searchParams.get("source");
   const limit = Number(searchParams.get("limit") ?? "50");
 
-  const logs = await prisma.syncLog.findMany({
-    where: source ? { source: source as never } : undefined,
-    orderBy: { startedAt: "desc" },
-    take: Math.min(limit, 200),
+  const logs = await syncService.listSyncLogs({
+    source: source ? (source as SyncSource) : undefined,
+    limit,
   });
   return NextResponse.json(logs);
 }

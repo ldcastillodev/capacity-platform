@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { anomalyService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -7,14 +7,10 @@ export async function GET(req: NextRequest) {
   const squadId = searchParams.get("squad_id");
   const openOnly = searchParams.get("open_only") === "true";
 
-  const flags = await prisma.anomalyFlag.findMany({
-    where: {
-      ...(month ? { month: new Date(month) } : {}),
-      ...(squadId ? { squadId: Number(squadId) } : {}),
-      ...(openOnly ? { resolvedAt: null } : {}),
-    },
-    include: { squad: true, client: true },
-    orderBy: [{ severity: "desc" }, { month: "desc" }],
+  const flags = await anomalyService.listAnomalyFlags({
+    month: month ? new Date(month) : undefined,
+    squadId: squadId ? Number(squadId) : undefined,
+    openOnly,
   });
 
   return NextResponse.json(flags);

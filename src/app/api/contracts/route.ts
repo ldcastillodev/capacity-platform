@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { contractService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get("client_id");
 
-  const contracts = await prisma.contract.findMany({
-    where: {
-      status: "active",
-      ...(clientId ? { sow: { clientId: Number(clientId) } } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    include: { sow: { select: { clientId: true, name: true } } },
+  const contracts = await contractService.listActiveContracts({
+    clientId: clientId ? Number(clientId) : undefined,
   });
   return NextResponse.json(contracts);
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json() as {
+  const body = (await req.json()) as {
     sow_id: number;
     name: string;
     hour_type: string;
@@ -28,17 +23,15 @@ export async function POST(req: NextRequest) {
     status?: string;
   };
 
-  const contract = await prisma.contract.create({
-    data: {
-      sowId: body.sow_id,
-      name: body.name,
-      hourType: body.hour_type as never,
-      type: body.type as never,
-      assignedHours: body.assigned_hours,
-      startDate: new Date(body.start_date),
-      endDate: body.end_date ? new Date(body.end_date) : null,
-      status: (body.status as never) ?? "active",
-    },
+  const contract = await contractService.createContract({
+    sowId: body.sow_id,
+    name: body.name,
+    hourType: body.hour_type as never,
+    type: body.type as never,
+    assignedHours: body.assigned_hours,
+    startDate: new Date(body.start_date),
+    endDate: body.end_date ? new Date(body.end_date) : null,
+    status: (body.status as never) ?? "active",
   });
   return NextResponse.json(contract, { status: 201 });
 }

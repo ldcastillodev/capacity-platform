@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { contractService, hourRecordService } from "@/lib/db";
 
 function weekStart(date: Date): string {
   const d = new Date(date);
@@ -16,38 +16,20 @@ export async function GET(req: NextRequest) {
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
-  const contracts = await prisma.contract.findMany({
-    where: {
-      status: "active",
-      startDate: { lte: monthDate },
-      OR: [{ endDate: null }, { endDate: { gte: monthDate } }],
-    },
-    include: { sow: { include: { client: { select: { id: true, name: true } } } } },
-  });
+  const contracts = await contractService.listActiveContractsForMonth(monthDate);
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
       const isTotal = contract.hourType === "total";
 
       const [records, priorAgg] = await Promise.all([
-        prisma.hourRecord.findMany({
-          where: {
-            contractId: contract.id,
-            isNonBillable: false,
-            date: { gte: monthDate, lte: monthEnd },
-          },
-          select: { date: true, hours: true },
-        }),
+        hourRecordService.listBillableHoursForContractMonth(contract.id, monthDate, monthEnd),
         // Total-pool contract: consumption before the selected month draws
         // down the same lifetime pool (strict lt avoids double-counting).
         isTotal
-          ? prisma.hourRecord.aggregate({
-              where: {
-                contractId: contract.id,
-                isNonBillable: false,
-                date: { gte: contract.startDate, lt: monthDate },
-              },
-              _sum: { hours: true },
+          ? hourRecordService.sumBillableHoursByContract(contract.id, {
+              gte: contract.startDate,
+              lt: monthDate,
             })
           : null,
       ]);

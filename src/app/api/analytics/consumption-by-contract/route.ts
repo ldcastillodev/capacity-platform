@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { contractService, hourRecordService, declarationService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -9,38 +9,20 @@ export async function GET(req: NextRequest) {
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
-  const contracts = await prisma.contract.findMany({
-    where: {
-      status: "active",
-      startDate: { lte: monthDate },
-      OR: [{ endDate: null }, { endDate: { gte: monthDate } }],
-    },
-    include: { sow: { include: { client: { select: { id: true, name: true } } } } },
-  });
+  const contracts = await contractService.listActiveContractsForMonth(monthDate);
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
       const [hoursAgg, declEntries, priorAgg] = await Promise.all([
-        prisma.hourRecord.aggregate({
-          where: {
-            contractId: contract.id,
-            isNonBillable: false,
-            date: { gte: monthDate, lte: monthEnd },
-          },
-          _sum: { hours: true },
+        hourRecordService.sumBillableHoursByContract(contract.id, {
+          gte: monthDate,
+          lte: monthEnd,
         }),
-        prisma.declarationRoleEntry.aggregate({
-          where: { declaration: { contractId: contract.id, month: monthDate } },
-          _sum: { declaredHours: true },
-        }),
+        declarationService.sumDeclaredHoursByContract(contract.id, monthDate),
         contract.hourType === "total"
-          ? prisma.hourRecord.aggregate({
-              where: {
-                contractId: contract.id,
-                isNonBillable: false,
-                date: { gte: contract.startDate, lt: monthDate },
-              },
-              _sum: { hours: true },
+          ? hourRecordService.sumBillableHoursByContract(contract.id, {
+              gte: contract.startDate,
+              lt: monthDate,
             })
           : Promise.resolve(null),
       ]);

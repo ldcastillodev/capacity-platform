@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { hourRecordService, personService, nonBillableService } from "@/lib/db";
 
 function workingDaysInMonth(year: number, month: number): number {
   const days = new Date(year, month + 1, 0).getDate();
@@ -23,17 +23,13 @@ export async function GET(req: NextRequest) {
   const priorStart = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() - 1, 1));
   const priorEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth(), 0));
 
-  const squadFilter = squadIdParam ? { squadId: Number(squadIdParam) } : {};
+  const squadId = squadIdParam ? Number(squadIdParam) : undefined;
 
   // NB hours per person+squad+category for current month
-  const nbByCategory = await prisma.hourRecord.groupBy({
-    by: ["personId", "squadId", "nonBillableCategoryId"],
-    where: {
-      isNonBillable: true,
-      date: { gte: monthDate, lte: monthEnd },
-      ...squadFilter,
-    },
-    _sum: { hours: true },
+  const nbByCategory = await hourRecordService.sumNonBillableHoursByPersonSquadCategory({
+    monthStart: monthDate,
+    monthEnd,
+    squadId,
   });
 
   if (nbByCategory.length === 0) return NextResponse.json([]);
@@ -41,40 +37,26 @@ export async function GET(req: NextRequest) {
   const personIds = [...new Set(nbByCategory.map((r) => r.personId))];
 
   // Billable hours per person for nb% denominator
-  const billableByPerson = await prisma.hourRecord.groupBy({
-    by: ["personId"],
-    where: {
-      isNonBillable: false,
-      date: { gte: monthDate, lte: monthEnd },
-      personId: { in: personIds },
-    },
-    _sum: { hours: true },
-  });
+  const billableByPerson = await hourRecordService.sumBillableHoursByPerson(
+    personIds,
+    monthDate,
+    monthEnd
+  );
   const billableMap = new Map(billableByPerson.map((r) => [r.personId, Number(r._sum.hours ?? 0)]));
 
   // Prior month NB totals per person+squad for month-over-month delta
-  const nbPrior = await prisma.hourRecord.groupBy({
-    by: ["personId", "squadId"],
-    where: {
-      isNonBillable: true,
-      date: { gte: priorStart, lte: priorEnd },
-      ...squadFilter,
-    },
-    _sum: { hours: true },
+  const nbPrior = await hourRecordService.sumNonBillableHoursByPersonSquad({
+    from: priorStart,
+    to: priorEnd,
+    squadId,
   });
   const priorMap = new Map(
-    nbPrior.map((r) => [`${r.personId}|${r.squadId}`, Number(r._sum.hours ?? 0)]),
+    nbPrior.map((r) => [`${r.personId}|${r.squadId}`, Number(r._sum.hours ?? 0)])
   );
 
   // Person weekly capacity effective for the queried month, pro-rated by
   // days when it changed mid-month.
-  const capRows = await prisma.personCapacityHistory.findMany({
-    where: {
-      personId: { in: personIds },
-      effectiveFrom: { lte: monthEnd },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthDate } }],
-    },
-  });
+  const capRows = await personService.listCapacityHistoryForMonth(personIds, monthDate, monthEnd);
   const daysInMonth = Math.round((monthEnd.getTime() - monthDate.getTime()) / 86_400_000) + 1;
   const personCapMap = new Map<number, number>();
   for (const row of capRows) {
@@ -90,9 +72,7 @@ export async function GET(req: NextRequest) {
     ...new Set(nbByCategory.map((r) => r.nonBillableCategoryId).filter(Boolean)),
   ] as number[];
   const categories =
-    catIds.length > 0
-      ? await prisma.nonBillableCategory.findMany({ where: { id: { in: catIds } } })
-      : [];
+    catIds.length > 0 ? await nonBillableService.listNonBillableCategoriesByIds(catIds) : [];
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
   const wdays = workingDaysInMonth(monthDate.getFullYear(), monthDate.getMonth());
@@ -102,7 +82,11 @@ export async function GET(req: NextRequest) {
   const totals = new Map<string, { personId: number; squadId: number; totalHours: number }>();
   for (const row of nbByCategory) {
     const key = `${row.personId}|${row.squadId}`;
-    const existing = totals.get(key) ?? { personId: row.personId, squadId: row.squadId, totalHours: 0 };
+    const existing = totals.get(key) ?? {
+      personId: row.personId,
+      squadId: row.squadId,
+      totalHours: 0,
+    };
     existing.totalHours += Number(row._sum.hours ?? 0);
     totals.set(key, existing);
   }

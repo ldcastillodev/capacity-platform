@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
-import prisma from "@/lib/prisma";
+import { squadService, analyticsRawService } from "@/lib/db";
 import {
   computeMemberRoles,
   computeRoleBreakdown,
@@ -12,8 +11,17 @@ import {
 } from "@/lib/simulator";
 
 const ROLE_TYPES = [
-  "dev", "devops", "qa", "design", "product",
-  "project", "tl", "sre", "data", "seo", "content",
+  "dev",
+  "devops",
+  "qa",
+  "design",
+  "product",
+  "project",
+  "tl",
+  "sre",
+  "data",
+  "seo",
+  "content",
 ] as const;
 
 const bodySchema = z
@@ -25,7 +33,7 @@ const bodySchema = z
         z.object({
           roleType: z.enum(ROLE_TYPES),
           hours: z.coerce.number().positive(),
-        }),
+        })
       )
       .min(1),
   })
@@ -52,17 +60,6 @@ const bodySchema = z
     }
   });
 
-type MemberRow = {
-  person_id: number;
-  person_name: string;
-  allocation_pct: number;
-  capacity_hours: number;
-  m3_hours: number;
-  m2_hours: number;
-  m1_hours: number;
-  unassigned_avg: number;
-};
-
 function ymKey(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
@@ -82,45 +79,21 @@ export async function POST(req: NextRequest) {
   const m2Start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
   const m3Start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));
 
-  const squad = await prisma.squad.findUnique({ where: { id: squadId } });
+  const squad = await squadService.findSquadById(squadId);
   if (!squad || !squad.isActive) {
     return NextResponse.json({ error: "Squad not found or inactive" }, { status: 400 });
   }
 
-  const rows = await prisma.$queryRaw<MemberRow[]>(Prisma.sql`
-    SELECT
-      p.id AS person_id,
-      p.name AS person_name,
-      sm.allocation_pct::float AS allocation_pct,
-      (
-        p.weekly_capacity_hours * sm.allocation_pct * (
-          SELECT COUNT(*)::numeric
-          FROM generate_series(${monthStart}::date, ${monthEnd}::date, '1 day'::interval) d
-          WHERE EXTRACT(DOW FROM d) NOT IN (0, 6)
-        ) / 5.0
-      )::float AS capacity_hours,
-      COALESCE(SUM(hr.hours) FILTER (
-        WHERE hr.date >= ${m3Start}::date AND hr.date < ${m2Start}::date AND hr.is_non_billable = false
-      ), 0)::float AS m3_hours,
-      COALESCE(SUM(hr.hours) FILTER (
-        WHERE hr.date >= ${m2Start}::date AND hr.date < ${m1Start}::date AND hr.is_non_billable = false
-      ), 0)::float AS m2_hours,
-      COALESCE(SUM(hr.hours) FILTER (
-        WHERE hr.date >= ${m1Start}::date AND hr.date < ${monthStart}::date AND hr.is_non_billable = false
-      ), 0)::float AS m1_hours,
-      (COALESCE(SUM(hr.hours) FILTER (
-        WHERE hr.date >= ${m3Start}::date AND hr.date < ${monthStart}::date
-          AND hr.is_non_billable = false AND hr.role_type IS NULL
-      ), 0) / 3.0)::float AS unassigned_avg
-    FROM squad_memberships sm
-    JOIN persons p ON p.id = sm.person_id AND p.is_active = true
-    LEFT JOIN hour_records hr ON hr.person_id = p.id
-    WHERE sm.squad_id = ${squadId}
-      AND sm.effective_from <= ${monthEnd}::date
-      AND (sm.effective_to IS NULL OR sm.effective_to >= ${monthStart}::date)
-    GROUP BY p.id, p.name, sm.allocation_pct, p.weekly_capacity_hours
-    ORDER BY p.name
-  `);
+  const roleTypes = roleRequests.map((r) => r.roleType);
+
+  const rows = await analyticsRawService.getSquadMemberCapacity({
+    squadId,
+    monthStart,
+    monthEnd,
+    m1Start,
+    m2Start,
+    m3Start,
+  });
 
   const monthlyLabels = [ymKey(m3Start), ymKey(m2Start), ymKey(m1Start)];
 
@@ -144,47 +117,13 @@ export async function POST(req: NextRequest) {
     return { ...m, monthlyBillable: src?.monthlyBillable ?? [0, 0, 0] };
   });
 
-  type RoleAggRow = {
-    role_type: string;
-    capacity_hours: number;
-    recent_avg_hours: number;
-  };
-
-  const roleList = roleRequests.map((r) => r.roleType);
-  const roleSqlList = Prisma.join(
-    roleList.map((r) => Prisma.sql`${r}::"RoleType"`),
-  );
-
-  const roleRows = await prisma.$queryRaw<RoleAggRow[]>(Prisma.sql`
-    SELECT
-      pr.role_type::text AS role_type,
-      COALESCE(SUM(
-        p.weekly_capacity_hours * sm.allocation_pct * (
-          SELECT COUNT(*)::numeric
-          FROM generate_series(${monthStart}::date, ${monthEnd}::date, '1 day'::interval) d
-          WHERE EXTRACT(DOW FROM d) NOT IN (0, 6)
-        ) / 5.0
-      ), 0)::float AS capacity_hours,
-      COALESCE(SUM(role_hr.recent_avg), 0)::float AS recent_avg_hours
-    FROM person_roles pr
-    JOIN persons p ON p.id = pr.person_id AND p.is_active = true
-    JOIN squad_memberships sm ON sm.person_id = pr.person_id AND sm.squad_id = ${squadId}
-    LEFT JOIN LATERAL (
-      SELECT COALESCE(SUM(hr.hours) FILTER (
-        WHERE hr.date >= ${m3Start}::date AND hr.date < ${monthStart}::date
-          AND hr.is_non_billable = false
-          AND hr.role_type = pr.role_type
-      ), 0) / 3.0 AS recent_avg
-      FROM hour_records hr
-      WHERE hr.person_id = p.id
-    ) role_hr ON true
-    WHERE pr.role_type IN (${roleSqlList})
-      AND pr.effective_from <= ${monthEnd}::date
-      AND (pr.effective_to IS NULL OR pr.effective_to >= ${monthStart}::date)
-      AND sm.effective_from <= ${monthEnd}::date
-      AND (sm.effective_to IS NULL OR sm.effective_to >= ${monthStart}::date)
-    GROUP BY pr.role_type
-  `);
+  const roleRows = await analyticsRawService.getRoleCapacityAggregate({
+    squadId,
+    monthStart,
+    monthEnd,
+    m3Start,
+    roleTypes,
+  });
 
   const roleInputs: SimulationRoleInput[] = roleRequests.map((req) => {
     const row = roleRows.find((r) => r.role_type === req.roleType);
@@ -198,39 +137,13 @@ export async function POST(req: NextRequest) {
 
   const roleBreakdown = computeRoleBreakdown(roleInputs);
 
-  type MemberRoleRow = {
-    person_id: number;
-    role_type: string;
-    recent_avg_hours: number;
-  };
-
-  const memberRoleRows = await prisma.$queryRaw<MemberRoleRow[]>(Prisma.sql`
-    SELECT
-      pr.person_id,
-      pr.role_type::text AS role_type,
-      COALESCE((
-        SELECT SUM(hr.hours) FILTER (
-          WHERE hr.date >= ${m3Start}::date AND hr.date < ${monthStart}::date
-            AND hr.is_non_billable = false
-            AND hr.role_type = pr.role_type
-        )
-        FROM hour_records hr
-        WHERE hr.person_id = pr.person_id
-      ), 0)::float / 3.0 AS recent_avg_hours
-    FROM person_roles pr
-    JOIN persons p ON p.id = pr.person_id AND p.is_active = true
-    WHERE pr.role_type IN (${roleSqlList})
-      AND pr.effective_from <= ${monthEnd}::date
-      AND (pr.effective_to IS NULL OR pr.effective_to >= ${monthStart}::date)
-      AND EXISTS (
-        SELECT 1 FROM squad_memberships sm
-        WHERE sm.person_id = pr.person_id
-          AND sm.squad_id = ${squadId}
-          AND sm.effective_from <= ${monthEnd}::date
-          AND (sm.effective_to IS NULL OR sm.effective_to >= ${monthStart}::date)
-      )
-    GROUP BY pr.person_id, pr.role_type
-  `);
+  const memberRoleRows = await analyticsRawService.getMemberRoleRecentHours({
+    squadId,
+    monthStart,
+    monthEnd,
+    m3Start,
+    roleTypes,
+  });
 
   const membersOut = membersWithMonthly.map((m) => {
     const src = rows.find((r) => r.person_id === m.personId);
