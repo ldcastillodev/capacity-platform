@@ -474,16 +474,20 @@ export class JiraNAConnector {
             continue;
           }
 
-          // Route to extension contract if base has exhausted its assignedHours
+          // Route hours between the base contract and its extension. Worklogs
+          // fill the base up to assignedHours, then spill into the extension. A
+          // worklog straddling the boundary is split so the base lands on
+          // exactly assignedHours and only the remainder rolls to the extension.
           const baseContractId = clientMapping.contractId;
-          let contractId = baseContractId;
           const baseContract = ctx.contractById.get(baseContractId);
           const consumed = runningConsumed.get(baseContractId) ?? 0;
-          if (
-            baseContract?.childContracts?.[0]?.type === "extension" &&
-            consumed >= baseContract.assignedHours
-          ) {
-            contractId = baseContract.childContracts[0].id;
+          const extensionChild = baseContract?.childContracts?.find((c) => c.type === "extension");
+          let baseHours = hours;
+          let extHours = 0;
+          if (extensionChild) {
+            const remaining = Math.max(baseContract!.assignedHours - consumed, 0);
+            baseHours = Math.min(hours, remaining);
+            extHours = hours - baseHours;
           }
 
           // BR-10: with multiple active memberships, the squad comes from the
@@ -523,18 +527,35 @@ export class JiraNAConnector {
             squadId = declaredSquadId;
           }
 
-          hourRecordsToCreate.push({
+          // A split keeps the plain base ref on the base portion and a `:ext`
+          // suffix on the extension portion. A worklog landing wholly on one
+          // contract keeps the plain base ref so the skip check (line ~300)
+          // short-circuits re-syncs; createMany(skipDuplicates) is the backstop.
+          const common = {
             personId: person.id,
             squadId,
             clientId: clientMapping.contract.sow.clientId,
             date,
-            hours,
             roleType: role.roleType,
             source: "jira_na" as const,
-            externalRef,
             issueKey: issue.key,
-            contractId,
-          });
+          };
+          if (baseHours > 0) {
+            hourRecordsToCreate.push({
+              ...common,
+              hours: baseHours,
+              externalRef,
+              contractId: baseContractId,
+            });
+          }
+          if (extHours > 0) {
+            hourRecordsToCreate.push({
+              ...common,
+              hours: extHours,
+              externalRef: baseHours > 0 ? `${externalRef}:ext` : externalRef,
+              contractId: extensionChild!.id,
+            });
+          }
           // Gap B: grow the per-base tally so later same-run worklogs roll to the
           // extension once the base's assignedHours are crossed. Keyed on the base
           // (not the routed contract) and monotonic — it only drives the threshold.

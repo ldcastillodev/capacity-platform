@@ -598,7 +598,7 @@ interface ContractRecord {
   name: string;
   sowId: number;
   hourType: "monthly" | "total";
-  type: "base" | "change_order";
+  type: "base" | "change_order" | "extension";
   assignedHours: string;
   startDate: string;
   endDate: string | null;
@@ -614,12 +614,13 @@ interface ContractFormState {
   name: string;
   sow_id: string;
   hour_type: "monthly" | "total";
-  type: "base" | "change_order";
+  type: "base" | "change_order" | "extension";
   assigned_hours: string;
   start_date: string;
   end_date: string;
   status: "active" | "paused" | "closed";
   client_filter: string;
+  parent_contract_id: string;
 }
 
 function ContractsSection() {
@@ -636,6 +637,7 @@ function ContractsSection() {
     end_date: "",
     status: "active",
     client_filter: "",
+    parent_contract_id: "",
   });
   const [showArchived, setShowArchived] = useState(false);
   const [archiving, setArchiving] = useState<ContractRecord | null>(null);
@@ -669,6 +671,10 @@ function ContractsSection() {
           start_date: f.start_date,
           end_date: f.end_date || undefined,
           status: f.status,
+          parent_contract_id:
+            f.type === "extension" && f.parent_contract_id
+              ? Number(f.parent_contract_id)
+              : undefined,
         })
         .then((r) => r.data),
     onSuccess: () => {
@@ -724,6 +730,7 @@ function ContractsSection() {
       end_date: "",
       status: "active",
       client_filter: "",
+      parent_contract_id: "",
     });
     setEditing(null);
     setApiError(null);
@@ -740,6 +747,7 @@ function ContractsSection() {
       end_date: c.endDate ? fmtDate(c.endDate) : "",
       status: c.status,
       client_filter: c.sow.client.id.toString(),
+      parent_contract_id: "",
     });
     setEditing(c);
     setApiError(null);
@@ -949,7 +957,9 @@ function ContractsSection() {
               <Label>Contract Type *</Label>
               <Select
                 value={form.type}
-                onValueChange={(v) => setForm({ ...form, type: v as "base" | "change_order" })}
+                onValueChange={(v) =>
+                  setForm({ ...form, type: v as "base" | "change_order" | "extension" })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -962,6 +972,37 @@ function ContractsSection() {
               </Select>
             </div>
           </div>
+          {modalMode === "create" && form.type === "extension" && (
+            <div className="space-y-1.5">
+              <Label>Parent Contract *</Label>
+              <Select
+                required
+                value={form.parent_contract_id || "none"}
+                onValueChange={(v) =>
+                  setForm({ ...form, parent_contract_id: v === "none" ? "" : v })
+                }
+                disabled={!form.sow_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="— Select parent contract —" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Select parent contract —</SelectItem>
+                  {contracts
+                    .filter((c) => c.sowId === Number(form.sow_id) && c.type !== "extension")
+                    .map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Worklogs fill the parent first, then spill into this extension once the
+                parent&apos;s assigned hours are consumed.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>Assigned Hours *</Label>

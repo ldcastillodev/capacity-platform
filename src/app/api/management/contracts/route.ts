@@ -18,11 +18,12 @@ export async function POST(req: NextRequest) {
     name: string;
     sow_id: number;
     hour_type: "monthly" | "total";
-    type: "base" | "change_order";
+    type: "base" | "change_order" | "extension";
     assigned_hours: number;
     start_date: string;
     end_date?: string;
     status?: "active" | "paused" | "closed";
+    parent_contract_id?: number;
   };
 
   const contract = await contractService.createManagedContract({
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     startDate: new Date(body.start_date),
     endDate: body.end_date ? new Date(body.end_date) : null,
     status: body.status ?? "active",
+    parentContractId: body.parent_contract_id ?? null,
   });
   return NextResponse.json(contract, { status: 201 });
 }
