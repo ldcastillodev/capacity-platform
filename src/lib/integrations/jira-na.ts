@@ -1,11 +1,26 @@
 import prisma from "../prisma";
-import { toUtcDateOnly } from "../temporal";
+import { addUtcDays, toUtcDateOnly } from "../temporal";
 import { upsertAnomaly } from "../analytics/refresh";
-import type { Prisma, Person, NonBillableSourceMapping, PersonRole, SquadMembership } from "@prisma/client";
+import type {
+  Prisma,
+  Person,
+  NonBillableSourceMapping,
+  PersonRole,
+  SquadMembership,
+} from "@prisma/client";
+
+// A contract closed by renewal/expiry still accepts a backdated, in-window
+// worklog, but only while seen within this many days of the close boundary — so a
+// long-closed contract cannot silently absorb new hours.
+const GRACE_PERIOD_DAYS = 14;
 
 type JiraMappingWithContract = {
-  id: number; jiraInstance: string; componentKey: string; contractId: number;
-  effectiveFrom: Date; effectiveTo: Date | null;
+  id: number;
+  jiraInstance: string;
+  componentKey: string;
+  contractId: number;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
   contract: {
     status: string;
     endDate: Date | null;
@@ -21,7 +36,7 @@ type ContractWithExtension = {
 
 interface JiraWorklog {
   id: string;
-  author: { accountId: string, emailAddress: string };
+  author: { accountId: string; emailAddress: string };
   started: string;
   timeSpentSeconds: number;
   comment?: { content?: Array<{ content?: Array<{ text?: string }> }> };
@@ -49,7 +64,12 @@ interface SyncResult {
 
 interface ConflictRecord {
   externalRef: string;
-  category: "missing_mapping" | "missing_membership" | "missing_role" | "missing_declaration" | "inactive_target";
+  category:
+    | "missing_mapping"
+    | "missing_membership"
+    | "missing_role"
+    | "missing_declaration"
+    | "inactive_target";
   authorEmail: string | null;
   issueKey: string;
   componentKey: string | null;
@@ -86,11 +106,7 @@ export class JiraNAConnector {
     return `Basic ${Buffer.from(`${this.email}:${this.token}`).toString("base64")}`;
   }
 
-  async sync(
-    dateFrom: string,
-    dateTo: string,
-    mode: "full" | "delta",
-  ): Promise<SyncResult> {
+  async sync(dateFrom: string, dateTo: string): Promise<SyncResult> {
     const result: SyncResult = {
       created: 0,
       skipped: 0,
@@ -161,8 +177,12 @@ export class JiraNAConnector {
           where: {
             contractId: { not: null },
             month: {
-              gte: new Date(Date.UTC(new Date(dateFrom).getUTCFullYear(), new Date(dateFrom).getUTCMonth(), 1)),
-              lte: new Date(Date.UTC(new Date(dateTo).getUTCFullYear(), new Date(dateTo).getUTCMonth(), 1)),
+              gte: new Date(
+                Date.UTC(new Date(dateFrom).getUTCFullYear(), new Date(dateFrom).getUTCMonth(), 1)
+              ),
+              lte: new Date(
+                Date.UTC(new Date(dateTo).getUTCFullYear(), new Date(dateTo).getUTCMonth(), 1)
+              ),
             },
           },
           select: { contractId: true, squadId: true, month: true },
@@ -170,22 +190,25 @@ export class JiraNAConnector {
       ]);
 
       // Build lookup maps
-      const personByEmail = new Map(persons.map(p => [p.email, p]));
+      const personByEmail = new Map(persons.map((p) => [p.email, p]));
       const sourceMappingByPrefix = new Map(
-        nonBillableSourceMappings.map(m => [m.identifierValue, m]),
+        nonBillableSourceMappings.map((m) => [m.identifierValue, m])
       );
-      const existingRefs = new Set(existingHourRecords.map(r => r.externalRef));
+      const existingRefs = new Set(existingHourRecords.map((r) => r.externalRef));
       const contractById = new Map(
-        allContracts.map(c => [c.id, { ...c, assignedHours: parseFloat(c.assignedHours.toString()) }]),
+        allContracts.map((c) => [
+          c.id,
+          { ...c, assignedHours: parseFloat(c.assignedHours.toString()) },
+        ])
       );
       const consumedByContract = new Map(
         consumedRows
-          .filter(r => r.contractId !== null)
-          .map(r => [r.contractId!, parseFloat((r._sum.hours ?? 0).toString())]),
+          .filter((r) => r.contractId !== null)
+          .map((r) => [r.contractId!, parseFloat((r._sum.hours ?? 0).toString())])
       );
       // One squad per contract per month is guaranteed by @@unique([contractId, month]).
       const declarationSquadByContractMonth = new Map(
-        declarations.map(d => [`${d.contractId}:${d.month.toISOString().slice(0, 7)}`, d.squadId]),
+        declarations.map((d) => [`${d.contractId}:${d.month.toISOString().slice(0, 7)}`, d.squadId])
       );
 
       const ctx: WorklogLookupContext = {
@@ -203,8 +226,11 @@ export class JiraNAConnector {
       await this.processWorklogs(issues, ctx, result);
 
       const conflicted =
-        result.missingMembership + result.missingRole + result.missingMapping +
-        result.missingDeclaration + result.inactiveTarget;
+        result.missingMembership +
+        result.missingRole +
+        result.missingMapping +
+        result.missingDeclaration +
+        result.inactiveTarget;
       await prisma.syncLog.update({
         where: { id: log.id },
         data: {
@@ -229,7 +255,7 @@ export class JiraNAConnector {
   private async processWorklogs(
     issues: JiraIssue[],
     ctx: WorklogLookupContext,
-    result: SyncResult,
+    result: SyncResult
   ): Promise<void> {
     const hourRecordsToCreate: Prisma.HourRecordCreateManyInput[] = [];
     // one auditable row per skipped worklog, upserted by externalRef
@@ -238,9 +264,22 @@ export class JiraNAConnector {
     const missingDeclarationFlags = new Map<string, Date>();
     // client+month pairs where worklogs targeted a closed/expired entity
     const inactiveTargetFlags = new Map<string, Date>();
+    const today = toUtcDateOnly(new Date());
+    // Gap B: decide base-vs-extension against a tally that grows during this run,
+    // not the stale pre-sync snapshot. Seeded from lifetime consumed per base contract.
+    const runningConsumed = new Map(ctx.consumedByContract);
 
-    for (const issue of issues) {
-      for (const wl of issue.worklogs ?? []) {
+    // Gap B: process in ascending logged-date order so a single run crossing a base
+    // contract's assignedHours threshold rolls boundary worklogs to the extension.
+    const worklogItems = issues.flatMap((issue) =>
+      (issue.worklogs ?? []).map((wl) => ({ issue, wl }))
+    );
+    worklogItems.sort(
+      (a, b) => toUtcDateOnly(a.wl.started).getTime() - toUtcDateOnly(b.wl.started).getTime()
+    );
+
+    for (const { issue, wl } of worklogItems) {
+      {
         try {
           const externalRef = `jira_na:${wl.id}`;
           if (ctx.existingRefs.has(externalRef)) {
@@ -259,27 +298,35 @@ export class JiraNAConnector {
           if (!person) {
             result.missingMapping++;
             conflictsToRecord.push({
-              externalRef, category: "missing_mapping",
+              externalRef,
+              category: "missing_mapping",
               authorEmail: wl.author.emailAddress ?? null,
-              issueKey: issue.key, componentKey: components[0]?.name ?? null, date, hours,
+              issueKey: issue.key,
+              componentKey: components[0]?.name ?? null,
+              date,
+              hours,
               detail: `No person found with email ${wl.author.emailAddress}.`,
             });
             continue;
           }
 
           const activeMemberships = ctx.squadMemberships.filter(
-            sm =>
+            (sm) =>
               sm.personId === person.id &&
               sm.effectiveFrom <= date &&
-              (sm.effectiveTo === null || sm.effectiveTo >= date),
+              (sm.effectiveTo === null || sm.effectiveTo >= date)
           );
 
           if (activeMemberships.length === 0) {
             result.missingMembership++;
             conflictsToRecord.push({
-              externalRef, category: "missing_membership",
+              externalRef,
+              category: "missing_membership",
               authorEmail: wl.author.emailAddress ?? null,
-              issueKey: issue.key, componentKey: components[0]?.name ?? null, date, hours,
+              issueKey: issue.key,
+              componentKey: components[0]?.name ?? null,
+              date,
+              hours,
               detail: `No active squad membership on ${date.toISOString().slice(0, 10)}.`,
             });
             continue;
@@ -290,9 +337,13 @@ export class JiraNAConnector {
             if (!sourceMapping) {
               result.missingMapping++;
               conflictsToRecord.push({
-                externalRef, category: "missing_mapping",
+                externalRef,
+                category: "missing_mapping",
                 authorEmail: wl.author.emailAddress ?? null,
-                issueKey: issue.key, componentKey: components[0]?.name ?? null, date, hours,
+                issueKey: issue.key,
+                componentKey: components[0]?.name ?? null,
+                date,
+                hours,
                 detail: `No non-billable source mapping for issue ${issue.key}.`,
               });
               continue;
@@ -300,10 +351,10 @@ export class JiraNAConnector {
             // Snapshot the role effective on the worklog date so nb-hours-by-role
             // can group by the stored roleType; null is allowed for NB records.
             const nbRole = ctx.personRoles.find(
-              r =>
+              (r) =>
                 r.personId === person.id &&
                 r.effectiveFrom <= date &&
-                (r.effectiveTo === null || r.effectiveTo >= date),
+                (r.effectiveTo === null || r.effectiveTo >= date)
             );
             if (!nbRole) result.missingRole++;
             // NB worklogs carry no contract, so BR-10's declaration resolution
@@ -329,26 +380,34 @@ export class JiraNAConnector {
           if (!componentName) {
             result.missingMapping++;
             conflictsToRecord.push({
-              externalRef, category: "missing_mapping",
+              externalRef,
+              category: "missing_mapping",
               authorEmail: wl.author.emailAddress ?? null,
-              issueKey: issue.key, componentKey: null, date, hours,
+              issueKey: issue.key,
+              componentKey: null,
+              date,
+              hours,
               detail: `Worklog issue ${issue.key} has no Jira component.`,
             });
             continue;
           }
 
           const clientMapping = ctx.clientMappings.find(
-            m =>
+            (m) =>
               m.componentKey === componentName &&
               m.effectiveFrom <= date &&
-              (m.effectiveTo === null || m.effectiveTo >= date),
+              (m.effectiveTo === null || m.effectiveTo >= date)
           );
           if (!clientMapping) {
             result.missingMapping++;
             conflictsToRecord.push({
-              externalRef, category: "missing_mapping",
+              externalRef,
+              category: "missing_mapping",
               authorEmail: wl.author.emailAddress ?? null,
-              issueKey: issue.key, componentKey: componentName, date, hours,
+              issueKey: issue.key,
+              componentKey: componentName,
+              date,
+              hours,
               detail: `No client mapping for component "${componentName}" effective on ${date.toISOString().slice(0, 10)}.`,
             });
             continue;
@@ -358,39 +417,55 @@ export class JiraNAConnector {
           // expired SOW, or an archived client. endDate is inclusive — a
           // worklog ON the end date is still valid.
           const mappedContract = clientMapping.contract;
+          // Gap A: a closed contract still accepts a backdated, in-window worklog,
+          // but only within a grace window after its close boundary. The boundary is
+          // the contract endDate, falling back to the mapping's effectiveTo (the
+          // renewal/close cutover) when the closed contract is open-ended. With no
+          // boundary at all, reject (safe default).
+          const closeAnchor = mappedContract.endDate ?? clientMapping.effectiveTo;
+          const pastGrace =
+            closeAnchor === null || today > addUtcDays(closeAnchor, GRACE_PERIOD_DAYS);
           if (
-            mappedContract.status !== "active" ||
+            (mappedContract.status !== "active" && pastGrace) ||
             (mappedContract.endDate !== null && date > mappedContract.endDate) ||
             (mappedContract.sow.endDate !== null && date > mappedContract.sow.endDate) ||
             !mappedContract.sow.client.isActive
           ) {
             result.inactiveTarget++;
             conflictsToRecord.push({
-              externalRef, category: "inactive_target",
+              externalRef,
+              category: "inactive_target",
               authorEmail: wl.author.emailAddress ?? null,
-              issueKey: issue.key, componentKey: componentName, date, hours,
+              issueKey: issue.key,
+              componentKey: componentName,
+              date,
+              hours,
               detail: `Mapped contract ${clientMapping.contractId} is closed/expired, its SOW has ended, or the client is archived.`,
             });
             const month = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
             inactiveTargetFlags.set(
               `${mappedContract.sow.clientId}:${month.toISOString().slice(0, 7)}`,
-              month,
+              month
             );
             continue;
           }
 
           const role = ctx.personRoles.find(
-            r =>
+            (r) =>
               r.personId === person.id &&
               r.effectiveFrom <= date &&
-              (r.effectiveTo === null || r.effectiveTo >= date),
+              (r.effectiveTo === null || r.effectiveTo >= date)
           );
           if (!role) {
             result.missingRole++;
             conflictsToRecord.push({
-              externalRef, category: "missing_role",
+              externalRef,
+              category: "missing_role",
               authorEmail: wl.author.emailAddress ?? null,
-              issueKey: issue.key, componentKey: componentName, date, hours,
+              issueKey: issue.key,
+              componentKey: componentName,
+              date,
+              hours,
               detail: `No active person role on ${date.toISOString().slice(0, 10)}.`,
             });
             continue;
@@ -400,11 +475,12 @@ export class JiraNAConnector {
           const baseContractId = clientMapping.contractId;
           let contractId = baseContractId;
           const baseContract = ctx.contractById.get(baseContractId);
-          if (baseContract?.childContracts?.[0]?.type === "extension") {
-            const consumed = ctx.consumedByContract.get(baseContractId) ?? 0;
-            if (consumed >= baseContract.assignedHours) {
-              contractId = baseContract.childContracts[0].id;
-            }
+          const consumed = runningConsumed.get(baseContractId) ?? 0;
+          if (
+            baseContract?.childContracts?.[0]?.type === "extension" &&
+            consumed >= baseContract.assignedHours
+          ) {
+            contractId = baseContract.childContracts[0].id;
           }
 
           // BR-10: with multiple active memberships, the squad comes from the
@@ -417,22 +493,27 @@ export class JiraNAConnector {
           if (activeMemberships.length > 1) {
             const month = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
             const declaredSquadId = ctx.declarationSquadByContractMonth.get(
-              `${baseContractId}:${month.toISOString().slice(0, 7)}`,
+              `${baseContractId}:${month.toISOString().slice(0, 7)}`
             );
-            const declaredMembership = declaredSquadId === undefined
-              ? undefined
-              : activeMemberships.find(sm => sm.squadId === declaredSquadId);
+            const declaredMembership =
+              declaredSquadId === undefined
+                ? undefined
+                : activeMemberships.find((sm) => sm.squadId === declaredSquadId);
             if (declaredSquadId === undefined || !declaredMembership) {
               result.missingDeclaration++;
               conflictsToRecord.push({
-                externalRef, category: "missing_declaration",
+                externalRef,
+                category: "missing_declaration",
                 authorEmail: wl.author.emailAddress ?? null,
-                issueKey: issue.key, componentKey: componentName, date, hours,
+                issueKey: issue.key,
+                componentKey: componentName,
+                date,
+                hours,
                 detail: `Person has multiple active squad memberships and no role declaration for contract ${baseContractId} in ${month.toISOString().slice(0, 7)} resolves a squad they belong to.`,
               });
               missingDeclarationFlags.set(
                 `${clientMapping.contract.sow.clientId}:${month.toISOString().slice(0, 7)}`,
-                month,
+                month
               );
               continue;
             }
@@ -451,6 +532,10 @@ export class JiraNAConnector {
             issueKey: issue.key,
             contractId,
           });
+          // Gap B: grow the per-base tally so later same-run worklogs roll to the
+          // extension once the base's assignedHours are crossed. Keyed on the base
+          // (not the routed contract) and monotonic — it only drives the threshold.
+          runningConsumed.set(baseContractId, consumed + hours);
           result.created++;
         } catch (err) {
           result.errors.push(String(err));
@@ -473,9 +558,14 @@ export class JiraNAConnector {
       await prisma.syncConflict.upsert({
         where: { externalRef: c.externalRef },
         update: {
-          category: c.category, authorEmail: c.authorEmail, issueKey: c.issueKey,
-          componentKey: c.componentKey, date: c.date, hours: c.hours,
-          detail: c.detail, lastSeenAt: now,
+          category: c.category,
+          authorEmail: c.authorEmail,
+          issueKey: c.issueKey,
+          componentKey: c.componentKey,
+          date: c.date,
+          hours: c.hours,
+          detail: c.detail,
+          lastSeenAt: now,
         },
         create: { ...c, source: "jira_na", lastSeenAt: now },
       });
@@ -483,7 +573,7 @@ export class JiraNAConnector {
     // Clear conflicts for worklogs that imported this run (e.g. person added or
     // declaration created since the previous sync).
     const createdRefs = hourRecordsToCreate
-      .map(r => r.externalRef)
+      .map((r) => r.externalRef)
       .filter((r): r is string => typeof r === "string");
     if (createdRefs.length > 0) {
       await prisma.syncConflict.deleteMany({ where: { externalRef: { in: createdRefs } } });
@@ -496,7 +586,7 @@ export class JiraNAConnector {
         null,
         "missing_data",
         "high",
-        "Worklog(s) skipped: person has multiple active squad memberships and no role declaration resolves the contract's squad for this month. Create the declaration and re-sync.",
+        "Worklog(s) skipped: person has multiple active squad memberships and no role declaration resolves the contract's squad for this month. Create the declaration and re-sync."
       );
     }
     for (const [key, month] of inactiveTargetFlags) {
@@ -506,23 +596,24 @@ export class JiraNAConnector {
         null,
         "missing_data",
         "high",
-        "Worklog(s) skipped: the mapped contract is closed/expired, its SOW has ended, or the client is archived. Renew or remap the component, then re-sync.",
+        "Worklog(s) skipped: the mapped contract is closed/expired, its SOW has ended, or the client is archived. Renew or remap the component, then re-sync."
       );
     }
   }
 
-  private async fetchIssuesWithWorklogs(
-    dateFrom: string,
-    dateTo: string,
-  ): Promise<JiraIssue[]> {
+  private async fetchIssuesWithWorklogs(dateFrom: string, dateTo: string): Promise<JiraIssue[]> {
     // get non-billable mappings to filter in jql
     const nonBillableSourceMappings = await prisma.nonBillableSourceMapping.findMany({
-        where: { source: "jira_na" },
-      });
-    const nonBillableTicketkeys = nonBillableSourceMappings.filter(m => m.identifierType === "issue_key").map(m => m.identifierValue);
+      where: { source: "jira_na" },
+    });
+    const nonBillableTicketkeys = nonBillableSourceMappings
+      .filter((m) => m.identifierType === "issue_key")
+      .map((m) => m.identifierValue);
     // get components to filter in jql
-    const components = (await prisma.jiraComponentClientMapping.findMany()).map(component => component.componentKey);
-    
+    const components = (await prisma.jiraComponentClientMapping.findMany()).map(
+      (component) => component.componentKey
+    );
+
     const jql = this.generateJql(dateFrom, dateTo, nonBillableTicketkeys, components);
 
     const issues: JiraIssue[] = [];
@@ -530,19 +621,28 @@ export class JiraNAConnector {
     const maxResults = 100;
 
     while (true) {
-      const body: Record<string, unknown> = { jql, maxResults, fields: ["key", "components", "issuetype"] };
+      const body: Record<string, unknown> = {
+        jql,
+        maxResults,
+        fields: ["key", "components", "issuetype"],
+      };
       if (nextPageToken) body.nextPageToken = nextPageToken;
 
-      const res = await fetch(
-        `${this.baseUrl}/rest/api/3/search/jql`,
-        {
-          method: "POST",
-          headers: { Authorization: this.authHeader, Accept: "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+      const res = await fetch(`${this.baseUrl}/rest/api/3/search/jql`, {
+        method: "POST",
+        headers: {
+          Authorization: this.authHeader,
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(body),
+      });
       if (!res.ok) throw new Error(`Jira search error: ${res.status}`);
-      const data = await res.json() as { issues: JiraIssue[]; nextPageToken?: string; isLast?: boolean };
+      const data = (await res.json()) as {
+        issues: JiraIssue[];
+        nextPageToken?: string;
+        isLast?: boolean;
+      };
 
       for (const issue of data.issues) {
         const worklogs = await this.fetchWorklogs(issue.key, dateFrom, dateTo);
@@ -553,20 +653,19 @@ export class JiraNAConnector {
       nextPageToken = data.nextPageToken;
     }
 
-    return issues.filter(issue => issue.worklogs && issue.worklogs.length > 0);
+    return issues.filter((issue) => issue.worklogs && issue.worklogs.length > 0);
   }
 
   private async fetchWorklogs(
     issueKey: string,
     dateFrom: string,
-    dateTo: string,
+    dateTo: string
   ): Promise<JiraWorklog[]> {
-    const res = await fetch(
-      `${this.baseUrl}/rest/api/3/issue/${issueKey}/worklog`,
-      { headers: { Authorization: this.authHeader, Accept: "application/json" } },
-    );
+    const res = await fetch(`${this.baseUrl}/rest/api/3/issue/${issueKey}/worklog`, {
+      headers: { Authorization: this.authHeader, Accept: "application/json" },
+    });
     if (!res.ok) return [];
-    const data = await res.json() as { worklogs: JiraWorklog[] };
+    const data = (await res.json()) as { worklogs: JiraWorklog[] };
     const from = new Date(dateFrom).getTime();
     const to = new Date(dateTo).getTime();
     return (data.worklogs ?? []).filter((wl) => {
@@ -583,18 +682,18 @@ export class JiraNAConnector {
   ): string {
     // Base JQL with mandatory date range
     let jql = `worklogDate >= "${dateFrom}" AND worklogDate <= "${dateTo}"`;
-    
+
     const optionalClauses: string[] = [];
 
     // Validate and format ticketKeys
     if (ticketKeys.length > 0) {
-      const formattedKeys = ticketKeys.map(key => `'${key}'`).join(', ');
+      const formattedKeys = ticketKeys.map((key) => `'${key}'`).join(", ");
       optionalClauses.push(`issueKey IN (${formattedKeys})`);
     }
 
     // Validate and format components
     if (components.length > 0) {
-      const formattedComponents = components.map(comp => `'${comp}'`).join(', ');
+      const formattedComponents = components.map((comp) => `'${comp}'`).join(", ");
       optionalClauses.push(`component IN (${formattedComponents})`);
     }
 
@@ -602,10 +701,9 @@ export class JiraNAConnector {
     if (optionalClauses.length > 0) {
       // If both exist, join with OR and wrap in parentheses.
       // If only one exists, leave it without parentheses.
-      const internalCondition = optionalClauses.length > 1 
-        ? `(${optionalClauses.join(' OR ')})` 
-        : optionalClauses[0];
-      
+      const internalCondition =
+        optionalClauses.length > 1 ? `(${optionalClauses.join(" OR ")})` : optionalClauses[0];
+
       jql += ` AND ${internalCondition}`;
     }
 

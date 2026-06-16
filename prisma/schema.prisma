@@ -239,6 +239,7 @@ model StatementOfWork {
   id          Int       @id @default(autoincrement())
   name        String    @db.VarChar(200)
   clientId    Int       @map("client_id")
+  isActive    Boolean   @default(true) @map("is_active")
   startDate   DateTime  @map("start_date") @db.Date
   endDate     DateTime? @map("end_date") @db.Date
   parentSowId Int?      @map("parent_sow_id")

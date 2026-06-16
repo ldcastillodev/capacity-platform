@@ -4,14 +4,19 @@ import prisma from "@/lib/prisma";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get("clientId");
+  const includeArchived = searchParams.get("includeArchived") === "true";
 
   const sows = await prisma.statementOfWork.findMany({
-    where: clientId ? { clientId: Number(clientId) } : undefined,
+    where: {
+      ...(clientId ? { clientId: Number(clientId) } : {}),
+      ...(includeArchived ? {} : { isActive: true }),
+    },
     orderBy: [{ clientId: "asc" }, { startDate: "asc" }],
     select: {
       id: true,
       name: true,
       clientId: true,
+      isActive: true,
       startDate: true,
       endDate: true,
       client: { select: { id: true, name: true } },
@@ -21,7 +26,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json() as {
+  const body = (await req.json()) as {
     name: string;
     client_id: number;
     start_date: string;
@@ -39,6 +44,7 @@ export async function POST(req: NextRequest) {
       id: true,
       name: true,
       clientId: true,
+      isActive: true,
       startDate: true,
       endDate: true,
       client: { select: { id: true, name: true } },

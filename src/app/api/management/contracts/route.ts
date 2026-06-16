@@ -4,9 +4,13 @@ import prisma from "@/lib/prisma";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sowId = searchParams.get("sowId");
+  const includeArchived = searchParams.get("includeArchived") === "true";
 
   const contracts = await prisma.contract.findMany({
-    where: sowId ? { sowId: Number(sowId) } : undefined,
+    where: {
+      ...(sowId ? { sowId: Number(sowId) } : {}),
+      ...(includeArchived ? {} : { status: { not: "closed" } }),
+    },
     orderBy: [{ sowId: "asc" }, { startDate: "asc" }],
     select: {
       id: true,
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json() as {
+  const body = (await req.json()) as {
     name: string;
     sow_id: number;
     hour_type: "monthly" | "total";

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
-import { ConfirmDialog } from "@/components/app/ConfirmDialog";
+import { RenewSowDialog } from "./RenewSowDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/app/DatePicker";
@@ -284,6 +284,7 @@ interface SowRecord {
   id: number;
   name: string;
   clientId: number;
+  isActive: boolean;
   startDate: string;
   endDate: string | null;
   client: { id: number; name: string };
@@ -301,6 +302,7 @@ interface SowFormState {
 
 function SowsSection() {
   const qc = useQueryClient();
+  const [showArchived, setShowArchived] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<SowRecord | null>(null);
   const [form, setForm] = useState<SowFormState>({
@@ -309,12 +311,16 @@ function SowsSection() {
     start_date: new Date().toISOString().split("T")[0],
     end_date: "",
   });
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [archiving, setArchiving] = useState<SowRecord | null>(null);
+  const [renewing, setRenewing] = useState<SowRecord | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const { data: sows = [], isLoading } = useQuery({
-    queryKey: ["mgmt-sows"],
-    queryFn: () => api.get<SowRecord[]>("/management/statement-of-works").then((r) => r.data),
+    queryKey: ["mgmt-sows", showArchived],
+    queryFn: () =>
+      api
+        .get<SowRecord[]>(`/management/statement-of-works?includeArchived=${showArchived}`)
+        .then((r) => r.data),
   });
   const { data: clients = [] } = useQuery({
     queryKey: ["mgmt-clients-active"],
@@ -352,12 +358,21 @@ function SowsSection() {
     },
     onError: (e: unknown) => setApiError(errMsg(e)),
   });
-  const deleteMutation = useMutation({
+  const archiveMutation = useMutation({
     mutationFn: (id: number) =>
-      api.delete(`/management/statement-of-works/${id}`).then((r) => r.data),
+      api.post(`/management/statement-of-works/${id}/archive`).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mgmt-sows"] });
-      setDeleteId(null);
+      qc.invalidateQueries({ queryKey: ["mgmt-contracts"] });
+      setArchiving(null);
+    },
+    onError: (e: unknown) => setApiError(errMsg(e)),
+  });
+  const unarchiveMutation = useMutation({
+    mutationFn: (id: number) =>
+      api.post(`/management/statement-of-works/${id}/unarchive`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mgmt-sows"] });
     },
     onError: (e: unknown) => setApiError(errMsg(e)),
   });
@@ -399,7 +414,10 @@ function SowsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)}>
+          {showArchived ? "Hide Archived" : "Show Archived"}
+        </Button>
         <Button size="sm" onClick={openCreate}>
           + Add SOW
         </Button>
@@ -423,12 +441,13 @@ function SowsSection() {
                     <TableHead>Client</TableHead>
                     <TableHead>Start</TableHead>
                     <TableHead>End</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sows.map((s) => (
-                    <TableRow key={s.id}>
+                    <TableRow key={s.id} className={cn(!s.isActive && "opacity-60")}>
                       <TableCell className="font-medium text-sm">{s.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {s.client.name}
@@ -439,22 +458,51 @@ function SowsSection() {
                       <TableCell className="text-sm text-muted-foreground">
                         {s.endDate ? fmtDate(s.endDate) : "—"}
                       </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant="outline"
+                          className={
+                            s.isActive
+                              ? "bg-[var(--safe-bg)] text-[var(--safe)] border-0"
+                              : "bg-muted text-muted-foreground border-0"
+                          }
+                        >
+                          {s.isActive ? "Active" : "Archived"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button size="sm" variant="outline" onClick={() => openEdit(s)}>
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-destructive text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              setApiError(null);
-                              setDeleteId(s.id);
-                            }}
-                          >
-                            Delete
-                          </Button>
+                          {s.isActive ? (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => openEdit(s)}>
+                                Edit
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setRenewing(s)}>
+                                Renew
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-destructive text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  setApiError(null);
+                                  setArchiving(s);
+                                }}
+                              >
+                                Archive
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-[var(--safe)] text-[var(--safe)] hover:bg-[var(--safe-bg)]"
+                              disabled={unarchiveMutation.isPending}
+                              onClick={() => unarchiveMutation.mutate(s.id)}
+                            >
+                              Unarchive
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -533,17 +581,14 @@ function SowsSection() {
           </div>
         </form>
       </ManagementModal>
-      <ConfirmDialog
-        open={deleteId !== null}
-        onOpenChange={(v) => {
-          if (!v) setDeleteId(null);
-        }}
-        title="Delete SOW?"
-        description="Cannot delete if contracts exist under this SOW."
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => deleteId !== null && deleteMutation.mutate(deleteId)}
+      <ArchiveConfirmDialog
+        isOpen={archiving !== null}
+        entityName={archiving?.name ?? ""}
+        onConfirm={() => archiving && archiveMutation.mutate(archiving.id)}
+        onCancel={() => setArchiving(null)}
+        isPending={archiveMutation.isPending}
       />
+      <RenewSowDialog sow={renewing} onClose={() => setRenewing(null)} />
     </div>
   );
 }
@@ -592,12 +637,16 @@ function ContractsSection() {
     status: "active",
     client_filter: "",
   });
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiving, setArchiving] = useState<ContractRecord | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const { data: contracts = [], isLoading } = useQuery({
-    queryKey: ["mgmt-contracts"],
-    queryFn: () => api.get<ContractRecord[]>("/management/contracts").then((r) => r.data),
+    queryKey: ["mgmt-contracts", showArchived],
+    queryFn: () =>
+      api
+        .get<ContractRecord[]>(`/management/contracts?includeArchived=${showArchived}`)
+        .then((r) => r.data),
   });
   const { data: sows = [] } = useQuery({
     queryKey: ["mgmt-sows-with-clients"],
@@ -647,11 +696,19 @@ function ContractsSection() {
     },
     onError: (e: unknown) => setApiError(errMsg(e)),
   });
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/management/contracts/${id}`).then((r) => r.data),
+  const archiveMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/management/contracts/${id}/archive`).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mgmt-contracts"] });
-      setDeleteId(null);
+      setArchiving(null);
+    },
+    onError: (e: unknown) => setApiError(errMsg(e)),
+  });
+  const unarchiveMutation = useMutation({
+    mutationFn: (id: number) =>
+      api.post(`/management/contracts/${id}/unarchive`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mgmt-contracts"] });
     },
     onError: (e: unknown) => setApiError(errMsg(e)),
   });
@@ -710,7 +767,10 @@ function ContractsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)}>
+          {showArchived ? "Hide Archived" : "Show Archived"}
+        </Button>
         <Button size="sm" onClick={openCreate}>
           + Add Contract
         </Button>
@@ -743,7 +803,7 @@ function ContractsSection() {
                 </TableHeader>
                 <TableBody>
                   {contracts.map((c) => (
-                    <TableRow key={c.id}>
+                    <TableRow key={c.id} className={cn(c.status === "closed" && "opacity-60")}>
                       <TableCell className="font-medium text-sm">{c.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{c.sow.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -768,20 +828,34 @@ function ContractsSection() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-destructive text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              setApiError(null);
-                              setDeleteId(c.id);
-                            }}
-                          >
-                            Delete
-                          </Button>
+                          {c.status === "closed" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-[var(--safe)] text-[var(--safe)] hover:bg-[var(--safe-bg)]"
+                              disabled={unarchiveMutation.isPending}
+                              onClick={() => unarchiveMutation.mutate(c.id)}
+                            >
+                              Unarchive
+                            </Button>
+                          ) : (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-destructive text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  setApiError(null);
+                                  setArchiving(c);
+                                }}
+                              >
+                                Archive
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -945,16 +1019,12 @@ function ContractsSection() {
           </div>
         </form>
       </ManagementModal>
-      <ConfirmDialog
-        open={deleteId !== null}
-        onOpenChange={(v) => {
-          if (!v) setDeleteId(null);
-        }}
-        title="Delete Contract?"
-        description="Cannot delete if declarations exist."
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => deleteId !== null && deleteMutation.mutate(deleteId)}
+      <ArchiveConfirmDialog
+        isOpen={archiving !== null}
+        entityName={archiving?.name ?? ""}
+        onConfirm={() => archiving && archiveMutation.mutate(archiving.id)}
+        onCancel={() => setArchiving(null)}
+        isPending={archiveMutation.isPending}
       />
     </div>
   );
