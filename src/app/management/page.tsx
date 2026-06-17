@@ -1,18 +1,18 @@
 "use client";
 
-import { ClientsTab }    from "@/components/management/ClientsTab";
+import { ClientsTab } from "@/components/management/ClientsTab";
 import { ComponentsTab } from "@/components/management/ComponentsTab";
-import { WorkforceTab }  from "@/components/management/WorkforceTab";
+import { WorkforceTab } from "@/components/management/WorkforceTab";
 import { DeclarationsTab } from "@/components/management/DeclarationsTab";
 import { NonBillableTab } from "@/components/management/NonBillableTab";
-import { AnalyticsTab }  from "@/components/management/AnalyticsTab";
-import { AuditTab }      from "@/components/management/AuditTab";
+import { AnalyticsTab } from "@/components/management/AnalyticsTab";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function ManagementPage() {
   return (
-    <div>
+    <TooltipProvider>
       <PageHeader title="Management" />
 
       <Tabs defaultValue="clients">
@@ -23,16 +23,26 @@ export default function ManagementPage() {
           <TabsTrigger value="declarations">Declarations</TabsTrigger>
           <TabsTrigger value="nonbillable">Non-Billable</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="audit">Audit</TabsTrigger>
         </TabsList>
-        <TabsContent value="clients"><ClientsTab /></TabsContent>
-        <TabsContent value="components"><ComponentsTab /></TabsContent>
-        <TabsContent value="workforce"><WorkforceTab /></TabsContent>
-        <TabsContent value="declarations"><DeclarationsTab /></TabsContent>
-        <TabsContent value="nonbillable"><NonBillableTab /></TabsContent>
-        <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
-        <TabsContent value="audit"><AuditTab /></TabsContent>
+        <TabsContent value="clients">
+          <ClientsTab />
+        </TabsContent>
+        <TabsContent value="components">
+          <ComponentsTab />
+        </TabsContent>
+        <TabsContent value="workforce">
+          <WorkforceTab />
+        </TabsContent>
+        <TabsContent value="declarations">
+          <DeclarationsTab />
+        </TabsContent>
+        <TabsContent value="nonbillable">
+          <NonBillableTab />
+        </TabsContent>
+        <TabsContent value="analytics">
+          <AnalyticsTab />
+        </TabsContent>
       </Tabs>
-    </div>
+    </TooltipProvider>
   );
 }

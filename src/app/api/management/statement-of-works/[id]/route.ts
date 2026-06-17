@@ -9,6 +9,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     end_date?: string | null;
   };
 
+  if (body.end_date === null) {
+    return NextResponse.json({ error: "End date is required." }, { status: 400 });
+  }
+
   const sow = await contractService.updateStatementOfWork(Number(id), {
     ...(body.name !== undefined && { name: body.name }),
     ...(body.start_date !== undefined && { startDate: new Date(body.start_date) }),

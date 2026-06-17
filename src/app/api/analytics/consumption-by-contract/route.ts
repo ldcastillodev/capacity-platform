@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { contractService, hourRecordService, declarationService } from "@/lib/db";
+import { contractService, hourRecordService } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,12 +13,11 @@ export async function GET(req: NextRequest) {
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
-      const [hoursAgg, declEntries, priorAgg] = await Promise.all([
+      const [hoursAgg, priorAgg] = await Promise.all([
         hourRecordService.sumBillableHoursByContract(contract.id, {
           gte: monthDate,
           lte: monthEnd,
         }),
-        declarationService.sumDeclaredHoursByContract(contract.id, monthDate),
         contract.hourType === "total"
           ? hourRecordService.sumBillableHoursByContract(contract.id, {
               gte: contract.startDate,
@@ -28,12 +27,12 @@ export async function GET(req: NextRequest) {
       ]);
 
       const consumed = parseFloat(String(hoursAgg._sum.hours ?? 0));
+      const pool = parseFloat(String(contract.assignedHours));
 
       if (contract.hourType === "total") {
         // Total-pool contract: declarations are planned hours, not the pool.
         // Remaining draws down across the contract lifetime (unclamped so
         // overruns show as negative).
-        const pool = parseFloat(String(contract.assignedHours));
         const prior = parseFloat(String(priorAgg?._sum.hours ?? 0));
         return {
           contract_id: contract.id,
@@ -50,10 +49,7 @@ export async function GET(req: NextRequest) {
         };
       }
 
-      const declared =
-        parseFloat(String(declEntries._sum.declaredHours ?? 0)) ||
-        parseFloat(String(contract.assignedHours));
-      const remaining = Math.max(declared - consumed, 0);
+      const remaining = Math.max(pool - consumed, 0);
       return {
         contract_id: contract.id,
         contract_name: contract.name,
@@ -61,11 +57,11 @@ export async function GET(req: NextRequest) {
         client_id: contract.sow.clientId,
         client_name: contract.sow.client.name,
         hour_type: contract.hourType,
-        declared_hours: declared,
+        declared_hours: pool,
         prior_consumed_hours: null,
         consumed_hours: consumed,
         remaining_hours: remaining,
-        consumption_pct: declared > 0 ? consumed / declared : 0,
+        consumption_pct: pool > 0 ? consumed / pool : 0,
       };
     })
   );

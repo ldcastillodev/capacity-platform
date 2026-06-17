@@ -10,6 +10,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       is_primary?: boolean;
       effective_to?: string | null;
     };
+    if (body.seniority !== undefined && !body.seniority) {
+      return NextResponse.json({ error: "Seniority is required." }, { status: 400 });
+    }
     const row = await personService.updatePersonRole(Number(id), {
       ...(body.seniority !== undefined && { seniority: body.seniority as never }),
       ...(body.effective_to !== undefined && {

@@ -26,10 +26,14 @@ export async function POST(req: NextRequest) {
       effective_from: string;
     };
 
+    if (!body.seniority) {
+      return NextResponse.json({ error: "Seniority is required." }, { status: 400 });
+    }
+
     const row = await personService.createManagedPersonRoleWithOverlapResolution({
       personId: body.person_id,
       roleType: body.role_type as RoleType,
-      seniority: (body.seniority as Seniority) ?? null,
+      seniority: body.seniority as Seniority,
       effectiveFrom: toUtcDateOnly(body.effective_from),
     });
     return NextResponse.json(row, { status: 201 });

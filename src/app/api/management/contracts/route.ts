@@ -26,6 +26,16 @@ export async function POST(req: NextRequest) {
     parent_contract_id?: number;
   };
 
+  const sow = await contractService.findStatementOfWorkDates(body.sow_id);
+  if (!sow) {
+    return NextResponse.json({ error: "SOW not found." }, { status: 400 });
+  }
+  const endDate = body.end_date ? new Date(body.end_date) : null;
+  const dateError = contractService.validateContractWithinSow(sow, endDate);
+  if (dateError) {
+    return NextResponse.json({ error: dateError }, { status: 400 });
+  }
+
   const contract = await contractService.createManagedContract({
     name: body.name,
     sowId: body.sow_id,
@@ -33,7 +43,7 @@ export async function POST(req: NextRequest) {
     type: body.type,
     assignedHours: body.assigned_hours,
     startDate: new Date(body.start_date),
-    endDate: body.end_date ? new Date(body.end_date) : null,
+    endDate,
     status: body.status ?? "active",
     parentContractId: body.parent_contract_id ?? null,
   });

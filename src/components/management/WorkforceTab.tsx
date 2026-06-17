@@ -30,9 +30,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-react";
+
+const ALLOCATION_TOOLTIP = "Allocation % is the percentage of the person's weekly hours.";
+// Fiscal year = calendar year: first day is Jan 1 of the current year.
+const FISCAL_YEAR_START = `${new Date().getFullYear()}-01-01`;
 
 function errMsg(e: unknown) {
   return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e);
+}
+
+// Archived = end-dated in the past (effectiveTo is inclusive).
+function isExpired(effectiveTo: string | null) {
+  return effectiveTo !== null && new Date(effectiveTo) <= new Date();
 }
 
 const ROLE_TYPES = [
@@ -80,16 +91,20 @@ function MembershipsSection() {
     person_id: "",
     squad_id: "",
     allocation_pct: "100",
-    effective_from: new Date().toISOString().split("T")[0],
+    effective_from: FISCAL_YEAR_START,
     effective_to: "",
   });
   const [archiving, setArchiving] = useState<MembershipRow | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["mgmt-memberships"],
     queryFn: () => api.get<MembershipRow[]>("/management/squad-memberships").then((r) => r.data),
   });
+  const visibleRows = rows.filter((r) =>
+    showArchived ? isExpired(r.effectiveTo) : !isExpired(r.effectiveTo)
+  );
   const { data: squads = [] } = useQuery({
     queryKey: ["mgmt-squads-active"],
     queryFn: () => api.get<SquadOption[]>("/management/squads").then((r) => r.data),
@@ -147,7 +162,7 @@ function MembershipsSection() {
       person_id: "",
       squad_id: "",
       allocation_pct: "100",
-      effective_from: new Date().toISOString().split("T")[0],
+      effective_from: FISCAL_YEAR_START,
       effective_to: "",
     });
     setEditing(null);
@@ -181,7 +196,10 @@ function MembershipsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)}>
+          {showArchived ? "Hide Archived" : "Show Archived"}
+        </Button>
         <Button size="sm" onClick={openCreate}>
           + Add Membership
         </Button>
@@ -194,7 +212,7 @@ function MembershipsSection() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">No memberships found.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -210,7 +228,7 @@ function MembershipsSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
+                  {visibleRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium text-sm">{row.person.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -298,8 +316,16 @@ function MembershipsSection() {
             </Select>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label>Allocation %</Label>
+            <div className="space-y-1.5 min-w-0">
+              <Label className="flex items-center gap-1">
+                Allocation %
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>{ALLOCATION_TOOLTIP}</TooltipContent>
+                </Tooltip>
+              </Label>
               <Input
                 type="number"
                 min="1"
@@ -309,7 +335,7 @@ function MembershipsSection() {
                 onChange={(e) => setForm({ ...form, allocation_pct: e.target.value })}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <Label>From *</Label>
               <DatePicker
                 required
@@ -318,7 +344,7 @@ function MembershipsSection() {
                 disabled={modalMode === "edit"}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <Label>To</Label>
               <DatePicker
                 clearable
@@ -368,16 +394,20 @@ function PersonRolesSection() {
     person_id: "",
     role_type: "dev",
     seniority: "",
-    effective_from: new Date().toISOString().split("T")[0],
+    effective_from: FISCAL_YEAR_START,
     effective_to: "",
   });
   const [archiving, setArchiving] = useState<RoleRow | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["mgmt-person-roles"],
     queryFn: () => api.get<RoleRow[]>("/management/person-roles").then((r) => r.data),
   });
+  const visibleRows = rows.filter((r) =>
+    showArchived ? isExpired(r.effectiveTo) : !isExpired(r.effectiveTo)
+  );
   const { data: persons = [] } = useQuery({
     queryKey: ["mgmt-persons-active"],
     queryFn: () => api.get<PersonOption[]>("/management/persons").then((r) => r.data),
@@ -430,7 +460,7 @@ function PersonRolesSection() {
       person_id: "",
       role_type: "dev",
       seniority: "",
-      effective_from: new Date().toISOString().split("T")[0],
+      effective_from: FISCAL_YEAR_START,
       effective_to: "",
     });
     setEditing(null);
@@ -457,14 +487,35 @@ function PersonRolesSection() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiError(null);
-    if (modalMode === "create") createMutation.mutate(form);
-    else if (editing) updateMutation.mutate({ id: editing.id, f: form });
+    if (!form.seniority) {
+      setApiError("Seniority is required.");
+      return;
+    }
+    if (modalMode === "create") {
+      const newEnd = form.effective_to || "9999-12-31";
+      const overlap = rows.some((r) => {
+        if (r.personId !== Number(form.person_id)) return false;
+        const rFrom = r.effectiveFrom.split("T")[0];
+        const rEnd = r.effectiveTo ? r.effectiveTo.split("T")[0] : "9999-12-31";
+        return form.effective_from <= rEnd && rFrom <= newEnd;
+      });
+      if (overlap) {
+        setApiError(
+          "This role overlaps an existing role for this person. End-date the existing role first."
+        );
+        return;
+      }
+      createMutation.mutate(form);
+    } else if (editing) updateMutation.mutate({ id: editing.id, f: form });
   }
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)}>
+          {showArchived ? "Hide Archived" : "Show Archived"}
+        </Button>
         <Button size="sm" onClick={openCreate}>
           + Add Role
         </Button>
@@ -477,7 +528,7 @@ function PersonRolesSection() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">No roles found.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -493,7 +544,7 @@ function PersonRolesSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
+                  {visibleRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium text-sm">{row.person.name}</TableCell>
                       <TableCell className="text-sm">{row.roleType.replace(/_/g, " ")}</TableCell>
@@ -578,16 +629,15 @@ function PersonRolesSection() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Seniority</Label>
+              <Label>Seniority *</Label>
               <Select
-                value={form.seniority || "none"}
-                onValueChange={(v) => setForm({ ...form, seniority: v === "none" ? "" : v })}
+                value={form.seniority}
+                onValueChange={(v) => setForm({ ...form, seniority: v })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Select seniority" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
                   {SENIORITIES.map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}

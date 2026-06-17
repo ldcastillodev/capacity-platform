@@ -68,6 +68,7 @@ function CategoriesSection() {
         .get<NbCategoryRow[]>(`/management/nonbillable-categories?includeArchived=${showArchived}`)
         .then((r) => r.data),
   });
+  const visibleRows = showArchived ? rows.filter((r) => !r.isActive) : rows;
 
   const createMutation = useMutation({
     mutationFn: (f: typeof form) =>
@@ -152,7 +153,7 @@ function CategoriesSection() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">No categories found.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -169,7 +170,7 @@ function CategoriesSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
+                  {visibleRows.map((row) => (
                     <TableRow key={row.id} className={!row.isActive ? "opacity-60" : undefined}>
                       <TableCell className="font-medium text-sm">{row.name}</TableCell>
                       <TableCell className="text-sm">{row.type.replace(/_/g, " ")}</TableCell>

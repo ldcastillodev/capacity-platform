@@ -231,6 +231,30 @@ export function listStatementsOfWork(
   });
 }
 
+/** Fetch a SOW's start/end dates (contract-window validation), or null. */
+export function findStatementOfWorkDates(id: number, db: Db = prisma) {
+  return db.statementOfWork.findUnique({
+    where: { id },
+    select: { startDate: true, endDate: true },
+  });
+}
+
+/**
+ * Validate a contract's end date falls within its SOW. A contract cannot
+ * outlast the SOW it belongs to. Returns an error message, or null if valid.
+ */
+export function validateContractWithinSow(
+  sow: { endDate: Date | null },
+  contractEnd: Date | null
+): string | null {
+  if (sow.endDate) {
+    if (!contractEnd) return "Contract end date is required when its SOW has an end date.";
+    if (contractEnd > sow.endDate)
+      return "Contract end date cannot be later than its SOW end date.";
+  }
+  return null;
+}
+
 /** Create a SOW, returning the client summary shape. */
 export function createStatementOfWork(
   data: Prisma.StatementOfWorkUncheckedCreateInput,

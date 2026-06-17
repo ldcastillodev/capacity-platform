@@ -21,11 +21,15 @@ export async function POST(req: NextRequest) {
     end_date?: string;
   };
 
+  if (!body.end_date) {
+    return NextResponse.json({ error: "End date is required." }, { status: 400 });
+  }
+
   const sow = await contractService.createStatementOfWork({
     name: body.name,
     clientId: body.client_id,
     startDate: new Date(body.start_date),
-    endDate: body.end_date ? new Date(body.end_date) : null,
+    endDate: new Date(body.end_date),
   });
   return NextResponse.json(sow, { status: 201 });
 }

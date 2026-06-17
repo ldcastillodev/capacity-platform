@@ -52,6 +52,8 @@ interface ClientFormState {
   currency: string;
 }
 const defaultClientForm: ClientFormState = { name: "", region: "na", currency: "USD" };
+// Calendar-year start (Jan 1) — default for SOW/contract start dates.
+const YEAR_START = `${new Date().getFullYear()}-01-01`;
 
 function ClientsSection() {
   const qc = useQueryClient();
@@ -68,6 +70,7 @@ function ClientsSection() {
         .get<ClientRecord[]>(`/management/clients?includeArchived=${showArchived}`)
         .then((r) => r.data),
   });
+  const visibleClients = showArchived ? clients.filter((c) => !c.isActive) : clients;
   const createMutation = useMutation({
     mutationFn: (f: ClientFormState) => api.post("/management/clients", f).then((r) => r.data),
     onSuccess: () => {
@@ -136,7 +139,7 @@ function ClientsSection() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : clients.length === 0 ? (
+          ) : visibleClients.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">No clients found.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -151,7 +154,7 @@ function ClientsSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clients.map((c) => (
+                  {visibleClients.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell className="font-medium text-sm">{c.name}</TableCell>
                       <TableCell>
@@ -308,7 +311,7 @@ function SowsSection() {
   const [form, setForm] = useState<SowFormState>({
     name: "",
     client_id: "",
-    start_date: new Date().toISOString().split("T")[0],
+    start_date: YEAR_START,
     end_date: "",
   });
   const [archiving, setArchiving] = useState<SowRecord | null>(null);
@@ -322,6 +325,7 @@ function SowsSection() {
         .get<SowRecord[]>(`/management/statement-of-works?includeArchived=${showArchived}`)
         .then((r) => r.data),
   });
+  const visibleSows = showArchived ? sows.filter((s) => !s.isActive) : sows;
   const { data: clients = [] } = useQuery({
     queryKey: ["mgmt-clients-active"],
     queryFn: () => api.get<ClientOption[]>("/management/clients").then((r) => r.data),
@@ -381,7 +385,7 @@ function SowsSection() {
     setForm({
       name: "",
       client_id: "",
-      start_date: new Date().toISOString().split("T")[0],
+      start_date: YEAR_START,
       end_date: "",
     });
     setEditing(null);
@@ -430,7 +434,7 @@ function SowsSection() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : sows.length === 0 ? (
+          ) : visibleSows.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">No statements of work found.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -446,7 +450,7 @@ function SowsSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sows.map((s) => (
+                  {visibleSows.map((s) => (
                     <TableRow key={s.id} className={cn(!s.isActive && "opacity-60")}>
                       <TableCell className="font-medium text-sm">{s.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -563,9 +567,9 @@ function SowsSection() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>End Date</Label>
+              <Label>End Date *</Label>
               <DatePicker
-                clearable
+                required
                 value={form.end_date}
                 onChange={(v) => setForm({ ...form, end_date: v })}
               />
@@ -608,6 +612,7 @@ interface ContractRecord {
 interface SowOption {
   id: number;
   name: string;
+  endDate: string | null;
   client: { id: number; name: string };
 }
 interface ContractFormState {
@@ -633,7 +638,7 @@ function ContractsSection() {
     hour_type: "monthly",
     type: "base",
     assigned_hours: "",
-    start_date: new Date().toISOString().split("T")[0],
+    start_date: YEAR_START,
     end_date: "",
     status: "active",
     client_filter: "",
@@ -654,6 +659,9 @@ function ContractsSection() {
     queryKey: ["mgmt-sows-with-clients"],
     queryFn: () => api.get<SowOption[]>("/management/statement-of-works").then((r) => r.data),
   });
+  const visibleContracts = showArchived
+    ? contracts.filter((c) => c.status === "closed")
+    : contracts;
   const filteredSows = form.client_filter
     ? sows.filter((s) => s.client.id.toString() === form.client_filter)
     : sows;
@@ -726,7 +734,7 @@ function ContractsSection() {
       hour_type: "monthly",
       type: "base",
       assigned_hours: "",
-      start_date: new Date().toISOString().split("T")[0],
+      start_date: YEAR_START,
       end_date: "",
       status: "active",
       client_filter: "",
@@ -761,6 +769,12 @@ function ContractsSection() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiError(null);
+    const sow = sows.find((s) => String(s.id) === form.sow_id);
+    const sowEnd = sow?.endDate ? sow.endDate.split("T")[0] : null;
+    if (sowEnd && form.end_date && form.end_date > sowEnd) {
+      setApiError(`Contract end date cannot be later than the SOW end date (${sowEnd}).`);
+      return;
+    }
     if (modalMode === "create") createMutation.mutate(form);
     else if (editing) updateMutation.mutate({ id: editing.id, f: form });
   }
@@ -791,7 +805,7 @@ function ContractsSection() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : contracts.length === 0 ? (
+          ) : visibleContracts.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">No contracts found.</p>
           ) : (
             <div className="overflow-auto">
@@ -810,7 +824,7 @@ function ContractsSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {contracts.map((c) => (
+                  {visibleContracts.map((c) => (
                     <TableRow key={c.id} className={cn(c.status === "closed" && "opacity-60")}>
                       <TableCell className="font-medium text-sm">{c.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{c.sow.name}</TableCell>
@@ -942,7 +956,17 @@ function ContractsSection() {
               <Label>Hour Type *</Label>
               <Select
                 value={form.hour_type}
-                onValueChange={(v) => setForm({ ...form, hour_type: v as "monthly" | "total" })}
+                onValueChange={(v) => {
+                  const ht = v as "monthly" | "total";
+                  const allowed = ht === "monthly" ? ["base"] : ["change_order", "extension"];
+                  setForm({
+                    ...form,
+                    hour_type: ht,
+                    type: allowed.includes(form.type)
+                      ? form.type
+                      : (allowed[0] as "base" | "change_order" | "extension"),
+                  });
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -965,9 +989,15 @@ function ContractsSection() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="base">Base</SelectItem>
-                  <SelectItem value="change_order">Change Order</SelectItem>
-                  <SelectItem value="extension">Extension</SelectItem>
+                  <SelectItem value="base" disabled={form.hour_type !== "monthly"}>
+                    Base
+                  </SelectItem>
+                  <SelectItem value="change_order" disabled={form.hour_type !== "total"}>
+                    Change Order
+                  </SelectItem>
+                  <SelectItem value="extension" disabled={form.hour_type !== "total"}>
+                    Extension
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1004,7 +1034,7 @@ function ContractsSection() {
             </div>
           )}
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <Label>Assigned Hours *</Label>
               <Input
                 type="number"
@@ -1015,7 +1045,7 @@ function ContractsSection() {
                 onChange={(e) => setForm({ ...form, assigned_hours: e.target.value })}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               <Label>Start Date *</Label>
               <DatePicker
                 required
@@ -1023,10 +1053,10 @@ function ContractsSection() {
                 onChange={(v) => setForm({ ...form, start_date: v })}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>End Date</Label>
+            <div className="space-y-1.5 min-w-0">
+              <Label>End Date *</Label>
               <DatePicker
-                clearable
+                required
                 value={form.end_date}
                 onChange={(v) => setForm({ ...form, end_date: v })}
               />

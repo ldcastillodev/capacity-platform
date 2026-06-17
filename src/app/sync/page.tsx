@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { MonthPicker } from "@/components/app/MonthPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AuditTab } from "@/components/sync/AuditTab";
 import { cn } from "@/lib/utils";
 import { useSyncContext, type OpState } from "@/context/SyncContext";
 
@@ -132,105 +134,120 @@ export default function SyncPage() {
     <div>
       <PageHeader title="Sync" description="Trigger data sync from Jira and analytics refresh." />
 
-      {lastLogs.length > 0 && (
-        <Card className="mb-5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Last Sync Status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {lastLogs.map((log) => (
-              <div key={log.id} className="rounded-lg border p-4 bg-[var(--safe-bg)]">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-sm">
-                    {log.source === "jira_na" ? "Jira NA" : log.source}
-                  </span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)] uppercase tracking-wide">
-                    {log.completedAt ? "Success" : "Running"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-0.5">Date &amp; Time</div>
-                    <div>{fmtDateTime(log.startedAt)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-0.5">Date Range</div>
-                    <div>
-                      {log.dateFrom && log.dateTo
-                        ? `${fmtDate(log.dateFrom)} – ${fmtDate(log.dateTo)}`
-                        : "—"}
+      <Tabs defaultValue="status">
+        <TabsList className="mb-5">
+          <TabsTrigger value="status">Sync Status</TabsTrigger>
+          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+        </TabsList>
+        <TabsContent value="status">
+          {lastLogs.length > 0 && (
+            <Card className="mb-5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Last Sync Status</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {lastLogs.map((log) => (
+                  <div key={log.id} className="rounded-lg border p-4 bg-[var(--safe-bg)]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-sm">
+                        {log.source === "jira_na" ? "Jira NA" : log.source}
+                      </span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)] uppercase tracking-wide">
+                        {log.completedAt ? "Success" : "Running"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-0.5">Date &amp; Time</div>
+                        <div>{fmtDateTime(log.startedAt)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-0.5">Date Range</div>
+                        <div>
+                          {log.dateFrom && log.dateTo
+                            ? `${fmtDate(log.dateFrom)} – ${fmtDate(log.dateTo)}`
+                            : "—"}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="mb-5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Date Range</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-6 flex-wrap">
+                <div className="flex flex-col gap-3">
+                  <Label>From</Label>
+                  <MonthPicker
+                    value={monthFrom}
+                    onChange={handleMonthFromChange}
+                    className="w-44"
+                  />
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Label>To</Label>
+                  <MonthPicker value={monthTo} onChange={handleMonthToChange} className="w-44" />
                 </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
 
-      <Card className="mb-5">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Date Range</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-6 flex-wrap">
-            <div className="flex flex-col gap-3">
-              <Label>From</Label>
-              <MonthPicker value={monthFrom} onChange={handleMonthFromChange} className="w-44" />
-            </div>
-            <div className="flex flex-col gap-3">
-              <Label>To</Label>
-              <MonthPicker value={monthTo} onChange={handleMonthToChange} className="w-44" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <Card className="mb-5">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-base">Data Sync</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Pull hour records from selected sources into the database.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="jira"
+                  checked={jiraChecked}
+                  onCheckedChange={(v) => setJiraChecked(Boolean(v))}
+                />
+                <Label htmlFor="jira">Jira NA</Label>
+              </div>
+              <Button
+                onClick={() => runSync({ source: getSource(jiraChecked), dateFrom, dateTo })}
+                disabled={sync.status === "running" || !jiraChecked}
+              >
+                {sync.status === "running" ? "Running…" : "Run Sync"}
+              </Button>
+              <Banner result={toBanner(sync)} />
+            </CardContent>
+          </Card>
 
-      <Card className="mb-5">
-        <CardHeader className="pb-1">
-          <CardTitle className="text-base">Data Sync</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Pull hour records from selected sources into the database.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="jira"
-              checked={jiraChecked}
-              onCheckedChange={(v) => setJiraChecked(Boolean(v))}
-            />
-            <Label htmlFor="jira">Jira NA</Label>
-          </div>
-          <Button
-            onClick={() => runSync({ source: getSource(jiraChecked), dateFrom, dateTo })}
-            disabled={sync.status === "running" || !jiraChecked}
-          >
-            {sync.status === "running" ? "Running…" : "Run Sync"}
-          </Button>
-          <Banner result={toBanner(sync)} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-1">
-          <CardTitle className="text-base">Analytics Refresh</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Recalculates anomaly flags for clients with no recent hours logged, and generates
-            non-billable hour enhancement suggestions (excessive non-billable time, ceremony
-            overhead, or PTO capacity) for the current month.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            onClick={() => runRefresh({ months })}
-            disabled={refresh.status === "running" || months.length === 0}
-          >
-            {refresh.status === "running" ? "Running…" : "Run Analytics Refresh"}
-          </Button>
-          <Banner result={toBanner(refresh)} />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-base">Analytics Refresh</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Recalculates anomaly flags for clients with no recent hours logged, and generates
+                non-billable hour enhancement suggestions (excessive non-billable time, ceremony
+                overhead, or PTO capacity) for the current month.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                onClick={() => runRefresh({ months })}
+                disabled={refresh.status === "running" || months.length === 0}
+              >
+                {refresh.status === "running" ? "Running…" : "Run Analytics Refresh"}
+              </Button>
+              <Banner result={toBanner(refresh)} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="audit">
+          <AuditTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

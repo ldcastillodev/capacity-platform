@@ -52,6 +52,11 @@ export async function POST(req: NextRequest) {
         { error: "Duplicate membership for this person/squad/date." },
         { status: 400 }
       );
+    if ((e as { code?: string })?.code === "P2003")
+      return NextResponse.json(
+        { error: "The selected person or squad no longer exists. Refresh and try again." },
+        { status: 400 }
+      );
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

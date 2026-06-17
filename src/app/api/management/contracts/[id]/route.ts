@@ -13,6 +13,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     status?: "active" | "paused" | "closed";
   };
 
+  if (body.end_date !== undefined || body.start_date !== undefined) {
+    const existing = await contractService.findContractWithSowAndDeclarations(Number(id));
+    if (!existing) {
+      return NextResponse.json({ error: "Contract not found." }, { status: 404 });
+    }
+    const newEnd =
+      body.end_date !== undefined
+        ? body.end_date
+          ? new Date(body.end_date)
+          : null
+        : existing.endDate;
+    const dateError = contractService.validateContractWithinSow(existing.sow, newEnd);
+    if (dateError) {
+      return NextResponse.json({ error: dateError }, { status: 400 });
+    }
+  }
+
   const contract = await contractService.updateContract(Number(id), {
     ...(body.name !== undefined && { name: body.name }),
     ...(body.hour_type !== undefined && { hourType: body.hour_type }),

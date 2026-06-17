@@ -72,7 +72,7 @@ export default function ConsumptionPage() {
     <div>
       <PageHeader
         title="Hours Consumption"
-        description={`${formatMonthDisplay(month)} · Declared vs Actual · total-pool contracts shown against lifetime pool`}
+        description={`${formatMonthDisplay(month)} · Contracted vs Actual · total contracts shown against lifetime hours`}
         actions={<MonthNavigator month={month} onChange={setMonth} />}
       />
 
@@ -98,7 +98,7 @@ export default function ConsumptionPage() {
                       <TableHead>Contract</TableHead>
                       <TableHead>Contract Type</TableHead>
                       <TableHead>Hour Type</TableHead>
-                      <TableHead className="text-right">Declared / Pool</TableHead>
+                      <TableHead className="text-right">Contracted</TableHead>
                       <TableHead className="text-right">Prior Months</TableHead>
                       <TableHead className="text-right">Consumed (month)</TableHead>
                       <TableHead className="text-right">Remaining</TableHead>

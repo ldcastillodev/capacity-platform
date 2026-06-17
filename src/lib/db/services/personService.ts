@@ -359,6 +359,7 @@ export type NewPerson = {
   weeklyCapacityHours?: number;
   squadId?: number | null;
   allocationPct?: number;
+  membershipEffectiveFrom?: Date;
 };
 
 /**
@@ -380,14 +381,17 @@ export function createPersonWithOptionalMembership(
       tx
     );
     if (input.squadId) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      let effectiveFrom = input.membershipEffectiveFrom;
+      if (!effectiveFrom) {
+        effectiveFrom = new Date();
+        effectiveFrom.setHours(0, 0, 0, 0);
+      }
       await squadService.createSquadMembership(
         {
           personId: p.id,
           squadId: input.squadId,
           allocationPct: input.allocationPct ?? 1.0,
-          effectiveFrom: today,
+          effectiveFrom,
         },
         tx
       );

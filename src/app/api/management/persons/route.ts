@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { personService } from "@/lib/db";
+import { toUtcDateOnly } from "@/lib/temporal";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest) {
     weekly_capacity_hours?: number;
     squad_id?: number | null;
     allocation_pct?: number;
+    effective_from?: string;
   };
 
   const person = await personService.createPersonWithOptionalMembership({
@@ -25,6 +27,7 @@ export async function POST(req: NextRequest) {
     weeklyCapacityHours: body.weekly_capacity_hours,
     squadId: body.squad_id,
     allocationPct: body.allocation_pct,
+    membershipEffectiveFrom: body.effective_from ? toUtcDateOnly(body.effective_from) : undefined,
   });
 
   return NextResponse.json(person, { status: 201 });
