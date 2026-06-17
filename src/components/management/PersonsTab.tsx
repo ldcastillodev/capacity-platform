@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -66,7 +68,17 @@ const defaultForm: FormState = {
   squad_from: defaultSquadFrom,
 };
 
+type PersonCol = "name" | "email" | "squad" | "hours" | "status";
+const PERSON_ACCESSORS: Record<PersonCol, (p: PersonRecord) => string | number | null> = {
+  name: (p) => p.name,
+  email: (p) => p.email,
+  squad: (p) => p.squadMemberships[0]?.squad.name ?? null,
+  hours: (p) => parseFloat(p.weeklyCapacityHours),
+  status: (p) => (p.isActive ? "Active" : "Archived"),
+};
+
 export function PersonsTab() {
+  const sort = useSortState<PersonCol>();
   const [showArchived, setShowArchived] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<PersonRecord | null>(null);
@@ -86,6 +98,13 @@ export function PersonsTab() {
     queryFn: () => api.get<SquadOption[]>("/management/squads").then((r) => r.data),
   });
   const visiblePersons = showArchived ? persons.filter((p) => !p.isActive) : persons;
+  const sortedPersons = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visiblePersons, PERSON_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visiblePersons,
+    [visiblePersons, sort.sortKey, sort.sortDir]
+  );
 
   const createMutation = useMutation({
     mutationFn: (f: FormState) =>
@@ -193,16 +212,31 @@ export function PersonsTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Squad</TableHead>
-                    <TableHead className="text-right">Hrs/wk</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <SortableHead colKey="name" sort={sort}>
+                      Name
+                    </SortableHead>
+                    <SortableHead colKey="email" sort={sort}>
+                      Email
+                    </SortableHead>
+                    <SortableHead colKey="squad" sort={sort}>
+                      Squad
+                    </SortableHead>
+                    <SortableHead colKey="hours" sort={sort} align="right" className="text-right">
+                      Hrs/wk
+                    </SortableHead>
+                    <SortableHead
+                      colKey="status"
+                      sort={sort}
+                      align="center"
+                      className="text-center"
+                    >
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visiblePersons.map((person) => {
+                  {sortedPersons.map((person) => {
                     const squad = person.squadMemberships[0];
                     return (
                       <TableRow key={person.id}>

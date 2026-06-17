@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -62,7 +64,17 @@ function isComponentActive(comp: ComponentRecord) {
   return comp.effectiveTo === null || new Date(comp.effectiveTo) > new Date();
 }
 
+type ComponentCol = "jiraInstance" | "componentKey" | "contract" | "effectiveFrom" | "status";
+const COMPONENT_ACCESSORS: Record<ComponentCol, (c: ComponentRecord) => string | number> = {
+  jiraInstance: (c) => c.jiraInstance,
+  componentKey: (c) => c.componentKey,
+  contract: (c) => c.contract.name,
+  effectiveFrom: (c) => c.effectiveFrom,
+  status: (c) => (isComponentActive(c) ? "Active" : "Archived"),
+};
+
 export function ComponentsTab() {
+  const sort = useSortState<ComponentCol>();
   const [showArchived, setShowArchived] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<ComponentRecord | null>(null);
@@ -84,6 +96,13 @@ export function ComponentsTab() {
   const visibleComponents = showArchived
     ? components.filter((c) => !isComponentActive(c))
     : components;
+  const sortedComponents = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visibleComponents, COMPONENT_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visibleComponents,
+    [visibleComponents, sort.sortKey, sort.sortDir]
+  );
 
   const createMutation = useMutation({
     mutationFn: (f: FormState) =>
@@ -181,16 +200,31 @@ export function ComponentsTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Jira Instance</TableHead>
-                    <TableHead>Component Key</TableHead>
-                    <TableHead>Contract</TableHead>
-                    <TableHead>Effective From</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <SortableHead colKey="jiraInstance" sort={sort}>
+                      Jira Instance
+                    </SortableHead>
+                    <SortableHead colKey="componentKey" sort={sort}>
+                      Component Key
+                    </SortableHead>
+                    <SortableHead colKey="contract" sort={sort}>
+                      Contract
+                    </SortableHead>
+                    <SortableHead colKey="effectiveFrom" sort={sort}>
+                      Effective From
+                    </SortableHead>
+                    <SortableHead
+                      colKey="status"
+                      sort={sort}
+                      align="center"
+                      className="text-center"
+                    >
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleComponents.map((comp) => {
+                  {sortedComponents.map((comp) => {
                     const isActive = isComponentActive(comp);
                     return (
                       <TableRow key={comp.id}>

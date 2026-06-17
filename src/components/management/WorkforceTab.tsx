@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { ManagementModal } from "./ManagementModal";
 import { SquadsTab } from "./SquadsTab";
 import { PersonsTab } from "./PersonsTab";
@@ -83,8 +85,18 @@ interface MembershipRow {
   squad: { id: number; name: string };
 }
 
+type MembershipCol = "person" | "squad" | "allocation" | "from" | "to";
+const MEMBERSHIP_ACCESSORS: Record<MembershipCol, (r: MembershipRow) => string | number | null> = {
+  person: (r) => r.person.name,
+  squad: (r) => r.squad.name,
+  allocation: (r) => parseFloat(r.allocationPct),
+  from: (r) => r.effectiveFrom,
+  to: (r) => r.effectiveTo,
+};
+
 function MembershipsSection() {
   const qc = useQueryClient();
+  const sort = useSortState<MembershipCol>();
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<MembershipRow | null>(null);
   const [form, setForm] = useState({
@@ -104,6 +116,13 @@ function MembershipsSection() {
   });
   const visibleRows = rows.filter((r) =>
     showArchived ? isExpired(r.effectiveTo) : !isExpired(r.effectiveTo)
+  );
+  const sortedRows = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visibleRows, MEMBERSHIP_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visibleRows,
+    [visibleRows, sort.sortKey, sort.sortDir]
   );
   const { data: squads = [] } = useQuery({
     queryKey: ["mgmt-squads-active"],
@@ -219,16 +238,31 @@ function MembershipsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Person</TableHead>
-                    <TableHead>Squad</TableHead>
-                    <TableHead className="text-right">Allocation %</TableHead>
-                    <TableHead>From</TableHead>
-                    <TableHead>To</TableHead>
+                    <SortableHead colKey="person" sort={sort}>
+                      Person
+                    </SortableHead>
+                    <SortableHead colKey="squad" sort={sort}>
+                      Squad
+                    </SortableHead>
+                    <SortableHead
+                      colKey="allocation"
+                      sort={sort}
+                      align="right"
+                      className="text-right"
+                    >
+                      Allocation %
+                    </SortableHead>
+                    <SortableHead colKey="from" sort={sort}>
+                      From
+                    </SortableHead>
+                    <SortableHead colKey="to" sort={sort}>
+                      To
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleRows.map((row) => (
+                  {sortedRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium text-sm">{row.person.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -386,8 +420,18 @@ interface RoleRow {
   person: { id: number; name: string };
 }
 
+type RoleCol = "person" | "role" | "seniority" | "from" | "to";
+const ROLE_ROW_ACCESSORS: Record<RoleCol, (r: RoleRow) => string | number | null> = {
+  person: (r) => r.person.name,
+  role: (r) => r.roleType,
+  seniority: (r) => r.seniority,
+  from: (r) => r.effectiveFrom,
+  to: (r) => r.effectiveTo,
+};
+
 function PersonRolesSection() {
   const qc = useQueryClient();
+  const sort = useSortState<RoleCol>();
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<RoleRow | null>(null);
   const [form, setForm] = useState({
@@ -407,6 +451,13 @@ function PersonRolesSection() {
   });
   const visibleRows = rows.filter((r) =>
     showArchived ? isExpired(r.effectiveTo) : !isExpired(r.effectiveTo)
+  );
+  const sortedRows = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visibleRows, ROLE_ROW_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visibleRows,
+    [visibleRows, sort.sortKey, sort.sortDir]
   );
   const { data: persons = [] } = useQuery({
     queryKey: ["mgmt-persons-active"],
@@ -535,16 +586,26 @@ function PersonRolesSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Person</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Seniority</TableHead>
-                    <TableHead>From</TableHead>
-                    <TableHead>To</TableHead>
+                    <SortableHead colKey="person" sort={sort}>
+                      Person
+                    </SortableHead>
+                    <SortableHead colKey="role" sort={sort}>
+                      Role
+                    </SortableHead>
+                    <SortableHead colKey="seniority" sort={sort}>
+                      Seniority
+                    </SortableHead>
+                    <SortableHead colKey="from" sort={sort}>
+                      From
+                    </SortableHead>
+                    <SortableHead colKey="to" sort={sort}>
+                      To
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleRows.map((row) => (
+                  {sortedRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium text-sm">{row.person.name}</TableCell>
                       <TableCell className="text-sm">{row.roleType.replace(/_/g, " ")}</TableCell>

@@ -1,18 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -88,16 +83,42 @@ interface SyncLogRow {
   recordsConflicted: number | null;
 }
 
+type SyncLogCol =
+  | "source"
+  | "started"
+  | "completed"
+  | "fetched"
+  | "created"
+  | "skipped"
+  | "conflicted";
+const SYNC_LOG_ACCESSORS: Record<
+  SyncLogCol,
+  (r: SyncLogRow) => string | number | null | undefined
+> = {
+  source: (r) => r.source,
+  started: (r) => r.startedAt,
+  completed: (r) => r.completedAt,
+  fetched: (r) => r.recordsFetched,
+  created: (r) => r.recordsCreated,
+  skipped: (r) => r.recordsSkipped,
+  conflicted: (r) => r.recordsConflicted,
+};
+
 function SyncLogsSection() {
   const [page, setPage] = useState(1);
+  const sort = useSortState<SyncLogCol>();
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["audit-sync-logs"],
     queryFn: () => api.get<SyncLogRow[]>("/management/sync-logs").then((r) => r.data),
   });
 
-  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sorted = useMemo(
+    () => (sort.sortKey ? sortRows(rows, SYNC_LOG_ACCESSORS[sort.sortKey], sort.sortDir) : rows),
+    [rows, sort.sortKey, sort.sortDir]
+  );
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pageRows = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -120,13 +141,32 @@ function SyncLogsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Started</TableHead>
-                    <TableHead>Completed</TableHead>
-                    <TableHead className="text-right">Fetched</TableHead>
-                    <TableHead className="text-right">Created</TableHead>
-                    <TableHead className="text-right">Skipped</TableHead>
-                    <TableHead className="text-right">Conflicted</TableHead>
+                    <SortableHead colKey="source" sort={sort}>
+                      Source
+                    </SortableHead>
+                    <SortableHead colKey="started" sort={sort}>
+                      Started
+                    </SortableHead>
+                    <SortableHead colKey="completed" sort={sort}>
+                      Completed
+                    </SortableHead>
+                    <SortableHead colKey="fetched" sort={sort} align="right" className="text-right">
+                      Fetched
+                    </SortableHead>
+                    <SortableHead colKey="created" sort={sort} align="right" className="text-right">
+                      Created
+                    </SortableHead>
+                    <SortableHead colKey="skipped" sort={sort} align="right" className="text-right">
+                      Skipped
+                    </SortableHead>
+                    <SortableHead
+                      colKey="conflicted"
+                      sort={sort}
+                      align="right"
+                      className="text-right"
+                    >
+                      Conflicted
+                    </SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -185,9 +225,33 @@ interface SyncConflictRow {
   lastSeenAt: string;
 }
 
+type SyncConflictCol =
+  | "category"
+  | "person"
+  | "issue"
+  | "component"
+  | "date"
+  | "hours"
+  | "detail"
+  | "lastSeen";
+const SYNC_CONFLICT_ACCESSORS: Record<
+  SyncConflictCol,
+  (r: SyncConflictRow) => string | number | null | undefined
+> = {
+  category: (r) => r.category,
+  person: (r) => r.authorEmail,
+  issue: (r) => r.issueKey,
+  component: (r) => r.componentKey,
+  date: (r) => r.date,
+  hours: (r) => Number(r.hours),
+  detail: (r) => r.detail,
+  lastSeen: (r) => r.lastSeenAt,
+};
+
 function SyncConflictsSection() {
   const [category, setCategory] = useState("all");
   const [page, setPage] = useState(1);
+  const sort = useSortState<SyncConflictCol>();
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["audit-sync-conflicts", category],
@@ -200,8 +264,13 @@ function SyncConflictsSection() {
     },
   });
 
-  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sorted = useMemo(
+    () =>
+      sort.sortKey ? sortRows(rows, SYNC_CONFLICT_ACCESSORS[sort.sortKey], sort.sortDir) : rows,
+    [rows, sort.sortKey, sort.sortDir]
+  );
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pageRows = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -247,14 +316,30 @@ function SyncConflictsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Person</TableHead>
-                    <TableHead>Issue</TableHead>
-                    <TableHead>Component</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Hours</TableHead>
-                    <TableHead>Detail</TableHead>
-                    <TableHead>Last seen</TableHead>
+                    <SortableHead colKey="category" sort={sort}>
+                      Category
+                    </SortableHead>
+                    <SortableHead colKey="person" sort={sort}>
+                      Person
+                    </SortableHead>
+                    <SortableHead colKey="issue" sort={sort}>
+                      Issue
+                    </SortableHead>
+                    <SortableHead colKey="component" sort={sort}>
+                      Component
+                    </SortableHead>
+                    <SortableHead colKey="date" sort={sort}>
+                      Date
+                    </SortableHead>
+                    <SortableHead colKey="hours" sort={sort} align="right" className="text-right">
+                      Hours
+                    </SortableHead>
+                    <SortableHead colKey="detail" sort={sort}>
+                      Detail
+                    </SortableHead>
+                    <SortableHead colKey="lastSeen" sort={sort}>
+                      Last seen
+                    </SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

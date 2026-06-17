@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,8 +65,29 @@ interface AnomalyRow {
   client: { id: number; name: string };
 }
 
+type AnomalyCol =
+  | "client"
+  | "month"
+  | "role"
+  | "flagType"
+  | "severity"
+  | "explanation"
+  | "detected"
+  | "status";
+const ANOMALY_ACCESSORS: Record<AnomalyCol, (r: AnomalyRow) => string | number | null> = {
+  client: (r) => r.client.name,
+  month: (r) => r.month,
+  role: (r) => r.roleType,
+  flagType: (r) => r.flagType,
+  severity: (r) => r.severity,
+  explanation: (r) => r.explanation,
+  detected: (r) => r.detectedAt,
+  status: (r) => (r.resolvedAt !== null ? "Resolved" : "open"),
+};
+
 function AnomalyFlagsSection() {
   const qc = useQueryClient();
+  const sort = useSortState<AnomalyCol>();
   const [resolveRow, setResolveRow] = useState<AnomalyRow | null>(null);
   const [resolveForm, setResolveForm] = useState({ resolved_by: "", resolution_notes: "" });
   const [resolveError, setResolveError] = useState<string | null>(null);
@@ -73,6 +96,10 @@ function AnomalyFlagsSection() {
     queryKey: ["mgmt-anomaly-flags"],
     queryFn: () => api.get<AnomalyRow[]>("/management/analytics/anomaly-flags").then((r) => r.data),
   });
+  const sortedRows = useMemo(
+    () => (sort.sortKey ? sortRows(rows, ANOMALY_ACCESSORS[sort.sortKey], sort.sortDir) : rows),
+    [rows, sort.sortKey, sort.sortDir]
+  );
 
   const resolveMut = useMutation({
     mutationFn: ({
@@ -130,19 +157,35 @@ function AnomalyFlagsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Month</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Flag Type</TableHead>
-                    <TableHead>Severity</TableHead>
-                    <TableHead>Explanation</TableHead>
-                    <TableHead>Detected</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableHead colKey="client" sort={sort}>
+                      Client
+                    </SortableHead>
+                    <SortableHead colKey="month" sort={sort}>
+                      Month
+                    </SortableHead>
+                    <SortableHead colKey="role" sort={sort}>
+                      Role
+                    </SortableHead>
+                    <SortableHead colKey="flagType" sort={sort}>
+                      Flag Type
+                    </SortableHead>
+                    <SortableHead colKey="severity" sort={sort}>
+                      Severity
+                    </SortableHead>
+                    <SortableHead colKey="explanation" sort={sort}>
+                      Explanation
+                    </SortableHead>
+                    <SortableHead colKey="detected" sort={sort}>
+                      Detected
+                    </SortableHead>
+                    <SortableHead colKey="status" sort={sort}>
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => {
+                  {sortedRows.map((row) => {
                     const isResolved = row.resolvedAt !== null;
                     return (
                       <TableRow key={row.id}>
@@ -262,14 +305,30 @@ interface SuggestionRow {
   squad: { id: number; name: string };
 }
 
+type SuggestionCol = "person" | "squad" | "month" | "created" | "type" | "status" | "explanation";
+const SUGGESTION_ACCESSORS: Record<SuggestionCol, (r: SuggestionRow) => string | number | null> = {
+  person: (r) => r.person?.name ?? null,
+  squad: (r) => r.squad.name,
+  month: (r) => r.month,
+  created: (r) => r.detectedAt,
+  type: (r) => r.suggestionType,
+  status: (r) => r.status,
+  explanation: (r) => r.explanation,
+};
+
 function SuggestionsSection() {
   const qc = useQueryClient();
+  const sort = useSortState<SuggestionCol>();
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["mgmt-suggestions"],
     queryFn: () =>
       api.get<SuggestionRow[]>("/management/analytics/suggestions").then((r) => r.data),
   });
+  const sortedRows = useMemo(
+    () => (sort.sortKey ? sortRows(rows, SUGGESTION_ACCESSORS[sort.sortKey], sort.sortDir) : rows),
+    [rows, sort.sortKey, sort.sortDir]
+  );
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
@@ -297,18 +356,32 @@ function SuggestionsSection() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Person</TableHead>
-                  <TableHead>Squad</TableHead>
-                  <TableHead>Month</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Explanation</TableHead>
+                  <SortableHead colKey="person" sort={sort}>
+                    Person
+                  </SortableHead>
+                  <SortableHead colKey="squad" sort={sort}>
+                    Squad
+                  </SortableHead>
+                  <SortableHead colKey="month" sort={sort}>
+                    Month
+                  </SortableHead>
+                  <SortableHead colKey="created" sort={sort}>
+                    Created
+                  </SortableHead>
+                  <SortableHead colKey="type" sort={sort}>
+                    Type
+                  </SortableHead>
+                  <SortableHead colKey="status" sort={sort}>
+                    Status
+                  </SortableHead>
+                  <SortableHead colKey="explanation" sort={sort}>
+                    Explanation
+                  </SortableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => {
+                {sortedRows.map((row) => {
                   const isTerminal = TERMINAL.includes(row.status);
                   return (
                     <TableRow key={row.id}>

@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { ManagementModal } from "./ManagementModal";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -52,8 +54,19 @@ interface SourceMappingRow {
   category: { id: number; name: string };
 }
 
+type CategoryCol = "name" | "type" | "description" | "entries" | "mappings" | "status";
+const CATEGORY_ACCESSORS: Record<CategoryCol, (r: NbCategoryRow) => string | number | null> = {
+  name: (r) => r.name,
+  type: (r) => r.type,
+  description: (r) => r.description,
+  entries: (r) => r._count.entries,
+  mappings: (r) => r._count.sourceMappings,
+  status: (r) => (r.isActive ? "Active" : "Archived"),
+};
+
 function CategoriesSection() {
   const qc = useQueryClient();
+  const sort = useSortState<CategoryCol>();
   const [showArchived, setShowArchived] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<NbCategoryRow | null>(null);
@@ -69,6 +82,13 @@ function CategoriesSection() {
         .then((r) => r.data),
   });
   const visibleRows = showArchived ? rows.filter((r) => !r.isActive) : rows;
+  const sortedRows = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visibleRows, CATEGORY_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visibleRows,
+    [visibleRows, sort.sortKey, sort.sortDir]
+  );
 
   const createMutation = useMutation({
     mutationFn: (f: typeof form) =>
@@ -160,17 +180,39 @@ function CategoriesSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Entries</TableHead>
-                    <TableHead className="text-right">Mappings</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <SortableHead colKey="name" sort={sort}>
+                      Name
+                    </SortableHead>
+                    <SortableHead colKey="type" sort={sort}>
+                      Type
+                    </SortableHead>
+                    <SortableHead colKey="description" sort={sort}>
+                      Description
+                    </SortableHead>
+                    <SortableHead colKey="entries" sort={sort} align="right" className="text-right">
+                      Entries
+                    </SortableHead>
+                    <SortableHead
+                      colKey="mappings"
+                      sort={sort}
+                      align="right"
+                      className="text-right"
+                    >
+                      Mappings
+                    </SortableHead>
+                    <SortableHead
+                      colKey="status"
+                      sort={sort}
+                      align="center"
+                      className="text-center"
+                    >
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleRows.map((row) => (
+                  {sortedRows.map((row) => (
                     <TableRow key={row.id} className={!row.isActive ? "opacity-60" : undefined}>
                       <TableCell className="font-medium text-sm">{row.name}</TableCell>
                       <TableCell className="text-sm">{row.type.replace(/_/g, " ")}</TableCell>
@@ -285,8 +327,16 @@ function CategoriesSection() {
   );
 }
 
+type MappingCol = "category" | "source" | "identifier";
+const MAPPING_ACCESSORS: Record<MappingCol, (r: SourceMappingRow) => string | number> = {
+  category: (r) => r.category.name,
+  source: (r) => `${r.source} / ${r.identifierType}`,
+  identifier: (r) => r.identifierValue,
+};
+
 function SourceMappingsSection() {
   const qc = useQueryClient();
+  const sort = useSortState<MappingCol>();
   const [modalMode, setModalMode] = useState<"create" | null>(null);
   const [form, setForm] = useState({
     category_id: "",
@@ -307,6 +357,10 @@ function SourceMappingsSection() {
     queryFn: () =>
       api.get<NbCategoryRow[]>("/management/nonbillable-categories").then((r) => r.data),
   });
+  const sortedRows = useMemo(
+    () => (sort.sortKey ? sortRows(rows, MAPPING_ACCESSORS[sort.sortKey], sort.sortDir) : rows),
+    [rows, sort.sortKey, sort.sortDir]
+  );
 
   const createMutation = useMutation({
     mutationFn: (f: typeof form) =>
@@ -371,14 +425,20 @@ function SourceMappingsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Source / Type</TableHead>
-                    <TableHead>Identifier Value</TableHead>
+                    <SortableHead colKey="category" sort={sort}>
+                      Category
+                    </SortableHead>
+                    <SortableHead colKey="source" sort={sort}>
+                      Source / Type
+                    </SortableHead>
+                    <SortableHead colKey="identifier" sort={sort}>
+                      Identifier Value
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
+                  {sortedRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium text-sm">{row.category.name}</TableCell>
                       <TableCell className="text-sm">

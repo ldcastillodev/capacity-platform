@@ -1,22 +1,17 @@
 "use client";
 
 import type React from "react";
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { fetchConsumptionByContract } from "@/lib/client";
 import { DailyHoursChart } from "@/components/consumption/DailyHoursChart";
 import { MonthNavigator } from "@/components/app/MonthNavigator";
 import { PageHeader } from "@/components/app/PageHeader";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/app/StatusBadge";
@@ -45,6 +40,33 @@ const CONTRACT_TYPE_LABEL: Record<"base" | "change_order" | "extension", string>
   extension: "Extension",
 };
 
+type ConsumptionRow = Awaited<ReturnType<typeof fetchConsumptionByContract>>[number];
+type ConsumptionCol =
+  | "client"
+  | "contract"
+  | "contractType"
+  | "hourType"
+  | "contracted"
+  | "prior"
+  | "consumed"
+  | "remaining"
+  | "pct";
+
+const CONSUMPTION_ACCESSORS: Record<
+  ConsumptionCol,
+  (r: ConsumptionRow) => string | number | null | undefined
+> = {
+  client: (r) => r.client_name,
+  contract: (r) => r.contract_name,
+  contractType: (r) => (r.contract_type ? CONTRACT_TYPE_LABEL[r.contract_type] : null),
+  hourType: (r) => r.hour_type,
+  contracted: (r) => r.declared_hours,
+  prior: (r) => r.prior_consumed_hours,
+  consumed: (r) => r.consumed_hours,
+  remaining: (r) => r.remaining_hours,
+  pct: (r) => r.consumption_pct,
+};
+
 const TONE_TEXT: Record<Tone, string> = {
   safe: "text-safe",
   watch: "text-watch",
@@ -67,6 +89,12 @@ export default function ConsumptionPage() {
     queryKey: ["consumption-by-contract", month],
     queryFn: () => fetchConsumptionByContract({ month }),
   });
+
+  const sort = useSortState<ConsumptionCol>();
+  const rows = useMemo(() => {
+    const base = contractRows ?? [];
+    return sort.sortKey ? sortRows(base, CONSUMPTION_ACCESSORS[sort.sortKey], sort.sortDir) : base;
+  }, [contractRows, sort.sortKey, sort.sortDir]);
 
   return (
     <div>
@@ -92,19 +120,52 @@ export default function ConsumptionPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Client</TableHead>
-                      <TableHead>Contract</TableHead>
-                      <TableHead>Contract Type</TableHead>
-                      <TableHead>Hour Type</TableHead>
-                      <TableHead className="text-right">Contracted</TableHead>
-                      <TableHead className="text-right">Prior Months</TableHead>
-                      <TableHead className="text-right">Consumed (month)</TableHead>
-                      <TableHead className="text-right">Remaining</TableHead>
-                      <TableHead className="min-w-[180px]">Consumption %</TableHead>
+                      <SortableHead colKey="client" sort={sort}>
+                        Client
+                      </SortableHead>
+                      <SortableHead colKey="contract" sort={sort}>
+                        Contract
+                      </SortableHead>
+                      <SortableHead colKey="contractType" sort={sort}>
+                        Contract Type
+                      </SortableHead>
+                      <SortableHead colKey="hourType" sort={sort}>
+                        Hour Type
+                      </SortableHead>
+                      <SortableHead
+                        colKey="contracted"
+                        sort={sort}
+                        align="right"
+                        className="text-right"
+                      >
+                        Contracted
+                      </SortableHead>
+                      <SortableHead colKey="prior" sort={sort} align="right" className="text-right">
+                        Prior Months
+                      </SortableHead>
+                      <SortableHead
+                        colKey="consumed"
+                        sort={sort}
+                        align="right"
+                        className="text-right"
+                      >
+                        Consumed (month)
+                      </SortableHead>
+                      <SortableHead
+                        colKey="remaining"
+                        sort={sort}
+                        align="right"
+                        className="text-right"
+                      >
+                        Remaining
+                      </SortableHead>
+                      <SortableHead colKey="pct" sort={sort} className="min-w-[180px]">
+                        Consumption %
+                      </SortableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(contractRows ?? []).map((row) => {
+                    {rows.map((row) => {
                       const clampedPct = Math.min(row.consumption_pct, 1);
                       const tone = consumptionTone(row.consumption_pct, row.declared_hours);
                       const isOpen = openId === row.contract_id;

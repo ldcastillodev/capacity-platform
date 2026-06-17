@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 import { RenewSowDialog } from "./RenewSowDialog";
@@ -55,8 +57,17 @@ const defaultClientForm: ClientFormState = { name: "", region: "na", currency: "
 // Calendar-year start (Jan 1) — default for SOW/contract start dates.
 const YEAR_START = `${new Date().getFullYear()}-01-01`;
 
+type ClientCol = "name" | "region" | "currency" | "status";
+const CLIENT_ACCESSORS: Record<ClientCol, (c: ClientRecord) => string | number> = {
+  name: (c) => c.name,
+  region: (c) => c.region,
+  currency: (c) => c.currency,
+  status: (c) => (c.isActive ? "Active" : "Archived"),
+};
+
 function ClientsSection() {
   const qc = useQueryClient();
+  const sort = useSortState<ClientCol>();
   const [showArchived, setShowArchived] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<ClientRecord | null>(null);
@@ -71,6 +82,13 @@ function ClientsSection() {
         .then((r) => r.data),
   });
   const visibleClients = showArchived ? clients.filter((c) => !c.isActive) : clients;
+  const sortedClients = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visibleClients, CLIENT_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visibleClients,
+    [visibleClients, sort.sortKey, sort.sortDir]
+  );
   const createMutation = useMutation({
     mutationFn: (f: ClientFormState) => api.post("/management/clients", f).then((r) => r.data),
     onSuccess: () => {
@@ -146,15 +164,28 @@ function ClientsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Region</TableHead>
-                    <TableHead>Currency</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <SortableHead colKey="name" sort={sort}>
+                      Name
+                    </SortableHead>
+                    <SortableHead colKey="region" sort={sort}>
+                      Region
+                    </SortableHead>
+                    <SortableHead colKey="currency" sort={sort}>
+                      Currency
+                    </SortableHead>
+                    <SortableHead
+                      colKey="status"
+                      sort={sort}
+                      align="center"
+                      className="text-center"
+                    >
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleClients.map((c) => (
+                  {sortedClients.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell className="font-medium text-sm">{c.name}</TableCell>
                       <TableCell>
@@ -303,8 +334,18 @@ interface SowFormState {
   end_date: string;
 }
 
+type SowCol = "name" | "client" | "start" | "end" | "status";
+const SOW_ACCESSORS: Record<SowCol, (s: SowRecord) => string | number | null> = {
+  name: (s) => s.name,
+  client: (s) => s.client.name,
+  start: (s) => s.startDate,
+  end: (s) => s.endDate,
+  status: (s) => (s.isActive ? "Active" : "Archived"),
+};
+
 function SowsSection() {
   const qc = useQueryClient();
+  const sort = useSortState<SowCol>();
   const [showArchived, setShowArchived] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<SowRecord | null>(null);
@@ -326,6 +367,11 @@ function SowsSection() {
         .then((r) => r.data),
   });
   const visibleSows = showArchived ? sows.filter((s) => !s.isActive) : sows;
+  const sortedSows = useMemo(
+    () =>
+      sort.sortKey ? sortRows(visibleSows, SOW_ACCESSORS[sort.sortKey], sort.sortDir) : visibleSows,
+    [visibleSows, sort.sortKey, sort.sortDir]
+  );
   const { data: clients = [] } = useQuery({
     queryKey: ["mgmt-clients-active"],
     queryFn: () => api.get<ClientOption[]>("/management/clients").then((r) => r.data),
@@ -441,16 +487,31 @@ function SowsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Start</TableHead>
-                    <TableHead>End</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <SortableHead colKey="name" sort={sort}>
+                      Name
+                    </SortableHead>
+                    <SortableHead colKey="client" sort={sort}>
+                      Client
+                    </SortableHead>
+                    <SortableHead colKey="start" sort={sort}>
+                      Start
+                    </SortableHead>
+                    <SortableHead colKey="end" sort={sort}>
+                      End
+                    </SortableHead>
+                    <SortableHead
+                      colKey="status"
+                      sort={sort}
+                      align="center"
+                      className="text-center"
+                    >
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleSows.map((s) => (
+                  {sortedSows.map((s) => (
                     <TableRow key={s.id} className={cn(!s.isActive && "opacity-60")}>
                       <TableCell className="font-medium text-sm">{s.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -628,8 +689,21 @@ interface ContractFormState {
   parent_contract_id: string;
 }
 
+type ContractCol = "name" | "sow" | "client" | "type" | "hours" | "start" | "end" | "status";
+const CONTRACT_ACCESSORS: Record<ContractCol, (c: ContractRecord) => string | number | null> = {
+  name: (c) => c.name,
+  sow: (c) => c.sow.name,
+  client: (c) => c.sow.client.name,
+  type: (c) => `${c.type} / ${c.hourType}`,
+  hours: (c) => parseFloat(c.assignedHours),
+  start: (c) => c.startDate,
+  end: (c) => c.endDate,
+  status: (c) => c.status,
+};
+
 function ContractsSection() {
   const qc = useQueryClient();
+  const sort = useSortState<ContractCol>();
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<ContractRecord | null>(null);
   const [form, setForm] = useState<ContractFormState>({
@@ -662,6 +736,13 @@ function ContractsSection() {
   const visibleContracts = showArchived
     ? contracts.filter((c) => c.status === "closed")
     : contracts;
+  const sortedContracts = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visibleContracts, CONTRACT_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visibleContracts,
+    [visibleContracts, sort.sortKey, sort.sortDir]
+  );
   const filteredSows = form.client_filter
     ? sows.filter((s) => s.client.id.toString() === form.client_filter)
     : sows;
@@ -812,19 +893,40 @@ function ContractsSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>SOW</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Hours</TableHead>
-                    <TableHead>Start</TableHead>
-                    <TableHead>End</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <SortableHead colKey="name" sort={sort}>
+                      Name
+                    </SortableHead>
+                    <SortableHead colKey="sow" sort={sort}>
+                      SOW
+                    </SortableHead>
+                    <SortableHead colKey="client" sort={sort}>
+                      Client
+                    </SortableHead>
+                    <SortableHead colKey="type" sort={sort}>
+                      Type
+                    </SortableHead>
+                    <SortableHead colKey="hours" sort={sort}>
+                      Hours
+                    </SortableHead>
+                    <SortableHead colKey="start" sort={sort}>
+                      Start
+                    </SortableHead>
+                    <SortableHead colKey="end" sort={sort}>
+                      End
+                    </SortableHead>
+                    <SortableHead
+                      colKey="status"
+                      sort={sort}
+                      align="center"
+                      className="text-center"
+                    >
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleContracts.map((c) => (
+                  {sortedContracts.map((c) => (
                     <TableRow key={c.id} className={cn(c.status === "closed" && "opacity-60")}>
                       <TableCell className="font-medium text-sm">{c.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{c.sow.name}</TableCell>

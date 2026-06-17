@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -45,7 +47,16 @@ interface FormState {
 }
 const defaultForm: FormState = { name: "", lead_person_id: "" };
 
+type SquadCol = "name" | "lead" | "members" | "status";
+const SQUAD_ACCESSORS: Record<SquadCol, (s: SquadRecord) => string | number | null> = {
+  name: (s) => s.name,
+  lead: (s) => s.lead?.name ?? null,
+  members: (s) => s.members.length,
+  status: (s) => (s.isActive ? "Active" : "Archived"),
+};
+
 export function SquadsTab() {
+  const sort = useSortState<SquadCol>();
   const [showArchived, setShowArchived] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<SquadRecord | null>(null);
@@ -65,6 +76,13 @@ export function SquadsTab() {
     queryFn: () => api.get<PersonOption[]>("/management/persons").then((r) => r.data),
   });
   const visibleSquads = showArchived ? squads.filter((s) => !s.isActive) : squads;
+  const sortedSquads = useMemo(
+    () =>
+      sort.sortKey
+        ? sortRows(visibleSquads, SQUAD_ACCESSORS[sort.sortKey], sort.sortDir)
+        : visibleSquads,
+    [visibleSquads, sort.sortKey, sort.sortDir]
+  );
 
   const createMutation = useMutation({
     mutationFn: (f: FormState) =>
@@ -153,15 +171,28 @@ export function SquadsTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Lead</TableHead>
-                    <TableHead className="text-right">Active Members</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <SortableHead colKey="name" sort={sort}>
+                      Name
+                    </SortableHead>
+                    <SortableHead colKey="lead" sort={sort}>
+                      Lead
+                    </SortableHead>
+                    <SortableHead colKey="members" sort={sort} align="right" className="text-right">
+                      Active Members
+                    </SortableHead>
+                    <SortableHead
+                      colKey="status"
+                      sort={sort}
+                      align="center"
+                      className="text-center"
+                    >
+                      Status
+                    </SortableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleSquads.map((squad) => (
+                  {sortedSquads.map((squad) => (
                     <TableRow key={squad.id}>
                       <TableCell className="font-medium text-sm">{squad.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">

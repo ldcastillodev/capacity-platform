@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Users, UserSquare2 } from "lucide-react";
 import { MonthNavigator } from "@/components/app/MonthNavigator";
 import { PageHeader } from "@/components/app/PageHeader";
+import { SortableHead } from "@/components/app/SortableHead";
+import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
 import {
   fetchSquadCapacity,
@@ -17,14 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 const ROLE_LABELS: Record<string, string> = {
   dev: "Developer",
@@ -60,21 +55,47 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   return groups;
 }
 
-function ColumnLabel({
-  children,
-  align = "center",
-}: {
-  children: React.ReactNode;
-  align?: "left" | "center";
-}): React.ReactElement {
-  return (
-    <TableHead
-      className={`sticky top-0 z-10 bg-card text-xs uppercase tracking-wide text-muted-foreground ${align === "center" ? "text-center" : ""}`}
-    >
-      {children}
-    </TableHead>
-  );
-}
+const STICKY_HEAD = "sticky top-0 z-10 bg-card";
+
+type SquadMember = SquadCapacityRow & { person_id: number; person_name: string };
+type SquadCol =
+  | "person"
+  | "capacity"
+  | "billable"
+  | "pctBillable"
+  | "nonbillable"
+  | "pctNonBillable"
+  | "available";
+const SQUAD_ACCESSORS: Record<SquadCol, (m: SquadMember) => string | number | null | undefined> = {
+  person: (m) => m.person_name,
+  capacity: (m) => m.capacity_hours,
+  billable: (m) => m.billable_hours,
+  pctBillable: (m) => pctOf(m.billable_hours, m.capacity_hours),
+  nonbillable: (m) => m.nonbillable_hours,
+  pctNonBillable: (m) => pctOf(m.nonbillable_hours, m.capacity_hours),
+  available: (m) => availableHours(m.capacity_hours, m.billable_hours, m.nonbillable_hours),
+};
+
+type RoleCol =
+  | "role"
+  | "capacity"
+  | "declared"
+  | "billable"
+  | "pctBillable"
+  | "nonbillable"
+  | "pctNonBillable"
+  | "available";
+const ROLE_ACCESSORS: Record<RoleCol, (r: RoleCapacityRow) => string | number | null | undefined> =
+  {
+    role: (r) => ROLE_LABELS[r.role_type] ?? r.role_type,
+    capacity: (r) => r.capacity_hours,
+    declared: (r) => r.declared_hours,
+    billable: (r) => r.billable_hours,
+    pctBillable: (r) => pctOf(r.billable_hours, r.capacity_hours),
+    nonbillable: (r) => r.nonbillable_hours,
+    pctNonBillable: (r) => pctOf(r.nonbillable_hours, r.capacity_hours),
+    available: (r) => availableHours(r.capacity_hours, r.billable_hours, r.nonbillable_hours),
+  };
 
 function NumCell({
   value,
@@ -156,15 +177,16 @@ function EmptyCard({ message }: { message: string }): React.ReactElement {
 }
 
 function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactElement {
-  const groups = groupBy(rows, (r) => String(r.squad_id));
+  const sort = useSortState<SquadCol>();
+  const groups = useMemo(() => groupBy(rows, (r) => String(r.squad_id)), [rows]);
   return (
     <div className="space-y-5">
       {Array.from(groups.values()).map((squadRows) => {
         const { squad_id, squad_name } = squadRows[0];
-        const members = squadRows.filter(
-          (r): r is SquadCapacityRow & { person_id: number; person_name: string } =>
-            r.person_id !== null
-        );
+        const allMembers = squadRows.filter((r): r is SquadMember => r.person_id !== null);
+        const members = sort.sortKey
+          ? sortRows(allMembers, SQUAD_ACCESSORS[sort.sortKey], sort.sortDir)
+          : allMembers;
         const totals = {
           capacity: members.reduce((s, m) => s + m.capacity_hours, 0),
           billable: members.reduce((s, m) => s + m.billable_hours, 0),
@@ -190,13 +212,57 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <ColumnLabel align="left">Person</ColumnLabel>
-                        <ColumnLabel>Capacity (h)</ColumnLabel>
-                        <ColumnLabel>Consumed Billable (h)</ColumnLabel>
-                        <ColumnLabel>% Billable</ColumnLabel>
-                        <ColumnLabel>Non-Billable (h)</ColumnLabel>
-                        <ColumnLabel>% Non-Billable</ColumnLabel>
-                        <ColumnLabel>Available (h)</ColumnLabel>
+                        <SortableHead colKey="person" sort={sort} className={STICKY_HEAD}>
+                          Person
+                        </SortableHead>
+                        <SortableHead
+                          colKey="capacity"
+                          sort={sort}
+                          align="center"
+                          className={`${STICKY_HEAD} text-center`}
+                        >
+                          Capacity (h)
+                        </SortableHead>
+                        <SortableHead
+                          colKey="billable"
+                          sort={sort}
+                          align="center"
+                          className={`${STICKY_HEAD} text-center`}
+                        >
+                          Consumed Billable (h)
+                        </SortableHead>
+                        <SortableHead
+                          colKey="pctBillable"
+                          sort={sort}
+                          align="center"
+                          className={`${STICKY_HEAD} text-center`}
+                        >
+                          % Billable
+                        </SortableHead>
+                        <SortableHead
+                          colKey="nonbillable"
+                          sort={sort}
+                          align="center"
+                          className={`${STICKY_HEAD} text-center`}
+                        >
+                          Non-Billable (h)
+                        </SortableHead>
+                        <SortableHead
+                          colKey="pctNonBillable"
+                          sort={sort}
+                          align="center"
+                          className={`${STICKY_HEAD} text-center`}
+                        >
+                          % Non-Billable
+                        </SortableHead>
+                        <SortableHead
+                          colKey="available"
+                          sort={sort}
+                          align="center"
+                          className={`${STICKY_HEAD} text-center`}
+                        >
+                          Available (h)
+                        </SortableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -270,14 +336,17 @@ function SquadSections({ rows }: { rows: SquadCapacityRow[] }): React.ReactEleme
 }
 
 function RoleSections({ rows }: { rows: RoleCapacityRow[] }): React.ReactElement {
-  const groups = groupBy(rows, (r) => String(r.squad_id));
+  const sort = useSortState<RoleCol>();
+  const groups = useMemo(() => groupBy(rows, (r) => String(r.squad_id)), [rows]);
   return (
     <div className="space-y-5">
       {Array.from(groups.values()).map((squadRows) => {
         const { squad_id, squad_name } = squadRows[0];
-        const roles = [...squadRows].sort(
-          (a, b) => ROLE_ORDER.indexOf(a.role_type) - ROLE_ORDER.indexOf(b.role_type)
-        );
+        const roles = sort.sortKey
+          ? sortRows(squadRows, ROLE_ACCESSORS[sort.sortKey], sort.sortDir)
+          : [...squadRows].sort(
+              (a, b) => ROLE_ORDER.indexOf(a.role_type) - ROLE_ORDER.indexOf(b.role_type)
+            );
         const totals = {
           capacity: roles.reduce((s, r) => s + r.capacity_hours, 0),
           declared: roles.reduce((s, r) => s + r.declared_hours, 0),
@@ -299,14 +368,65 @@ function RoleSections({ rows }: { rows: RoleCapacityRow[] }): React.ReactElement
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <ColumnLabel align="left">Role</ColumnLabel>
-                      <ColumnLabel>Capacity (h)</ColumnLabel>
-                      <ColumnLabel>Declared to Clients (h)</ColumnLabel>
-                      <ColumnLabel>Consumed Billable (h)</ColumnLabel>
-                      <ColumnLabel>% Billable</ColumnLabel>
-                      <ColumnLabel>Non-Billable (h)</ColumnLabel>
-                      <ColumnLabel>% Non-Billable</ColumnLabel>
-                      <ColumnLabel>Available (h)</ColumnLabel>
+                      <SortableHead colKey="role" sort={sort} className={STICKY_HEAD}>
+                        Role
+                      </SortableHead>
+                      <SortableHead
+                        colKey="capacity"
+                        sort={sort}
+                        align="center"
+                        className={`${STICKY_HEAD} text-center`}
+                      >
+                        Capacity (h)
+                      </SortableHead>
+                      <SortableHead
+                        colKey="declared"
+                        sort={sort}
+                        align="center"
+                        className={`${STICKY_HEAD} text-center`}
+                      >
+                        Declared to Clients (h)
+                      </SortableHead>
+                      <SortableHead
+                        colKey="billable"
+                        sort={sort}
+                        align="center"
+                        className={`${STICKY_HEAD} text-center`}
+                      >
+                        Consumed Billable (h)
+                      </SortableHead>
+                      <SortableHead
+                        colKey="pctBillable"
+                        sort={sort}
+                        align="center"
+                        className={`${STICKY_HEAD} text-center`}
+                      >
+                        % Billable
+                      </SortableHead>
+                      <SortableHead
+                        colKey="nonbillable"
+                        sort={sort}
+                        align="center"
+                        className={`${STICKY_HEAD} text-center`}
+                      >
+                        Non-Billable (h)
+                      </SortableHead>
+                      <SortableHead
+                        colKey="pctNonBillable"
+                        sort={sort}
+                        align="center"
+                        className={`${STICKY_HEAD} text-center`}
+                      >
+                        % Non-Billable
+                      </SortableHead>
+                      <SortableHead
+                        colKey="available"
+                        sort={sort}
+                        align="center"
+                        className={`${STICKY_HEAD} text-center`}
+                      >
+                        Available (h)
+                      </SortableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
