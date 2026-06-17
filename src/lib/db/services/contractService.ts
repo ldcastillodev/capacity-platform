@@ -346,8 +346,8 @@ export type RenewStatementOfWorkInput = {
  * BR-7: atomically renew a SOW. Creates a successor SOW (linked via parentSowId)
  * with successor contracts (linked via parentContractId) for each carried-forward
  * contract, re-points the old contracts' open component mappings to the
- * successors at the renewal boundary, and closes the old contracts. The old SOW
- * is preserved as history.
+ * successors at the renewal boundary, closes the old contracts, and deactivates
+ * the old SOW (isActive=false). The old SOW row is retained as history.
  * @param oldSowId - the SOW being renewed.
  * @param input - new name/dates and the carried-forward contracts with new hours.
  * @returns the new SOW with its successor contracts.
@@ -428,6 +428,7 @@ export function renewStatementOfWork(oldSowId: number, input: RenewStatementOfWo
     }
 
     await closeContractsByIds(oldContractIds, tx);
+    await setStatementOfWorkActive(oldSowId, false, tx);
 
     return findStatementOfWorkWithContracts(newSow.id, tx);
   });

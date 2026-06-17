@@ -4,9 +4,10 @@ import { toUtcDateOnly } from "@/lib/temporal";
 
 // BR-7: renewal creates a NEW SOW (linked via parentSowId) with new child
 // contracts (linked via parentContractId) and re-pointed component mappings.
-// The old SOW is preserved as a historical record; its contracts are closed
-// and their open mappings end-dated at the renewal boundary, so backdated
-// worklogs still route to the old contracts and new worklogs to the new ones.
+// The old SOW is deactivated (isActive=false) but retained as a historical
+// record; its contracts are closed and their open mappings end-dated at the
+// renewal boundary, so backdated worklogs still route to the old contracts and
+// new worklogs to the new ones.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
