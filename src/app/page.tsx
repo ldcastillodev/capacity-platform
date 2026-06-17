@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/app/StatusBadge";
 import { cn } from "@/lib/utils";
 import React from "react";
 
@@ -125,7 +126,10 @@ export default function DashboardPage() {
               value={data.open_anomaly_flags}
               valueTone={data.open_anomaly_flags > 0 ? "warning" : undefined}
             />
-            <StatCard label="Active Contracts" value={contractBurn?.length ?? 0} />
+            <StatCard
+              label="Active Contracts"
+              value={contractBurn?.filter((c) => c.contract_status === "active").length ?? 0}
+            />
             <StatCard label="Persons" value={data.persons_count} />
             <StatCard label="Squads" value={data.squads_count} />
           </MetricCardGrid>
@@ -193,8 +197,14 @@ export default function DashboardPage() {
                             )}
                           >
                             <div>
-                              <div className="font-semibold text-sm mb-0.5">
+                              <div className="font-semibold text-sm mb-0.5 inline-flex items-center gap-1.5">
                                 {row.contract_name}
+                                {row.contract_status !== "active" && (
+                                  <StatusBadge
+                                    tone="default"
+                                    label={row.contract_status === "closed" ? "Closed" : "Paused"}
+                                  />
+                                )}
                               </div>
                               <div className="text-xs text-muted-foreground">{row.client_name}</div>
                             </div>

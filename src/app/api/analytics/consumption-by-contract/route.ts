@@ -9,7 +9,9 @@ export async function GET(req: NextRequest) {
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
 
-  const contracts = await contractService.listActiveContractsForMonth(monthDate);
+  const contracts = await contractService.listActiveContractsForMonth(monthDate, {
+    includeInactive: true,
+  });
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
@@ -46,6 +48,7 @@ export async function GET(req: NextRequest) {
           consumed_hours: consumed,
           remaining_hours: pool - prior - consumed,
           consumption_pct: pool > 0 ? (prior + consumed) / pool : 0,
+          contract_status: contract.status,
         };
       }
 
@@ -62,6 +65,7 @@ export async function GET(req: NextRequest) {
         consumed_hours: consumed,
         remaining_hours: remaining,
         consumption_pct: pool > 0 ? consumed / pool : 0,
+        contract_status: contract.status,
       };
     })
   );

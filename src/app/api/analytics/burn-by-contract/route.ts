@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
   const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
   const asOf = new Date(Math.min(Date.now(), monthEnd.getTime()));
 
-  const contracts = await contractService.listActiveContractsForMonth(monthDate);
+  const contracts = await contractService.listActiveContractsForMonth(monthDate, {
+    includeInactive: true,
+  });
 
   const rows = await Promise.all(
     contracts.map(async (contract) => {
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
         consumption_pct: pool > 0 ? consumed / pool : 0,
         expected_pct: expectedPct,
         status: classifyContractStatus({ consumedHours: consumed, poolHours: pool, expectedPct }),
+        contract_status: contract.status,
       };
     })
   );

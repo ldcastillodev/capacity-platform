@@ -108,16 +108,21 @@ export function setContractStatus(id: number, status: ContractStatus, db: Db = p
 }
 
 /**
- * List active contracts effective in the given month (started on/before the
- * month, not ended before it), joined to SOW + client. Empty → [].
+ * List contracts effective in the given month (started on/before the month,
+ * not ended before it), joined to SOW + client. Active only by default;
+ * `includeInactive` also returns paused/closed contracts effective that
+ * month, for historical views. Empty → [].
  */
 export function listActiveContractsForMonth(
   monthStart: Date,
+  options: { includeInactive?: boolean } = {},
   db: Db = prisma
 ): Promise<ContractForMonth[]> {
   return db.contract.findMany({
     where: {
-      status: ContractStatus.active,
+      status: options.includeInactive
+        ? { in: [ContractStatus.active, ContractStatus.paused, ContractStatus.closed] }
+        : ContractStatus.active,
       startDate: { lte: monthStart },
       OR: [{ endDate: null }, { endDate: { gte: monthStart } }],
     },

@@ -214,6 +214,7 @@ export interface BurnByContractRow {
   consumption_pct: number;
   expected_pct: number | null;
   status: ContractHealthStatus;
+  contract_status: "active" | "paused" | "closed";
 }
 
 export const fetchBurnByContract = (params?: { month?: string }) =>
@@ -231,6 +232,7 @@ export interface ConsumptionByContractRow {
   consumed_hours: number;
   remaining_hours: number;
   consumption_pct: number;
+  contract_status: "active" | "paused" | "closed";
 }
 
 export const fetchConsumptionByContract = (params?: { month?: string }) =>

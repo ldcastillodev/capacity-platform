@@ -86,9 +86,7 @@ export default function ConsumptionPage() {
                 ))}
               </div>
             ) : (contractRows ?? []).length === 0 ? (
-              <p className="p-6 text-muted-foreground">
-                No active contracts with data for this period.
-              </p>
+              <p className="p-6 text-muted-foreground">No contracts with data for this period.</p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -128,6 +126,12 @@ export default function ConsumptionPage() {
                                   )}
                                 />
                                 {row.contract_name}
+                                {row.contract_status !== "active" && (
+                                  <StatusBadge
+                                    tone="default"
+                                    label={row.contract_status === "closed" ? "Closed" : "Paused"}
+                                  />
+                                )}
                               </span>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
