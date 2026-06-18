@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hourRecordService, clientService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
+import { parseHours } from "@/lib/utils/formatting";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -7,7 +9,7 @@ export async function GET(req: NextRequest) {
   const monthDate = month
     ? new Date(month)
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
+  const { end: monthEnd } = getMonthRange(monthDate);
 
   const grouped = await hourRecordService.sumNonBillableHoursByClient(monthDate, monthEnd);
 
@@ -19,7 +21,7 @@ export async function GET(req: NextRequest) {
   const rows = grouped.map((r) => ({
     client_id: r.clientId,
     client_name: clientMap[r.clientId!] ?? `Client ${r.clientId}`,
-    total_hours: parseFloat(String(r._sum.hours ?? 0)),
+    total_hours: parseHours(r._sum.hours),
   }));
 
   return NextResponse.json(rows);

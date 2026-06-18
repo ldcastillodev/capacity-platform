@@ -9,28 +9,45 @@ import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { fetchDeclarations, type Declaration, type DeclarationStatus } from "@/lib/client";
+import { formatHours } from "@/lib/utils/formatting";
 
 const ROLE_LABELS: Record<string, string> = {
-  dev: "Dev", qa: "QA", devops: "DevOps", design: "UX Designer",
-  product: "Product Manager", project: "Project Manager", tl: "Tech Lead",
-  sre: "Site Reliability Engineer", data: "Data Engineer",
-  business_analyst: "Business Analyst", seo: "SEO", content: "Content",
+  dev: "Dev",
+  qa: "QA",
+  devops: "DevOps",
+  design: "UX Designer",
+  product: "Product Manager",
+  project: "Project Manager",
+  tl: "Tech Lead",
+  sre: "Site Reliability Engineer",
+  data: "Data Engineer",
+  business_analyst: "Business Analyst",
+  seo: "SEO",
+  content: "Content",
 };
 
 const STATUS_CFG: Record<DeclarationStatus, { label: string; className: string }> = {
-  draft:     { label: "Draft",       className: "bg-blue-50 text-blue-700 border-blue-200" },
+  draft: { label: "Draft", className: "bg-blue-50 text-blue-700 border-blue-200" },
   confirmed: { label: "✓ Confirmed", className: "bg-green-50 text-green-700 border-green-200" },
 };
 
 function DeclarationBadge({ status }: { status: DeclarationStatus }) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.draft;
   return (
-    <Badge variant="outline" className={cn("text-xs font-semibold whitespace-nowrap", cfg.className)}>
+    <Badge
+      variant="outline"
+      className={cn("text-xs font-semibold whitespace-nowrap", cfg.className)}
+    >
       {cfg.label}
     </Badge>
   );
@@ -45,7 +62,7 @@ function ConsumedBadge({ declared, consumed }: { declared: number; consumed: num
         "text-xs font-semibold whitespace-nowrap",
         over
           ? "bg-red-50 text-red-700 border-red-200"
-          : "bg-green-50 text-green-700 border-green-200",
+          : "bg-green-50 text-green-700 border-green-200"
       )}
     >
       {over ? "over" : "normal"}
@@ -65,7 +82,8 @@ export default function DeclarationsPage() {
   function toggleClient(id: number) {
     setExpandedClients((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -79,7 +97,7 @@ export default function DeclarationsPage() {
     byClient.get(d.client_id)!.decls.push(d);
   }
   const clientGroups = Array.from(byClient.values()).sort((a, b) =>
-    a.clientName.localeCompare(b.clientName),
+    a.clientName.localeCompare(b.clientName)
   );
 
   return (
@@ -92,7 +110,9 @@ export default function DeclarationsPage() {
 
       {isLoading && (
         <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-32 w-full" />
+          ))}
         </div>
       )}
 
@@ -150,9 +170,15 @@ export default function DeclarationsPage() {
                             return (
                               <TableRow key={r.role_type}>
                                 <TableCell>{ROLE_LABELS[r.role_type] ?? r.role_type}</TableCell>
-                                <TableCell className="text-right">{declared.toFixed(1)}h</TableCell>
-                                <TableCell className="text-right">{consumed.toFixed(1)}h</TableCell>
-                                <TableCell><DeclarationBadge status={decl.status} /></TableCell>
+                                <TableCell className="text-right">
+                                  {formatHours(declared)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatHours(consumed)}
+                                </TableCell>
+                                <TableCell>
+                                  <DeclarationBadge status={decl.status} />
+                                </TableCell>
                                 <TableCell>
                                   <ConsumedBadge declared={declared} consumed={consumed} />
                                 </TableCell>

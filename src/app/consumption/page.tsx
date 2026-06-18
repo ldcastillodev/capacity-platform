@@ -16,14 +16,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { cn } from "@/lib/utils";
+import { formatHours } from "@/lib/utils/formatting";
 
 type View = "by_contract";
 
 type Tone = "safe" | "watch" | "critical" | "muted";
-
-function fmtHours(h: number): string {
-  return h.toFixed(1) + "h";
-}
 
 function consumptionTone(pct: number, declared: number): Tone {
   if (declared === 0) return "muted";
@@ -205,15 +202,15 @@ export default function ConsumptionPage() {
                               />
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">
-                              {fmtHours(row.declared_hours)}
+                              {formatHours(row.declared_hours)}
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">
                               {row.prior_consumed_hours == null
                                 ? "—"
-                                : fmtHours(row.prior_consumed_hours)}
+                                : formatHours(row.prior_consumed_hours)}
                             </TableCell>
                             <TableCell className="text-right">
-                              {fmtHours(row.consumed_hours)}
+                              {formatHours(row.consumed_hours)}
                             </TableCell>
                             <TableCell
                               className={cn(
@@ -221,7 +218,7 @@ export default function ConsumptionPage() {
                                 row.remaining_hours < 0 && "text-critical"
                               )}
                             >
-                              {fmtHours(row.remaining_hours)}
+                              {formatHours(row.remaining_hours)}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">

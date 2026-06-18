@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { formatPercent } from "@/lib/utils/formatting";
 
 export type BarVariant = "billable" | "nonbillable";
 
@@ -58,7 +59,7 @@ export function ConsumptionBar({
           hasCapacity ? TONE_TEXT[tone] : "text-muted-foreground"
         )}
       >
-        {hasCapacity ? `${pct.toFixed(0)}%` : "—"}
+        {hasCapacity ? formatPercent(pct) : "—"}
       </span>
     </div>
   );

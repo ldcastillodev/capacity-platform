@@ -18,6 +18,7 @@ import { MetricCardGrid } from "@/components/app/MetricCardGrid";
 import { MonthNavigator } from "@/components/app/MonthNavigator";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
+import { formatHours, formatPercent, parseHours } from "@/lib/utils/formatting";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -154,23 +155,22 @@ function buildRollup(rows: NonBillableSummary[]): PersonRollup[] {
       entry.total = row;
     } else if (Object.keys(CAT_META).includes(catType)) {
       entry.cats[catType as CatType] =
-        (entry.cats[catType as CatType] ?? 0) +
-        parseFloat(String(row.total_hours ?? row.totalHours ?? 0));
+        (entry.cats[catType as CatType] ?? 0) + parseHours(row.total_hours ?? row.totalHours);
     }
   }
   const results: PersonRollup[] = [];
   for (const [personId, { total, cats }] of byPerson.entries()) {
     if (!total) continue;
-    const totalHours = parseFloat(String(total.total_hours ?? total.totalHours ?? 0));
+    const totalHours = parseHours(total.total_hours ?? total.totalHours);
     if (totalHours === 0) continue;
     results.push({
       personId,
       totalHours,
-      capacityHours: parseFloat(String(total.capacity_hours ?? total.capacityHours ?? 0)),
-      nbPct: parseFloat(String(total.nonbillable_pct ?? total.nonbillablePct ?? 0)),
+      capacityHours: parseHours(total.capacity_hours ?? total.capacityHours),
+      nbPct: parseHours(total.nonbillable_pct ?? total.nonbillablePct),
       momDelta:
         total.month_over_month_delta != null
-          ? parseFloat(String(total.month_over_month_delta ?? total.monthOverMonthDelta ?? 0))
+          ? parseHours(total.month_over_month_delta ?? total.monthOverMonthDelta)
           : null,
       byCategory: cats,
     });
@@ -196,7 +196,7 @@ function StackedNbBar({
           return (
             <div
               key={cat}
-              title={`${CAT_META[cat].label}: ${h.toFixed(1)}h`}
+              title={`${CAT_META[cat].label}: ${formatHours(h)}`}
               className={cn("h-full shrink-0", CAT_META[cat].bar)}
               style={{ width: `${w.toFixed(2)}%` }}
             />
@@ -258,7 +258,7 @@ function NbEntryDetail({
                 {meta.icon} {meta.label}
               </span>
               <span className={cn("text-xs font-semibold ml-auto", meta.text)}>
-                {catTotal.toFixed(1)}h
+                {formatHours(catTotal)}
               </span>
               <span className={cn("text-xs", meta.text)}>{openCat === catType ? "▾" : "▸"}</span>
             </div>
@@ -267,7 +267,7 @@ function NbEntryDetail({
                 {groups.map((group) => (
                   <div key={group.category_name}>
                     <div className="px-4 py-1 text-xs font-semibold text-muted-foreground bg-muted/30 border-t border-border">
-                      {group.category_name} · {group.total_hours.toFixed(1)}h
+                      {group.category_name} · {formatHours(group.total_hours)}
                     </div>
                     {group.entries.map((e, i) => (
                       <div
@@ -275,7 +275,7 @@ function NbEntryDetail({
                         className="grid gap-3 px-4 py-1 text-xs border-t border-border items-center grid-cols-[90px_50px_1fr]"
                       >
                         <span className="text-muted-foreground">{e.date}</span>
-                        <span className="font-semibold">{e.hours.toFixed(1)}h</span>
+                        <span className="font-semibold">{formatHours(e.hours)}</span>
                         <span className="text-right font-mono text-muted-foreground">
                           {e.issue_key ?? "—"}
                         </span>
@@ -341,7 +341,7 @@ export default function NonBillablePage() {
       />
 
       <MetricCardGrid className="mb-8">
-        <StatCard label="Total NB Hours" value={grandTotalNb.toFixed(1) + "h"} />
+        <StatCard label="Total NB Hours" value={formatHours(grandTotalNb)} />
         <StatCard
           label="Avg NB %"
           value={(avgNbPct * 100).toFixed(1) + "%"}
@@ -418,7 +418,7 @@ export default function NonBillablePage() {
                         </div>
                         <span className="text-sm font-semibold text-right">{h.toFixed(0)}h</span>
                         <span className="text-xs text-muted-foreground text-right">
-                          {(share * 100).toFixed(0)}%
+                          {formatPercent(share, { fromFraction: true })}
                         </span>
                       </div>
                     );
@@ -469,7 +469,7 @@ export default function NonBillablePage() {
                                     {personMap[row.personId] ?? `Person ${row.personId}`}
                                   </TableCell>
                                   <TableCell className="text-right">
-                                    {row.totalHours.toFixed(1)}h
+                                    {formatHours(row.totalHours)}
                                   </TableCell>
                                   <TableCell>
                                     <div className="flex items-center gap-2">
@@ -498,7 +498,7 @@ export default function NonBillablePage() {
                                   >
                                     {row.momDelta == null
                                       ? "—"
-                                      : `${row.momDelta > 0 ? "+" : ""}${row.momDelta.toFixed(1)}h`}
+                                      : `${row.momDelta > 0 ? "+" : ""}${formatHours(row.momDelta)}`}
                                   </TableCell>
                                   <TableCell className="text-center">
                                     <Badge
@@ -571,7 +571,7 @@ export default function NonBillablePage() {
                             <TableRow key={row.squad_id}>
                               <TableCell className="font-medium">{row.squad_name}</TableCell>
                               <TableCell className="text-right">
-                                {row.total_hours.toFixed(1)}h
+                                {formatHours(row.total_hours)}
                               </TableCell>
                               <TableCell className="text-right text-muted-foreground">
                                 {row.capacity_hours > 0 ? `${row.capacity_hours.toFixed(0)}h` : "—"}
@@ -655,12 +655,12 @@ export default function NonBillablePage() {
                         </Badge>
                         {currentHours != null && (
                           <span className="text-sm text-muted-foreground">
-                            {parseFloat(String(currentHours)).toFixed(1)}h logged
+                            {formatHours(parseFloat(String(currentHours)))} logged
                           </span>
                         )}
                         {suggestedHours != null && (
                           <span className="text-sm text-muted-foreground">
-                            target {parseFloat(String(suggestedHours)).toFixed(1)}h
+                            target {formatHours(parseFloat(String(suggestedHours)))}
                           </span>
                         )}
                       </div>

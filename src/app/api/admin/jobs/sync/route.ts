@@ -4,6 +4,7 @@ import { JiraConnector, jiraConfigForSource } from "@/lib/integrations/jira";
 import { runAnalyticsRefresh } from "@/lib/analytics/refresh";
 import { runExpirySweep } from "@/lib/lifecycle";
 import { syncService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
 
 const bodySchema = z.object({
   source: z.enum(["jira_na", "jira_emea"]),
@@ -48,12 +49,8 @@ export async function POST(req: NextRequest) {
 
   // Refresh analytics for every month the sync date range touched.
   const months: Date[] = [];
-  const cursor = new Date(
-    Date.UTC(new Date(dateFrom).getUTCFullYear(), new Date(dateFrom).getUTCMonth(), 1)
-  );
-  const lastMonth = new Date(
-    Date.UTC(new Date(dateTo).getUTCFullYear(), new Date(dateTo).getUTCMonth(), 1)
-  );
+  const cursor = getMonthRange(new Date(dateFrom)).start;
+  const lastMonth = getMonthRange(new Date(dateTo)).start;
   while (cursor <= lastMonth) {
     months.push(new Date(cursor));
     cursor.setUTCMonth(cursor.getUTCMonth() + 1);

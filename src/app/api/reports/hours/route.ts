@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { reportsService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
 import { Prisma } from "@prisma/client";
 
 type Dimension =
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
     ? new Date(from)
     : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
   const toDate = to ? new Date(to) : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const toMonthEnd = new Date(Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth() + 1, 0));
+  const toMonthEnd = getMonthRange(toDate).end;
 
   // ── Shared hour_records filters ────────────────────────────────────────────
   const hrFilters: Prisma.Sql[] = [

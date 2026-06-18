@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/client";
 import { SortableHead } from "@/components/app/SortableHead";
 import { useSortState, sortRows } from "@/hooks/useTableSort";
+import { formatHours } from "@/lib/utils/formatting";
 import { ManagementModal } from "./ManagementModal";
 import { DeclarationForm } from "./DeclarationForm";
 import { Button } from "@/components/ui/button";
@@ -298,7 +299,7 @@ function DeclarationsSection() {
                               <TableRow key={r.roleType}>
                                 <TableCell>{ROLE_LABELS[r.roleType] ?? r.roleType}</TableCell>
                                 <TableCell className="text-right">
-                                  {parseFloat(r.declaredHours).toFixed(1)}h
+                                  {formatHours(parseFloat(r.declaredHours))}
                                 </TableCell>
                               </TableRow>
                             ))}

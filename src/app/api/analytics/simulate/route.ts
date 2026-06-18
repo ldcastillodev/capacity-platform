@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { squadService, analyticsRawService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
 import {
   computeMemberRoles,
   computeRoleBreakdown,
@@ -73,8 +74,7 @@ export async function POST(req: NextRequest) {
   const { squadId, requiredHours, roles: roleRequests } = parsed.data;
 
   const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  const { start: monthStart, end: monthEnd } = getMonthRange(now);
   const m1Start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
   const m2Start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
   const m3Start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hourRecordService, personService, nonBillableService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
 
 function workingDaysInMonth(year: number, month: number): number {
   const days = new Date(year, month + 1, 0).getDate();
@@ -19,9 +20,9 @@ export async function GET(req: NextRequest) {
   const monthDate = month
     ? new Date(month)
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
-  const priorStart = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() - 1, 1));
-  const priorEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth(), 0));
+  const { end: monthEnd } = getMonthRange(monthDate);
+  const priorMonth = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() - 1, 1));
+  const { start: priorStart, end: priorEnd } = getMonthRange(priorMonth);
 
   const squadId = squadIdParam ? Number(squadIdParam) : undefined;
 

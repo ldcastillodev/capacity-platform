@@ -6,6 +6,7 @@ import {
   nonBillableService,
 } from "../db";
 import type { AnomalyFlagType, RoleType, SuggestionType } from "@prisma/client";
+import { getMonthRange } from "../temporal";
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ function workingDaysInMonth(year: number, month: number): number {
 }
 
 async function generateNonBillableSuggestions(month: Date): Promise<void> {
-  const monthEnd = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0));
+  const monthEnd = getMonthRange(month).end;
 
   // NB hours per person+squad+category for the month
   const nbByCategory = await hourRecordService.sumNonBillableHoursByPersonSquadCategory({

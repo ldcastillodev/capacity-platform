@@ -13,15 +13,25 @@ export function addUtcDays(date: Date, days: number): Date {
 }
 
 /**
+ * UTC boundaries for the calendar month containing `month`.
+ * `start` = first day at midnight UTC; `end` = last day at midnight UTC (inclusive, use with `lte`).
+ */
+export function getMonthRange(month: Date): { start: Date; end: Date } {
+  const start = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0));
+  return { start, end };
+}
+
+/**
  * Find the row whose [effectiveFrom, effectiveTo] range contains `date`.
  * Pass rows ordered by effectiveFrom desc so the most recent matching row wins
  * when overlapping rows exist.
  */
 export function findEffective<T extends { effectiveFrom: Date; effectiveTo: Date | null }>(
   rows: T[],
-  date: Date,
+  date: Date
 ): T | undefined {
   return rows.find(
-    r => r.effectiveFrom <= date && (r.effectiveTo === null || r.effectiveTo >= date),
+    (r) => r.effectiveFrom <= date && (r.effectiveTo === null || r.effectiveTo >= date)
   );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hourRecordService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   const monthDate = new Date(month);
-  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
+  const { end: monthEnd } = getMonthRange(monthDate);
 
   const entries = await hourRecordService.listNonBillableEntriesForPersonMonth(
     Number(personId),

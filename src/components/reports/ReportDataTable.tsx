@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import {
   Table,
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import type { ReportDimension, ReportRow } from "@/lib/client";
 import { roleLabel, DIMENSION_LABELS } from "./roleLabels";
 import ExportButton, { type ExportColumn } from "./ExportButton";
+import { formatHours } from "@/lib/utils/formatting";
 
 type SortKey = `dim:${ReportDimension}` | "billableHours" | "nonBillableHours";
 type SortDir = "asc" | "desc";
@@ -23,7 +24,11 @@ type SortDir = "asc" | "desc";
 const PAGE_SIZE = 25;
 
 function monthLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", timeZone: "UTC" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
 }
 
 function dateLabel(iso: string): string {
@@ -43,8 +48,6 @@ function dimCell(row: ReportRow, dim: ReportDimension): string {
   return raw;
 }
 
-const h = (v: number) => `${v.toFixed(1)}h`;
-
 interface Props {
   rows: ReportRow[];
   dimensions: ReportDimension[];
@@ -56,14 +59,18 @@ export function ReportDataTable({ rows, dimensions, filename }: Props) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
 
-  // Selected dimensions can change under us — keep the sort key valid.
-  useEffect(() => {
+  // Selected dimensions can change under us — keep the sort key valid by adjusting
+  // state during render (React re-renders immediately, no cascading effect).
+  const dimsKey = dimensions.join(",");
+  const [prevDimsKey, setPrevDimsKey] = useState(dimsKey);
+  if (dimsKey !== prevDimsKey) {
+    setPrevDimsKey(dimsKey);
     if (sortKey.startsWith("dim:") && !dimensions.includes(sortKey.slice(4) as ReportDimension)) {
       setSortKey(`dim:${dimensions[0]}`);
       setSortDir("asc");
       setPage(1);
     }
-  }, [dimensions, sortKey]);
+  }
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -73,8 +80,14 @@ export function ReportDataTable({ rows, dimensions, filename }: Props) {
       if (sortKey.startsWith("dim:")) {
         const dim = sortKey.slice(4) as ReportDimension;
         // Sort temporal dimensions by their ISO value, not the display label
-        av = dim === "month" || dim === "week" || dim === "day" ? a.labels[dim] ?? "" : dimCell(a, dim);
-        bv = dim === "month" || dim === "week" || dim === "day" ? b.labels[dim] ?? "" : dimCell(b, dim);
+        av =
+          dim === "month" || dim === "week" || dim === "day"
+            ? (a.labels[dim] ?? "")
+            : dimCell(a, dim);
+        bv =
+          dim === "month" || dim === "week" || dim === "day"
+            ? (b.labels[dim] ?? "")
+            : dimCell(b, dim);
       } else {
         const k = sortKey as "billableHours" | "nonBillableHours";
         av = a[k];
@@ -145,14 +158,29 @@ export function ReportDataTable({ rows, dimensions, filename }: Props) {
                   onClick={() => toggleSort(`dim:${d}`)}
                 />
               ))}
-              <SortHead label="Billable" align="right" active={sortKey === "billableHours"} dir={sortDir} onClick={() => toggleSort("billableHours")} />
-              <SortHead label="Non-Billable" align="right" active={sortKey === "nonBillableHours"} dir={sortDir} onClick={() => toggleSort("nonBillableHours")} />
+              <SortHead
+                label="Billable"
+                align="right"
+                active={sortKey === "billableHours"}
+                dir={sortDir}
+                onClick={() => toggleSort("billableHours")}
+              />
+              <SortHead
+                label="Non-Billable"
+                align="right"
+                active={sortKey === "nonBillableHours"}
+                dir={sortDir}
+                onClick={() => toggleSort("nonBillableHours")}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={dimensions.length + 2} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell
+                  colSpan={dimensions.length + 2}
+                  className="py-12 text-center text-sm text-muted-foreground"
+                >
                   No hours for the selected filters
                 </TableCell>
               </TableRow>
@@ -164,8 +192,12 @@ export function ReportDataTable({ rows, dimensions, filename }: Props) {
                     {dimCell(r, d)}
                   </TableCell>
                 ))}
-                <TableCell className="text-right tabular-nums">{h(r.billableHours)}</TableCell>
-                <TableCell className="text-right tabular-nums">{h(r.nonBillableHours)}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatHours(r.billableHours)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatHours(r.nonBillableHours)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -177,10 +209,20 @@ export function ReportDataTable({ rows, dimensions, filename }: Props) {
           <span className="text-sm text-muted-foreground">
             Page {safePage} of {totalPages}
           </span>
-          <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={safePage <= 1}
+            onClick={() => setPage(safePage - 1)}
+          >
             Prev
           </Button>
-          <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage(safePage + 1)}
+          >
             Next
           </Button>
         </div>
@@ -214,7 +256,11 @@ function SortHead({
       >
         {label}
         {active ? (
-          dir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+          dir === "asc" ? (
+            <ArrowUp className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowDown className="h-3.5 w-3.5" />
+          )
         ) : (
           <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
         )}

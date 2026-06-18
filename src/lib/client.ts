@@ -117,7 +117,7 @@ export interface SimulationMember {
   unassignedAvgHours: number;
 }
 
-export interface SimulationRoleBreakdown {
+interface SimulationRoleBreakdown {
   roleType: string;
   requiredHours: number;
   capacityHours: number;
@@ -158,8 +158,6 @@ function norm<T>(data: T): T {
   return data;
 }
 
-export const fetchClients = () => api.get<Client[]>("/clients").then((r) => norm(r.data));
-
 export const fetchSquads = () => api.get<Squad[]>("/squads").then((r) => norm(r.data));
 
 export const fetchPeople = () => api.get<Person[]>("/people").then((r) => norm(r.data));
@@ -188,7 +186,7 @@ export const runSimulation = (body: {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export interface DashboardSummary {
+interface DashboardSummary {
   month: string;
   total_active_clients: number;
   open_anomaly_flags: number;
@@ -220,7 +218,7 @@ export interface BurnByContractRow {
 export const fetchBurnByContract = (params?: { month?: string }) =>
   api.get<BurnByContractRow[]>("/analytics/burn-by-contract", { params }).then((r) => r.data);
 
-export interface ConsumptionByContractRow {
+interface ConsumptionByContractRow {
   contract_id: number;
   contract_name: string;
   contract_type: "base" | "change_order" | "extension" | null;
@@ -240,7 +238,7 @@ export const fetchConsumptionByContract = (params?: { month?: string }) =>
     .get<ConsumptionByContractRow[]>("/analytics/consumption-by-contract", { params })
     .then((r) => r.data);
 
-export interface ContractDailyHoursRow {
+interface ContractDailyHoursRow {
   day: number;
   hours: number;
 }
@@ -255,25 +253,6 @@ export const fetchContractDailyHours = (params: {
       params: { year: params.year, month: params.month },
     })
     .then((r) => r.data);
-
-export interface NbByClientRow {
-  client_id: number;
-  client_name: string;
-  total_hours: number;
-}
-
-export const fetchNbByClient = (params?: { month?: string }) =>
-  api.get<NbByClientRow[]>("/analytics/nb-by-client", { params }).then((r) => r.data);
-
-export interface NbByContractRow {
-  contract_id: number;
-  contract_name: string;
-  client_name: string;
-  total_hours: number;
-}
-
-export const fetchNbByContract = (params?: { month?: string }) =>
-  api.get<NbByContractRow[]>("/analytics/nb-by-contract", { params }).then((r) => r.data);
 
 export interface NbBySquadRow {
   squad_id: number;
@@ -312,7 +291,7 @@ export interface RoleCapacityRow {
 export const fetchRoleCapacity = (params?: { month?: string }) =>
   api.get<RoleCapacityRow[]>("/analytics/role-capacity", { params }).then((r) => r.data);
 
-export interface BurnByContractWeeklyRow {
+interface BurnByContractWeeklyRow {
   contract_id: number;
   contract_name: string;
   client_id: number;
@@ -394,7 +373,7 @@ export type ReportDimension =
   | "week"
   | "day";
 export type ReportGranularity = "day" | "week" | "month";
-export type ReportBillability = "all" | "billable" | "nonbillable";
+type ReportBillability = "all" | "billable" | "nonbillable";
 
 export type ReportFilterParams = {
   from?: string;
@@ -416,7 +395,7 @@ export type ReportKpis = {
   nonBillableHours: number;
 };
 
-export type ReportSeriesPoint = {
+type ReportSeriesPoint = {
   period: string;
   billable: number;
   nonBillable: number;
@@ -429,7 +408,7 @@ export type ReportRow = {
   nonBillableHours: number;
 };
 
-export type ReportHoursResponse = {
+type ReportHoursResponse = {
   kpis: ReportKpis;
   series: ReportSeriesPoint[];
   rows: ReportRow[];

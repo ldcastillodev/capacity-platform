@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { contractService, declarationService } from "@/lib/db";
 import type { RoleType } from "@prisma/client";
+import { parseHours } from "@/lib/utils/formatting";
 
 const VALID_ROLE_TYPES = new Set([
   "dev",
@@ -87,7 +88,7 @@ export async function POST(
   }
 
   const totalDeclared = body.reduce((s, r) => s + r.declared_hours, 0);
-  const assignedHours = parseFloat(String(contract.assignedHours));
+  const assignedHours = parseHours(contract.assignedHours);
   if (totalDeclared > assignedHours && !force) {
     return NextResponse.json(
       {

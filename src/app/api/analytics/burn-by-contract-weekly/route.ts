@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { contractService, hourRecordService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
+import { parseHours } from "@/lib/utils/formatting";
 
 function weekStart(date: Date): string {
   const d = new Date(date);
@@ -14,7 +16,7 @@ export async function GET(req: NextRequest) {
   const monthDate = month
     ? new Date(month)
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
+  const { end: monthEnd } = getMonthRange(monthDate);
 
   const contracts = await contractService.listActiveContractsForMonth(monthDate);
 
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
             })
           : null,
       ]);
-      const prior = priorAgg ? parseFloat(String(priorAgg._sum.hours ?? 0)) : 0;
+      const prior = priorAgg ? parseHours(priorAgg._sum.hours) : 0;
 
       const byWeek = new Map<string, number>();
       for (const r of records) {

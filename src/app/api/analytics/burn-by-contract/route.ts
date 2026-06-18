@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { contractService, hourRecordService, declarationService } from "@/lib/db";
 import { classifyContractStatus, expectedPaceFraction } from "@/lib/analytics/contract-status";
+import { getMonthRange } from "@/lib/temporal";
+import { parseHours } from "@/lib/utils/formatting";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -8,7 +10,7 @@ export async function GET(req: NextRequest) {
   const monthDate = month
     ? new Date(month)
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
+  const { end: monthEnd } = getMonthRange(monthDate);
   const asOf = new Date(Math.min(Date.now(), monthEnd.getTime()));
 
   const contracts = await contractService.listActiveContractsForMonth(monthDate, {
@@ -28,8 +30,8 @@ export async function GET(req: NextRequest) {
           gte: contract.startDate,
           lte: monthEnd,
         });
-        consumed = parseFloat(String(agg._sum.hours ?? 0));
-        pool = parseFloat(String(contract.assignedHours));
+        consumed = parseHours(agg._sum.hours);
+        pool = parseHours(contract.assignedHours);
         expectedPct = contract.endDate
           ? expectedPaceFraction(contract.startDate, contract.endDate, asOf)
           : null;
@@ -41,10 +43,8 @@ export async function GET(req: NextRequest) {
           }),
           declarationService.sumDeclaredHoursByContract(contract.id, monthDate),
         ]);
-        consumed = parseFloat(String(agg._sum.hours ?? 0));
-        pool =
-          parseFloat(String(declEntries._sum.declaredHours ?? 0)) ||
-          parseFloat(String(contract.assignedHours));
+        consumed = parseHours(agg._sum.hours);
+        pool = parseHours(declEntries._sum.declaredHours) || parseHours(contract.assignedHours);
         expectedPct = expectedPaceFraction(monthDate, monthEnd, asOf);
       }
 

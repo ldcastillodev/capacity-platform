@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyticsRawService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -7,7 +8,7 @@ export async function GET(req: NextRequest) {
   const monthDate = month
     ? new Date(month)
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
+  const { end: monthEnd } = getMonthRange(monthDate);
 
   // One row per (squad, role) for the month. A role appears if it has
   // capacity (members holding it), declarations, or hours.

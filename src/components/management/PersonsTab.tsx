@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
 import { SortableHead } from "@/components/app/SortableHead";
 import { useSortState, sortRows } from "@/hooks/useTableSort";
+import { formatPercent } from "@/lib/utils/formatting";
 import { ManagementModal } from "./ManagementModal";
 import { ArchiveConfirmDialog } from "./ArchiveConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -246,7 +247,7 @@ export function PersonsTab() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {squad
-                            ? `${squad.squad.name} (${(parseFloat(squad.allocationPct) * 100).toFixed(0)}%)`
+                            ? `${squad.squad.name} (${formatPercent(parseFloat(squad.allocationPct), { fromFraction: true })})`
                             : "—"}
                         </TableCell>
                         <TableCell className="text-sm text-right">

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hourRecordService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
+import { parseHours } from "@/lib/utils/formatting";
 
 /**
  * GET /api/contracts/[contractId]/daily-hours?year=YYYY&month=MM
@@ -20,8 +22,9 @@ export async function GET(
     return NextResponse.json({ error: "Invalid contractId, year or month" }, { status: 400 });
   }
 
-  const monthStart = new Date(Date.UTC(year, month - 1, 1));
-  const monthEnd = new Date(Date.UTC(year, month, 0));
+  const { start: monthStart, end: monthEnd } = getMonthRange(
+    new Date(Date.UTC(year, month - 1, 1))
+  );
 
   const grouped = await hourRecordService.sumHoursByDayForContract(contractId, {
     gte: monthStart,
@@ -31,7 +34,7 @@ export async function GET(
   const rows = grouped
     .map((g) => ({
       day: g.date.getUTCDate(),
-      hours: parseFloat(String(g._sum.hours ?? 0)),
+      hours: parseHours(g._sum.hours),
     }))
     .filter((r) => r.hours > 0)
     .sort((a, b) => a.day - b.day);

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client";
 import { SortableHead } from "@/components/app/SortableHead";
 import { useSortState, sortRows } from "@/hooks/useTableSort";
+import { formatPercent } from "@/lib/utils/formatting";
 import { ManagementModal } from "./ManagementModal";
 import { SquadsTab } from "./SquadsTab";
 import { PersonsTab } from "./PersonsTab";
@@ -269,7 +270,7 @@ function MembershipsSection() {
                         {row.squad.name}
                       </TableCell>
                       <TableCell className="text-sm text-right">
-                        {(parseFloat(row.allocationPct) * 100).toFixed(0)}%
+                        {formatPercent(parseFloat(row.allocationPct), { fromFraction: true })}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {row.effectiveFrom.split("T")[0]}

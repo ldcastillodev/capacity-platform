@@ -12,6 +12,7 @@ import {
   type ReportGranularity,
 } from "@/lib/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getMonthRange } from "@/lib/temporal";
 import { ReportFilters, type ReportFilterState } from "./ReportFilters";
 import { ReportKpis } from "./ReportKpis";
 import { ReportDataTable } from "./ReportDataTable";
@@ -22,8 +23,7 @@ const BILLABILITIES: Billability[] = ["all", "billable", "nonbillable"];
 
 function defaultState(): ReportFilterState {
   const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  const { start: from, end: to } = getMonthRange(now);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return {
     from: iso(from),
@@ -46,9 +46,7 @@ function ids(raw: string | null): number[] {
 }
 
 function parseDimensions(raw: string | null): ReportDimension[] {
-  const valid = (raw ?? "")
-    .split(",")
-    .filter((s): s is ReportDimension => s in DIMENSION_LABELS);
+  const valid = (raw ?? "").split(",").filter((s): s is ReportDimension => s in DIMENSION_LABELS);
   const deduped = [...new Set(valid)];
   return deduped.length > 0 ? deduped : ["squad"];
 }
@@ -62,8 +60,13 @@ function parseState(params: URLSearchParams): ReportFilterState {
     to: params.get("to") || d.to,
     dimensions: parseDimensions(params.get("dimensions")),
     granularity:
-      granularityParam && GRANULARITIES.includes(granularityParam) ? granularityParam : d.granularity,
-    billability: billabilityParam && BILLABILITIES.includes(billabilityParam) ? billabilityParam : d.billability,
+      granularityParam && GRANULARITIES.includes(granularityParam)
+        ? granularityParam
+        : d.granularity,
+    billability:
+      billabilityParam && BILLABILITIES.includes(billabilityParam)
+        ? billabilityParam
+        : d.billability,
     personIds: ids(params.get("personIds")),
     squadIds: ids(params.get("squadIds")),
     clientIds: ids(params.get("clientIds")),
@@ -96,7 +99,7 @@ function pruneChildren(next: ReportFilterState, options: ReportFilterOptions): R
   if (out.squadIds.length && out.personIds.length) {
     const squadSel = new Set(out.squadIds);
     const allowed = new Set(
-      options.persons.filter((p) => p.squadIds.some((id) => squadSel.has(id))).map((p) => p.id),
+      options.persons.filter((p) => p.squadIds.some((id) => squadSel.has(id))).map((p) => p.id)
     );
     out.personIds = out.personIds.filter((id) => allowed.has(id));
   }
@@ -119,7 +122,7 @@ function pruneChildren(next: ReportFilterState, options: ReportFilterOptions): R
           }
           return true;
         })
-        .map((c) => c.id),
+        .map((c) => c.id)
     );
     out.contractIds = out.contractIds.filter((id) => allowed.has(id));
   }

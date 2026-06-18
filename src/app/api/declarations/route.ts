@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { declarationService, hourRecordService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month");
 
   const monthDate = month ? new Date(month) : null;
-  const monthEnd = monthDate
-    ? new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0))
-    : null;
+  const monthEnd = monthDate ? getMonthRange(monthDate).end : null;
 
   const decls = await declarationService.listDeclarationsForMonth(monthDate);
 

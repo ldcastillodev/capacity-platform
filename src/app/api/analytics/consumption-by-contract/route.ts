@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { contractService, hourRecordService } from "@/lib/db";
+import { getMonthRange } from "@/lib/temporal";
+import { parseHours } from "@/lib/utils/formatting";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -7,7 +9,7 @@ export async function GET(req: NextRequest) {
   const monthDate = month
     ? new Date(month)
     : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
+  const { end: monthEnd } = getMonthRange(monthDate);
 
   const contracts = await contractService.listActiveContractsForMonth(monthDate, {
     includeInactive: true,
@@ -28,14 +30,14 @@ export async function GET(req: NextRequest) {
           : Promise.resolve(null),
       ]);
 
-      const consumed = parseFloat(String(hoursAgg._sum.hours ?? 0));
-      const pool = parseFloat(String(contract.assignedHours));
+      const consumed = parseHours(hoursAgg._sum.hours);
+      const pool = parseHours(contract.assignedHours);
 
       if (contract.hourType === "total") {
         // Total-pool contract: declarations are planned hours, not the pool.
         // Remaining draws down across the contract lifetime (unclamped so
         // overruns show as negative).
-        const prior = parseFloat(String(priorAgg?._sum.hours ?? 0));
+        const prior = parseHours(priorAgg?._sum.hours);
         return {
           contract_id: contract.id,
           contract_name: contract.name,

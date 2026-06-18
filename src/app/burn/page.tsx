@@ -18,6 +18,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { useMonth, formatMonthDisplay } from "@/hooks/useMonth";
+import { formatHours } from "@/lib/utils/formatting";
 import type { AlertLevel } from "@/lib/client";
 import type React from "react";
 
@@ -80,8 +81,8 @@ export default function BurnPage() {
                           {contract.client_name}
                         </p>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {contract.consumed_hours.toFixed(1)}h consumed of{" "}
-                          {contract.pool_hours.toFixed(1)}h {isTotal ? "remaining pool" : "pool"}
+                          {formatHours(contract.consumed_hours)} consumed of{" "}
+                          {formatHours(contract.pool_hours)} {isTotal ? "remaining pool" : "pool"}
                         </p>
                       </div>
                       {/* Pace badge: critical = ahead of pace, watch = behind (≠ overview taxonomy) */}

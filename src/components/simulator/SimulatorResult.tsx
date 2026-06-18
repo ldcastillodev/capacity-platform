@@ -18,6 +18,7 @@ import {
 import { StatCard, type StatTone } from "@/components/app/StatCard";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { cn } from "@/lib/utils";
+import { formatHours, formatPercent } from "@/lib/utils/formatting";
 
 const VERDICT_TONE: Record<SimulationVerdict, "safe" | "watch" | "critical"> = {
   ok: "safe",
@@ -44,14 +45,6 @@ const ROLE_LABELS: Record<string, string> = {
   seo: "SEO",
   content: "Content",
 };
-
-function fmtHours(n: number): string {
-  return `${n.toFixed(1)}h`;
-}
-
-function fmtPct(n: number): string {
-  return `${(n * 100).toFixed(0)}%`;
-}
 
 function fmtMonth(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
@@ -128,8 +121,8 @@ export function SimulatorResult({ result }: Props) {
           {result.verdict === "ok" ? (
             <>
               <strong>{result.squadName} CAN absorb this engagement.</strong>{" "}
-              {fmtHours(result.availableHours)} available vs {fmtHours(result.requiredHours)}{" "}
-              required ({fmtHours(-result.gapHours)} to spare).
+              {formatHours(result.availableHours)} available vs {formatHours(result.requiredHours)}{" "}
+              required ({formatHours(-result.gapHours)} to spare).
             </>
           ) : result.verdict === "over" ? (
             <>
@@ -138,14 +131,14 @@ export function SimulatorResult({ result }: Props) {
                 <>
                   Insufficient role capacity:{" "}
                   {overRoles
-                    .map((r) => `${roleName(r.roleType)} (short ${fmtHours(r.gapHours)})`)
+                    .map((r) => `${roleName(r.roleType)} (short ${formatHours(r.gapHours)})`)
                     .join(", ")}
                   .
                 </>
               ) : (
                 <>
-                  Short by {fmtHours(result.gapHours)} ({fmtHours(result.availableHours)} available
-                  vs {fmtHours(result.requiredHours)} required).
+                  Short by {formatHours(result.gapHours)} ({formatHours(result.availableHours)}{" "}
+                  available vs {formatHours(result.requiredHours)} required).
                 </>
               )}
             </>
@@ -163,11 +156,11 @@ export function SimulatorResult({ result }: Props) {
           )}
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatCard label="Required" value={fmtHours(result.requiredHours)} />
-          <StatCard label="Available" value={fmtHours(result.availableHours)} />
+          <StatCard label="Required" value={formatHours(result.requiredHours)} />
+          <StatCard label="Available" value={formatHours(result.availableHours)} />
           <StatCard
             label="Gap"
-            value={fmtHours(result.gapHours)}
+            value={formatHours(result.gapHours)}
             valueTone={gapTone}
             subtitle={result.gapHours > 0 ? "Short" : result.gapHours < 0 ? "Slack" : "Even"}
           />
@@ -196,14 +189,14 @@ export function SimulatorResult({ result }: Props) {
                       <TableCell className="font-medium">
                         {ROLE_LABELS[r.roleType] ?? r.roleType}
                       </TableCell>
-                      <TableCell className="text-right">{fmtHours(r.requiredHours)}</TableCell>
-                      <TableCell className="text-right">{fmtHours(r.capacityHours)}</TableCell>
-                      <TableCell className="text-right">{fmtHours(r.recentAvgHours)}</TableCell>
+                      <TableCell className="text-right">{formatHours(r.requiredHours)}</TableCell>
+                      <TableCell className="text-right">{formatHours(r.capacityHours)}</TableCell>
+                      <TableCell className="text-right">{formatHours(r.recentAvgHours)}</TableCell>
                       <TableCell className="text-right font-semibold">
-                        {fmtHours(r.availableHours)}
+                        {formatHours(r.availableHours)}
                       </TableCell>
                       <TableCell className={cn("text-right", gapClass)}>
-                        {fmtHours(r.gapHours)}
+                        {formatHours(r.gapHours)}
                       </TableCell>
                       <TableCell className="text-right">
                         <StatusBadge
@@ -236,17 +229,18 @@ export function SimulatorResult({ result }: Props) {
                     {memberBadge(m)}
                   </div>
                   <span className="text-sm text-muted-foreground">
-                    {fmtPct(m.allocationPct)} · cap {fmtHours(m.capacityHours)} · 3mo avg{" "}
-                    {fmtHours(m.recentAvgHours)} · avail{" "}
+                    {formatPercent(m.allocationPct, { fromFraction: true })} · cap{" "}
+                    {formatHours(m.capacityHours)} · 3mo avg {formatHours(m.recentAvgHours)} · avail{" "}
                     <span className="font-semibold text-foreground">
-                      {fmtHours(m.availableHours)}
+                      {formatHours(m.availableHours)}
                     </span>
                   </span>
                 </div>
                 <p className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
                   {result.monthlyLabels
                     .map(
-                      (label, idx) => `${fmtMonth(label)} ${fmtHours(m.monthlyBillable[idx] ?? 0)}`
+                      (label, idx) =>
+                        `${fmtMonth(label)} ${formatHours(m.monthlyBillable[idx] ?? 0)}`
                     )
                     .join(" · ")}
                 </p>
@@ -259,10 +253,11 @@ export function SimulatorResult({ result }: Props) {
                       <span className="font-medium">{ROLE_LABELS[r.roleType] ?? r.roleType}</span>
                       <span className="flex items-center gap-3">
                         <span>
-                          avail <span className="font-semibold">{fmtHours(r.availableHours)}</span>
+                          avail{" "}
+                          <span className="font-semibold">{formatHours(r.availableHours)}</span>
                         </span>
                         <span className="text-muted-foreground">
-                          req {fmtHours(r.requiredHours)}
+                          req {formatHours(r.requiredHours)}
                         </span>
                         {roleRowBadge(r)}
                       </span>
@@ -272,7 +267,7 @@ export function SimulatorResult({ result }: Props) {
                     <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
                       <span>Unassigned</span>
                       <span className="flex items-center gap-3">
-                        <span>3mo avg {fmtHours(m.unassignedAvgHours)}</span>
+                        <span>3mo avg {formatHours(m.unassignedAvgHours)}</span>
                         <span>req —</span>
                       </span>
                     </div>
