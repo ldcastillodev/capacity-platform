@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
       identifier_value: string;
       category_id: number;
     };
+    if (!["issue_key", "component_key"].includes(body.identifier_type))
+      return NextResponse.json({ error: "Invalid identifier_type." }, { status: 400 });
     const row = await nonBillableService.createSourceMapping({
       source: body.source as never,
       identifierType: body.identifier_type as never,

@@ -93,7 +93,9 @@ interface ConflictRecord {
 
 interface WorklogLookupContext {
   personByEmail: Map<string, Person>;
-  sourceMappingByPrefix: Map<string, NonBillableSourceMapping>;
+  // NB classification: issue_key mappings keyed by issue key, component_key mappings by component name
+  nbMappingByIssueKey: Map<string, NonBillableSourceMapping>;
+  nbMappingByComponent: Map<string, NonBillableSourceMapping>;
   // Pre-indexed for O(1) per-worklog lookups (insertion order preserved so
   // first-match / [0] semantics are identical to the prior linear scans).
   mappingsByComponent: Map<string, JiraMappingWithContract[]>;
@@ -196,10 +198,19 @@ export class JiraConnector {
       ]);
 
       // JQL filters derived from already-fetched data (no extra DB round trips).
-      const nonBillableTicketKeys = nonBillableSourceMappings
-        .filter((m) => m.identifierType === "issue_key")
-        .map((m) => m.identifierValue);
-      const componentKeys = [...new Set(clientMappings.map((m) => m.componentKey))];
+      const nbIssueMappings = nonBillableSourceMappings.filter(
+        (m) => m.identifierType === "issue_key"
+      );
+      const nbComponentMappings = nonBillableSourceMappings.filter(
+        (m) => m.identifierType === "component_key"
+      );
+      const nonBillableTicketKeys = nbIssueMappings.map((m) => m.identifierValue);
+      const componentKeys = [
+        ...new Set([
+          ...clientMappings.map((m) => m.componentKey),
+          ...nbComponentMappings.map((m) => m.identifierValue),
+        ]),
+      ];
 
       const issues = await this.fetchIssuesWithWorklogs(
         dateFrom,
@@ -221,9 +232,8 @@ export class JiraConnector {
 
       // Build lookup maps
       const personByEmail = new Map(persons.map((p) => [p.email, p]));
-      const sourceMappingByPrefix = new Map(
-        nonBillableSourceMappings.map((m) => [m.identifierValue, m])
-      );
+      const nbMappingByIssueKey = new Map(nbIssueMappings.map((m) => [m.identifierValue, m]));
+      const nbMappingByComponent = new Map(nbComponentMappings.map((m) => [m.identifierValue, m]));
       const existingRefs = new Set(existingHourRecords.map((r) => r.externalRef));
 
       // Pre-index per-worklog lookups (preserve source order within each group).
@@ -263,7 +273,8 @@ export class JiraConnector {
 
       const ctx: WorklogLookupContext = {
         personByEmail,
-        sourceMappingByPrefix,
+        nbMappingByIssueKey,
+        nbMappingByComponent,
         mappingsByComponent,
         rolesByPerson,
         membershipsByPerson,
@@ -337,7 +348,10 @@ export class JiraConnector {
           const date = toUtcDateOnly(wl.started);
           const hours = wl.timeSpentSeconds / 3600;
           const components = issue.fields.components ?? [];
-          const isNonBillable = ctx.sourceMappingByPrefix.has(issue.key);
+          // issue_key match takes precedence; otherwise first component matching an NB
+          // component mapping. NB classification wins over billable component mappings.
+          const nbComponentMatch = components.find((c) => ctx.nbMappingByComponent.has(c.name));
+          const isNonBillable = ctx.nbMappingByIssueKey.has(issue.key) || !!nbComponentMatch;
 
           const person = ctx.personByEmail.get(wl.author.emailAddress);
           if (!person) {
@@ -375,7 +389,9 @@ export class JiraConnector {
           }
 
           if (isNonBillable) {
-            const sourceMapping = ctx.sourceMappingByPrefix.get(issue.key);
+            const sourceMapping =
+              ctx.nbMappingByIssueKey.get(issue.key) ??
+              (nbComponentMatch ? ctx.nbMappingByComponent.get(nbComponentMatch.name) : undefined);
             if (!sourceMapping) {
               result.missingMapping++;
               conflictsToRecord.push({

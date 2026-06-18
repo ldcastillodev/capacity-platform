@@ -525,7 +525,6 @@ function SourceMappingsSection() {
               <SelectContent>
                 <SelectItem value="none">— Select type —</SelectItem>
                 <SelectItem value="issue_key">Issue Key (ex: MP-XXXX)</SelectItem>
-                <SelectItem value="account_key">Account Key</SelectItem>
                 <SelectItem value="component_key">Component Key</SelectItem>
               </SelectContent>
             </Select>

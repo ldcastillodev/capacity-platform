@@ -128,7 +128,6 @@ enum NbMappingSource {
 
 enum NbIdentifierType {
   issue_key
-  account_key
   component_key
 }
 
