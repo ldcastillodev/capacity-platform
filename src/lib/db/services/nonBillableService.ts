@@ -127,7 +127,7 @@ export function deleteSourceMapping(id: number, db: Db = prisma) {
   return db.nonBillableSourceMapping.delete({ where: { id } });
 }
 
-/** List Jira NA source mappings (full rows) for the sync. Empty → []. */
-export function listSourceMappingsForSync(db: Db = prisma) {
-  return db.nonBillableSourceMapping.findMany({ where: { source: NbMappingSource.jira_na } });
+/** List a source's NB mappings (full rows) for the sync. Empty → []. */
+export function listSourceMappingsForSync(source: NbMappingSource, db: Db = prisma) {
+  return db.nonBillableSourceMapping.findMany({ where: { source } });
 }

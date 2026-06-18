@@ -14,26 +14,3 @@ export async function GET(req: NextRequest) {
   });
   return NextResponse.json(entries);
 }
-
-export async function POST(req: NextRequest) {
-  const body = (await req.json()) as {
-    person_id: number;
-    squad_id: number;
-    date: string;
-    hours: number;
-    category_id: number;
-  };
-
-  const entry = await hourRecordService.createHourRecord({
-    personId: body.person_id,
-    squadId: body.squad_id,
-    clientId: null,
-    date: new Date(body.date),
-    hours: body.hours,
-    roleType: null,
-    source: "manual",
-    isNonBillable: true,
-    nonBillableCategoryId: body.category_id,
-  });
-  return NextResponse.json(entry, { status: 201 });
-}

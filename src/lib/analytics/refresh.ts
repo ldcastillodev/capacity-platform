@@ -9,13 +9,18 @@ import type { AnomalyFlagType, RoleType, SuggestionType } from "@prisma/client";
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for caller API compat; months are derived internally
-export async function runAnalyticsRefresh(_months?: Date[]): Promise<void> {
+export async function runAnalyticsRefresh(months?: Date[]): Promise<void> {
   const today = new Date();
-  const currentMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const fallback = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const targets =
+    months && months.length > 0
+      ? months.map((m) => new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), 1)))
+      : [fallback];
 
-  await runAnomalyDetection(currentMonth);
-  await generateNonBillableSuggestions(currentMonth);
+  for (const month of targets) {
+    await runAnomalyDetection(month);
+    await generateNonBillableSuggestions(month);
+  }
 }
 
 // ─── Phase 6: Anomaly Detection ───────────────────────────────────────────────

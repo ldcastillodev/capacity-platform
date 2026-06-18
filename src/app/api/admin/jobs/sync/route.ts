@@ -1,25 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { JiraNAConnector } from "@/lib/integrations/jira-na";
+import { z } from "zod";
+import { JiraConnector, jiraConfigForSource } from "@/lib/integrations/jira";
 import { runAnalyticsRefresh } from "@/lib/analytics/refresh";
 import { runExpirySweep } from "@/lib/lifecycle";
 import { syncService } from "@/lib/db";
 
-export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
-    source?: "jira_na";
-    date_from?: string;
-    date_to?: string;
-  };
+const bodySchema = z.object({
+  source: z.enum(["jira_na", "jira_emea"]),
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
+});
 
-  const source = body.source ?? "all";
+export async function POST(req: NextRequest) {
+  const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid source — expected jira_na or jira_emea." },
+      { status: 400 }
+    );
+  }
+  const { source } = parsed.data;
   const dateFrom =
-    body.date_from ??
+    parsed.data.date_from ??
     (() => {
       const d = new Date();
       d.setDate(d.getDate() - 30);
       return d.toISOString().split("T")[0];
     })();
-  const dateTo = body.date_to ?? new Date().toISOString().split("T")[0];
+  const dateTo = parsed.data.date_to ?? new Date().toISOString().split("T")[0];
+
+  const config = jiraConfigForSource(source);
+  if (!config.baseUrl || !config.email || !config.token) {
+    return NextResponse.json(
+      { ok: false, error: `${source} credentials are not configured.` },
+      { status: 400 }
+    );
+  }
 
   const results: Record<string, unknown> = {};
 
@@ -27,15 +43,22 @@ export async function POST(req: NextRequest) {
   // status guard sees current lifecycle state.
   results.expirySweep = await runExpirySweep();
 
-  if (source === "jira_na" || source === "all") {
-    const connector = new JiraNAConnector();
-    results.jira_na = await connector.sync(dateFrom, dateTo);
-  }
+  const connector = new JiraConnector(config);
+  results[source] = await connector.sync(dateFrom, dateTo);
 
-  const today = new Date();
-  const thisMonth = new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1));
-  const prevMonth = new Date(Date.UTC(today.getFullYear(), today.getMonth() - 1, 1));
-  await runAnalyticsRefresh([prevMonth, thisMonth]);
+  // Refresh analytics for every month the sync date range touched.
+  const months: Date[] = [];
+  const cursor = new Date(
+    Date.UTC(new Date(dateFrom).getUTCFullYear(), new Date(dateFrom).getUTCMonth(), 1)
+  );
+  const lastMonth = new Date(
+    Date.UTC(new Date(dateTo).getUTCFullYear(), new Date(dateTo).getUTCMonth(), 1)
+  );
+  while (cursor <= lastMonth) {
+    months.push(new Date(cursor));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  await runAnalyticsRefresh(months);
 
   return NextResponse.json({ ok: true, results });
 }

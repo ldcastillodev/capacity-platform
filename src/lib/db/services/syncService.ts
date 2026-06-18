@@ -21,6 +21,7 @@ export function listRecentSyncLogs(db: Db = prisma) {
       completedAt: true,
       dateFrom: true,
       dateTo: true,
+      success: true,
     },
   });
 }

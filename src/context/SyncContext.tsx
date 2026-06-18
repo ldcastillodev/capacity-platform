@@ -4,13 +4,17 @@ import React, { createContext, useCallback, useContext, useState } from "react";
 
 export type OpStatus = "idle" | "running" | "success" | "error";
 
+export type JiraSourceValue = "jira_na" | "jira_emea";
+
 export interface OpState {
   status: OpStatus;
   message: string | null;
+  /** which source the current sync op concerns (set by runSync) */
+  source?: JiraSourceValue | null;
 }
 
 interface RunSyncParams {
-  source: "jira_na" | "all";
+  source: JiraSourceValue;
   dateFrom: string;
   dateTo: string;
 }
@@ -38,7 +42,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const runSync = useCallback(
     async ({ source, dateFrom, dateTo }: RunSyncParams) => {
       if (sync.status === "running") return;
-      setSync({ status: "running", message: null });
+      setSync({ status: "running", message: null, source });
       try {
         const res = await fetch("/api/admin/jobs/sync", {
           method: "POST",
@@ -47,12 +51,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         });
         const data = await res.json();
         if (res.ok && data.ok) {
-          setSync({ status: "success", message: "Sync completed" });
+          setSync({ status: "success", message: "Sync completed", source });
         } else {
-          setSync({ status: "error", message: data.error ?? "Sync failed. Check server logs." });
+          setSync({
+            status: "error",
+            message: data.error ?? "Sync failed. Check server logs.",
+            source,
+          });
         }
       } catch {
-        setSync({ status: "error", message: "Network error — sync request failed." });
+        setSync({ status: "error", message: "Network error — sync request failed.", source });
       }
     },
     [sync.status]

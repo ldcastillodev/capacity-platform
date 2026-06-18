@@ -66,8 +66,7 @@ enum ContractType {
 
 enum SyncSource {
   jira_na
-  manual
-  api
+  jira_emea
 }
 
 enum SyncConflictCategory {
@@ -124,6 +123,7 @@ enum SuggestionStatus {
 
 enum NbMappingSource {
   jira_na
+  jira_emea
 }
 
 enum NbIdentifierType {
@@ -398,6 +398,7 @@ model SyncLog {
   recordsCreated    Int        @default(0) @map("records_created")
   recordsSkipped    Int        @default(0) @map("records_skipped")
   recordsConflicted Int        @default(0) @map("records_conflicted")
+  success           Boolean    @default(false)
 
   @@index([source, startedAt])
   @@map("sync_logs")

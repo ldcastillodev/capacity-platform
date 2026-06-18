@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { JIRA_INSTANCES } from "@/lib/constants";
 
 function errMsg(e: unknown) {
   return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(e);
@@ -503,7 +504,11 @@ function SourceMappingsSection() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">— Select source —</SelectItem>
-                <SelectItem value="jira_na">Jira NA</SelectItem>
+                {JIRA_INSTANCES.map((j) => (
+                  <SelectItem key={j.source} value={j.source}>
+                    {`Jira ${j.label}`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

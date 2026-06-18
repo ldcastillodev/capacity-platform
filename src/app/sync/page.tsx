@@ -4,13 +4,14 @@ import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { MonthPicker } from "@/components/app/MonthPicker";
 import { Checkbox } from "@/components/ui/checkbox";
+import { MonthPicker } from "@/components/app/MonthPicker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuditTab } from "@/components/sync/AuditTab";
 import { cn } from "@/lib/utils";
-import { useSyncContext, type OpState } from "@/context/SyncContext";
+import { JIRA_INSTANCES } from "@/lib/constants";
+import { useSyncContext, type OpState, type JiraSourceValue } from "@/context/SyncContext";
 
 function currentMonthStr(): string {
   const d = new Date();
@@ -20,19 +21,9 @@ function lastDayOfMonthStr(month: string): string {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().split("T")[0];
 }
-function getSource(jira: boolean): "jira_na" | "all" {
-  return jira ? "jira_na" : "all";
-}
-function getMonthsArray(dateFrom: string, dateTo: string): string[] {
-  const months: string[] = [];
-  const d = new Date(dateFrom + "T00:00:00Z");
-  d.setUTCDate(1);
-  const end = new Date(dateTo + "T00:00:00Z");
-  while (d <= end) {
-    months.push(d.toISOString().split("T")[0]);
-    d.setUTCMonth(d.getUTCMonth() + 1);
-  }
-  return months;
+function sourceLabel(source: string): string {
+  const inst = JIRA_INSTANCES.find((i) => i.source === source);
+  return inst ? `Jira ${inst.label}` : source;
 }
 function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -55,11 +46,12 @@ function fmtDate(iso: string): string {
 type BannerResult = { ok: boolean; message: string } | null;
 interface SyncLogEntry {
   id: number;
-  source: "jira_na";
+  source: JiraSourceValue;
   startedAt: string;
   completedAt: string | null;
   dateFrom: string | null;
   dateTo: string | null;
+  success: boolean;
 }
 
 function toBanner(state: OpState): BannerResult {
@@ -88,9 +80,11 @@ function Banner({ result }: { result: BannerResult }) {
 export default function SyncPage() {
   const [monthFrom, setMonthFrom] = useState(currentMonthStr);
   const [monthTo, setMonthTo] = useState(currentMonthStr);
-  const [jiraChecked, setJiraChecked] = useState(true);
+  const [selectedSource, setSelectedSource] = useState<JiraSourceValue | null>(
+    JIRA_INSTANCES[0].source
+  );
   const [lastLogs, setLastLogs] = useState<SyncLogEntry[]>([]);
-  const { sync, refresh, runSync, runRefresh } = useSyncContext();
+  const { sync, runSync } = useSyncContext();
 
   const dateFrom = `${monthFrom}-01`;
   const dateTo = lastDayOfMonthStr(monthTo);
@@ -125,10 +119,8 @@ export default function SyncPage() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh sync log status after a sync completes elsewhere
-    if (sync.status === "success") fetchLastLogs();
+    if (sync.status === "success" || sync.status === "error") fetchLastLogs();
   }, [sync.status]);
-
-  const months = getMonthsArray(dateFrom, dateTo);
 
   return (
     <div>
@@ -140,41 +132,72 @@ export default function SyncPage() {
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="status">
-          {lastLogs.length > 0 && (
-            <Card className="mb-5">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Last Sync Status</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {lastLogs.map((log) => (
-                  <div key={log.id} className="rounded-lg border p-4 bg-[var(--safe-bg)]">
+          <Card className="mb-5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Last Sync Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {JIRA_INSTANCES.map((inst) => {
+                const log = lastLogs.find((l) => l.source === inst.source);
+                const status = !log
+                  ? "never"
+                  : !log.completedAt
+                    ? "running"
+                    : log.success
+                      ? "success"
+                      : "error";
+                return (
+                  <div
+                    key={inst.source}
+                    className={cn(
+                      "rounded-lg border p-4",
+                      status === "error"
+                        ? "bg-[var(--critical-bg)]"
+                        : status === "never"
+                          ? "bg-muted/40"
+                          : "bg-[var(--safe-bg)]"
+                    )}
+                  >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-sm">
-                        {log.source === "jira_na" ? "Jira NA" : log.source}
-                      </span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--safe-bg)] text-[var(--safe)] border border-[var(--safe)] uppercase tracking-wide">
-                        {log.completedAt ? "Success" : "Running"}
+                      <span className="font-semibold text-sm">{sourceLabel(inst.source)}</span>
+                      <span
+                        className={cn(
+                          "text-xs font-semibold px-2 py-0.5 rounded border uppercase tracking-wide",
+                          status === "error"
+                            ? "bg-[var(--critical-bg)] text-[var(--critical)] border-[var(--critical)]"
+                            : status === "never"
+                              ? "text-muted-foreground border-muted-foreground/40"
+                              : "bg-[var(--safe-bg)] text-[var(--safe)] border-[var(--safe)]"
+                        )}
+                      >
+                        {status === "error"
+                          ? "Error"
+                          : status === "success"
+                            ? "Success"
+                            : status === "running"
+                              ? "Running"
+                              : "Never synced"}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                       <div>
                         <div className="text-xs text-muted-foreground mb-0.5">Date &amp; Time</div>
-                        <div>{fmtDateTime(log.startedAt)}</div>
+                        <div>{log ? fmtDateTime(log.startedAt) : "—"}</div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground mb-0.5">Date Range</div>
                         <div>
-                          {log.dateFrom && log.dateTo
+                          {log && log.dateFrom && log.dateTo
                             ? `${fmtDate(log.dateFrom)} – ${fmtDate(log.dateTo)}`
                             : "—"}
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+                );
+              })}
+            </CardContent>
+          </Card>
 
           <Card className="mb-5">
             <CardHeader className="pb-3">
@@ -202,45 +225,31 @@ export default function SyncPage() {
             <CardHeader className="pb-1">
               <CardTitle className="text-base">Data Sync</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Pull hour records from selected sources into the database.
+                Pull hour records from one Jira source into the database.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="jira"
-                  checked={jiraChecked}
-                  onCheckedChange={(v) => setJiraChecked(Boolean(v))}
-                />
-                <Label htmlFor="jira">Jira NA</Label>
+              <div className="flex flex-col gap-2">
+                {JIRA_INSTANCES.map((inst) => (
+                  <div key={inst.source} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`src-${inst.source}`}
+                      checked={selectedSource === inst.source}
+                      onCheckedChange={(v) => setSelectedSource(v ? inst.source : null)}
+                    />
+                    <Label htmlFor={`src-${inst.source}`}>{sourceLabel(inst.source)}</Label>
+                  </div>
+                ))}
               </div>
               <Button
-                onClick={() => runSync({ source: getSource(jiraChecked), dateFrom, dateTo })}
-                disabled={sync.status === "running" || !jiraChecked}
+                onClick={() =>
+                  selectedSource && runSync({ source: selectedSource, dateFrom, dateTo })
+                }
+                disabled={sync.status === "running" || !selectedSource}
               >
                 {sync.status === "running" ? "Running…" : "Run Sync"}
               </Button>
               <Banner result={toBanner(sync)} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-1">
-              <CardTitle className="text-base">Analytics Refresh</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Recalculates anomaly flags for clients with no recent hours logged, and generates
-                non-billable hour enhancement suggestions (excessive non-billable time, ceremony
-                overhead, or PTO capacity) for the current month.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button
-                onClick={() => runRefresh({ months })}
-                disabled={refresh.status === "running" || months.length === 0}
-              >
-                {refresh.status === "running" ? "Running…" : "Run Analytics Refresh"}
-              </Button>
-              <Banner result={toBanner(refresh)} />
             </CardContent>
           </Card>
         </TabsContent>

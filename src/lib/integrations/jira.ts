@@ -17,7 +17,9 @@ import type {
   NonBillableSourceMapping,
   PersonRole,
   SquadMembership,
+  SyncSource,
 } from "@prisma/client";
+import { JIRA_INSTANCES } from "../constants";
 
 // A contract closed by renewal/expiry still accepts a backdated, in-window
 // worklog, but only while seen within this many days of the close boundary — so a
@@ -104,15 +106,42 @@ interface WorklogLookupContext {
   declarationSquadByContractMonth: Map<string, number>;
 }
 
-export class JiraNAConnector {
+export interface JiraConnectorConfig {
+  baseUrl: string;
+  email: string;
+  token: string;
+  /** SyncSource written on HourRecord/SyncLog/SyncConflict and externalRef prefix */
+  source: SyncSource;
+  /** jiraInstance code used to scope component/source mapping lookups */
+  instance: string;
+}
+
+/** Resolve a source's credentials + codes from env, via the JIRA_INSTANCES registry. */
+export function jiraConfigForSource(source: SyncSource): JiraConnectorConfig {
+  const inst = JIRA_INSTANCES.find((i) => i.source === source);
+  if (!inst) throw new Error(`Unknown Jira source: ${source}`);
+  return {
+    baseUrl: process.env[`${inst.envPrefix}_BASE_URL`] ?? "",
+    email: process.env[`${inst.envPrefix}_EMAIL`] ?? "",
+    token: process.env[`${inst.envPrefix}_API_TOKEN`] ?? "",
+    source: inst.source,
+    instance: inst.value,
+  };
+}
+
+export class JiraConnector {
   private baseUrl: string;
   private email: string;
   private token: string;
+  private source: SyncSource;
+  private instance: string;
 
-  constructor() {
-    this.baseUrl = process.env.JIRA_NA_BASE_URL ?? "";
-    this.email = process.env.JIRA_NA_EMAIL ?? "";
-    this.token = process.env.JIRA_NA_API_TOKEN ?? "";
+  constructor(config: JiraConnectorConfig) {
+    this.baseUrl = config.baseUrl;
+    this.email = config.email;
+    this.token = config.token;
+    this.source = config.source;
+    this.instance = config.instance;
   }
 
   private get authHeader(): string {
@@ -131,7 +160,7 @@ export class JiraNAConnector {
       errors: [],
     };
     const log = await syncService.createSyncLog({
-      source: "jira_na",
+      source: this.source,
       startedAt: new Date(),
       dateFrom: new Date(dateFrom),
       dateTo: new Date(dateTo),
@@ -152,8 +181,8 @@ export class JiraNAConnector {
         declarations,
       ] = await Promise.all([
         personService.listPersonsForSync(),
-        nonBillableService.listSourceMappingsForSync(),
-        componentMappingService.listMappingsWithContractForSync(),
+        nonBillableService.listSourceMappingsForSync(this.source),
+        componentMappingService.listMappingsWithContractForSync(this.instance),
         personService.listPersonRolesForSync(),
         squadService.listMembershipsForSync(),
         contractService.listContractsForSync(),
@@ -183,7 +212,7 @@ export class JiraNAConnector {
       const allExternalRefs: string[] = [];
       for (const issue of issues) {
         for (const wl of issue.worklogs ?? []) {
-          allExternalRefs.push(`jira_na:${wl.id}`);
+          allExternalRefs.push(`${this.source}:${wl.id}`);
         }
       }
 
@@ -254,6 +283,7 @@ export class JiraNAConnector {
         result.inactiveTarget;
       await syncService.updateSyncLog(log.id, {
         completedAt: new Date(),
+        success: true,
         recordsFetched: result.created + result.skipped + conflicted,
         recordsCreated: result.created,
         recordsSkipped: result.skipped,
@@ -296,7 +326,7 @@ export class JiraNAConnector {
     for (const { issue, wl } of worklogItems) {
       {
         try {
-          const externalRef = `jira_na:${wl.id}`;
+          const externalRef = `${this.source}:${wl.id}`;
           if (ctx.existingRefs.has(externalRef)) {
             result.skipped++;
             continue;
@@ -375,7 +405,7 @@ export class JiraNAConnector {
               date,
               hours,
               roleType: nbRole?.roleType ?? null,
-              source: "jira_na" as const,
+              source: this.source,
               isNonBillable: true,
               nonBillableCategoryId: sourceMapping.categoryId,
               externalRef,
@@ -537,7 +567,7 @@ export class JiraNAConnector {
             clientId: clientMapping.contract.sow.clientId,
             date,
             roleType: role.roleType,
-            source: "jira_na" as const,
+            source: this.source,
             issueKey: issue.key,
           };
           if (baseHours > 0) {
@@ -589,7 +619,7 @@ export class JiraNAConnector {
             detail: c.detail,
             lastSeenAt: now,
           },
-          create: { ...c, source: "jira_na", lastSeenAt: now },
+          create: { ...c, source: this.source, lastSeenAt: now },
         }))
       );
     }

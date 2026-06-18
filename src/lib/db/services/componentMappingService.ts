@@ -149,8 +149,9 @@ export function endOpenMappingsForClosedContracts(today: Date, db: Db = prisma) 
  * List mappings with contract → SOW → client, newest first — the sync's
  * attribution lookup. Empty → [].
  */
-export function listMappingsWithContractForSync(db: Db = prisma) {
+export function listMappingsWithContractForSync(jiraInstance: string, db: Db = prisma) {
   return db.jiraComponentClientMapping.findMany({
+    where: { jiraInstance },
     include: { contract: { include: { sow: { include: { client: true } } } } },
     orderBy: { effectiveFrom: "desc" },
   });
