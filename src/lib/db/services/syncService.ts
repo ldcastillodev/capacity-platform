@@ -82,11 +82,26 @@ export function updateSyncLog(
  * List sync conflicts, optionally by category. Most recently seen first,
  * capped at 200. Empty → [].
  */
-export function listSyncConflicts(filters: { category?: SyncConflictCategory }, db: Db = prisma) {
+export function listSyncConflicts(
+  filters: { category?: SyncConflictCategory; search?: string },
+  db: Db = prisma
+) {
+  const and: Prisma.SyncConflictWhereInput[] = [];
+  if (filters.category) and.push({ category: filters.category });
+  if (filters.search) {
+    const s = filters.search;
+    and.push({
+      OR: [
+        { authorEmail: { contains: s, mode: "insensitive" } },
+        { issueKey: { contains: s, mode: "insensitive" } },
+        { componentKey: { contains: s, mode: "insensitive" } },
+      ],
+    });
+  }
   return db.syncConflict.findMany({
-    where: filters.category ? { category: filters.category } : undefined,
+    where: and.length ? { AND: and } : undefined,
     orderBy: { lastSeenAt: "desc" },
-    take: 200,
+    take: 1000,
     select: {
       id: true,
       source: true,

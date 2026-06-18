@@ -6,6 +6,7 @@ import { api } from "@/lib/client";
 import { SortableHead } from "@/components/app/SortableHead";
 import { useSortState, sortRows } from "@/hooks/useTableSort";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -250,14 +251,16 @@ const SYNC_CONFLICT_ACCESSORS: Record<
 
 function SyncConflictsSection() {
   const [category, setCategory] = useState("all");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const sort = useSortState<SyncConflictCol>();
 
   const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["audit-sync-conflicts", category],
+    queryKey: ["audit-sync-conflicts", category, search],
     queryFn: () => {
       const params: Record<string, string> = {};
       if (category !== "all") params.category = category;
+      if (search.trim()) params.search = search.trim();
       return api
         .get<SyncConflictRow[]>("/management/sync-conflicts", { params })
         .then((r) => r.data);
@@ -278,27 +281,41 @@ function SyncConflictsSection() {
         <h3 className="text-sm font-semibold">Sync conflicts</h3>
         <Pager page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
-      <div className="space-y-1.5">
-        <Label>Category</Label>
-        <Select
-          value={category}
-          onValueChange={(v) => {
-            setCategory(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            {CONFLICT_CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c.replace("_", " ")}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1.5">
+          <Label>Category</Label>
+          <Select
+            value={category}
+            onValueChange={(v) => {
+              setCategory(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {CONFLICT_CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c.replace("_", " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Search</Label>
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Person, issue, or component"
+            className="w-72"
+          />
+        </div>
       </div>
 
       <Card>

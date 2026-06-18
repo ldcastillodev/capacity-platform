@@ -365,7 +365,9 @@ export class JiraConnector {
               componentKey: components[0]?.name ?? null,
               date,
               hours,
-              detail: `No person found with email ${wl.author.emailAddress}.`,
+              detail: `Unrecognized person — no Person record matches Jira author ${
+                wl.author.emailAddress ?? `accountId ${wl.author.accountId}`
+              }. Add them in Management and re-sync to import these hours.`,
             });
             continue;
           }

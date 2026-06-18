@@ -5,9 +5,11 @@ import type { SyncConflictCategory } from "@prisma/client";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
+  const search = searchParams.get("search");
   try {
     const rows = await syncService.listSyncConflicts({
       category: category ? (category as SyncConflictCategory) : undefined,
+      search: search || undefined,
     });
     return NextResponse.json(rows);
   } catch (e) {
