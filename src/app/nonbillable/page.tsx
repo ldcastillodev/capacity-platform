@@ -303,8 +303,8 @@ export default function NonBillablePage() {
   });
   const { data: people } = useQuery({ queryKey: ["people"], queryFn: fetchPeople });
   const { data: suggestions, isLoading: loadingSuggestions } = useQuery({
-    queryKey: ["suggestions", month],
-    queryFn: () => fetchSuggestions({ month }),
+    queryKey: ["suggestions", month, "open"],
+    queryFn: () => fetchSuggestions({ month, status: "open" }),
   });
   const { data: nbBySquad, isLoading: squadLoading } = useQuery({
     queryKey: ["nb-by-squad", month],
@@ -330,8 +330,7 @@ export default function NonBillablePage() {
 
   const flagged = rollup.filter((r) => r.nbPct > 0.25).length;
   const avgNbPct = rollup.length > 0 ? rollup.reduce((s, r) => s + r.nbPct, 0) / rollup.length : 0;
-  const allSuggestions = suggestions ?? [];
-  const openSuggestions = allSuggestions.filter((s) => s.status === "open");
+  const openSuggestions = suggestions ?? [];
 
   return (
     <div>
@@ -616,19 +615,19 @@ export default function NonBillablePage() {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <h2 className="font-semibold text-base">Suggestions</h2>
-          {allSuggestions.length > 0 && (
+          {openSuggestions.length > 0 && (
             <Badge className="bg-[var(--warning-bg)] text-[var(--warning)] border-0">
-              {allSuggestions.length}
+              {openSuggestions.length}
             </Badge>
           )}
         </div>
         {loadingSuggestions ? (
           <p className="text-muted-foreground text-sm">Loading suggestions…</p>
-        ) : allSuggestions.length === 0 ? (
+        ) : openSuggestions.length === 0 ? (
           <p className="text-muted-foreground text-sm">No suggestions for this period.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {allSuggestions.map((s) => {
+            {openSuggestions.map((s) => {
               const pid = s.person_id ?? s.personId;
               const subjectName =
                 pid != null

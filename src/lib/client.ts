@@ -335,29 +335,6 @@ export const fetchBurnByContractWeekly = (params?: { month?: string }) =>
     .get<BurnByContractWeeklyRow[]>("/analytics/burn-by-contract-weekly", { params })
     .then((r) => r.data);
 
-// ─── Anomaly flags ────────────────────────────────────────────────────────────
-
-export type AnomalySeverity = "low" | "medium" | "high" | "critical";
-
-export interface AnomalyFlag {
-  id: number;
-  client_id: number;
-  squad_id: number | null;
-  month: string;
-  role_type: RoleType | null;
-  flag_type: string;
-  severity: AnomalySeverity;
-  explanation: string | null;
-  detected_at: string;
-  resolved_at: string | null;
-}
-
-export const fetchFlags = (params?: { client_id?: number; month?: string; open_only?: boolean }) =>
-  api.get<AnomalyFlag[]>("/analytics/flags", { params }).then((r) => norm(r.data));
-
-export const resolveFlag = (flag_id: number, resolution_notes: string) =>
-  api.patch(`/analytics/flags/${flag_id}/resolve`, { resolution_notes }).then((r) => r.data);
-
 // ─── Contracts ────────────────────────────────────────────────────────────────
 
 export interface Contract {

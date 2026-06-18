@@ -163,6 +163,7 @@ function activeClientMapping(overrides: {
     effectiveFrom: new Date("2026-01-01"),
     effectiveTo: mappingEffectiveTo,
     contract: {
+      name: `Contract ${contractId}`,
       status,
       endDate,
       sow: { clientId, endDate: sowEndDate, client: { isActive: clientActive } },

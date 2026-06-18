@@ -58,7 +58,13 @@ export async function POST(req: NextRequest) {
     months.push(new Date(cursor));
     cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
-  await runAnalyticsRefresh(months);
+  // Analytics is best-effort: a failure here must not fail the sync.
+  try {
+    await runAnalyticsRefresh(months);
+  } catch (e) {
+    console.error("Analytics refresh failed after sync:", e);
+    results.analyticsError = String(e);
+  }
 
   return NextResponse.json({ ok: true, results });
 }

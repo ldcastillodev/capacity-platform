@@ -69,6 +69,7 @@ export function listManagedAnomalyFlags(
       resolvedBy: true,
       resolutionNotes: true,
       client: { select: { id: true, name: true } },
+      squad: { select: { id: true, name: true } },
     },
   });
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { anomalyService } from "@/lib/db";
 import type { SuggestionStatus } from "@prisma/client";
 
-const TERMINAL = ["applied", "dismissed"];
+const TERMINAL = ["dismissed"];
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Suggestion is in a terminal state." }, { status: 400 });
 
     const body = (await req.json()) as { status: string; resolved_by?: number };
-    const allowed = ["acknowledged", "applied", "dismissed"];
+    const allowed = ["acknowledged", "dismissed"];
     if (!allowed.includes(body.status))
       return NextResponse.json(
         { error: `Status must be one of: ${allowed.join(", ")}.` },

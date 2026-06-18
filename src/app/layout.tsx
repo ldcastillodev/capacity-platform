@@ -34,7 +34,7 @@ const nav = [
   { href: "/consumption", icon: PieChart, label: "Consumption" },
   { href: "/capacity", icon: Activity, label: "Capacity" },
   { href: "/declarations", icon: ClipboardList, label: "Declarations" },
-  { href: "/flags", icon: AlertTriangle, label: "Anomaly Flags" },
+  { href: "/flags", icon: AlertTriangle, label: "Flags & Suggestions" },
   { href: "/simulator", icon: Zap, label: "New Client" },
   { href: "/reports", icon: FileText, label: "Reports" },
   { href: "/sync", icon: RefreshCw, label: "Sync" },

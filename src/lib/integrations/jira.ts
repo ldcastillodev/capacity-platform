@@ -34,6 +34,7 @@ type JiraMappingWithContract = {
   effectiveFrom: Date;
   effectiveTo: Date | null;
   contract: {
+    name: string;
     status: string;
     endDate: Date | null;
     sow: { clientId: number; endDate: Date | null; client: { isActive: boolean } };
@@ -317,7 +318,7 @@ export class JiraConnector {
     // one auditable row per skipped worklog, upserted by externalRef
     const conflictsToRecord: ConflictRecord[] = [];
     // client+month pairs that need a missing_data flag (BR-10 fallback)
-    const missingDeclarationFlags = new Map<string, Date>();
+    const missingDeclarationFlags = new Map<string, { month: Date; entries: Set<string> }>();
     // client+month pairs where worklogs targeted a closed/expired entity
     const inactiveTargetFlags = new Map<string, Date>();
     const today = toUtcDateOnly(new Date());
@@ -562,12 +563,15 @@ export class JiraConnector {
                 componentKey: componentName,
                 date,
                 hours,
-                detail: `Person has multiple active squad memberships and no role declaration for contract ${baseContractId} in ${month.toISOString().slice(0, 7)} resolves a squad they belong to.`,
+                detail: `${person.name} has multiple active squad memberships and no role declaration for contract "${clientMapping.contract.name}" (#${baseContractId}) in ${month.toISOString().slice(0, 7)} resolves a squad they belong to.`,
               });
-              missingDeclarationFlags.set(
-                `${clientMapping.contract.sow.clientId}:${month.toISOString().slice(0, 7)}`,
-                month
-              );
+              const flagKey = `${clientMapping.contract.sow.clientId}:${month.toISOString().slice(0, 7)}`;
+              const flag = missingDeclarationFlags.get(flagKey) ?? {
+                month,
+                entries: new Set<string>(),
+              };
+              flag.entries.add(`${person.name} → "${clientMapping.contract.name}"`);
+              missingDeclarationFlags.set(flagKey, flag);
               continue;
             }
             squadId = declaredSquadId;
@@ -649,14 +653,14 @@ export class JiraConnector {
     }
 
     await Promise.all([
-      ...[...missingDeclarationFlags].map(([key, month]) =>
+      ...[...missingDeclarationFlags].map(([key, { month, entries }]) =>
         upsertAnomaly(
           Number(key.split(":")[0]),
           month,
           null,
           "missing_data",
           "high",
-          "Worklog(s) skipped: person has multiple active squad memberships and no role declaration resolves the contract's squad for this month. Create the declaration and re-sync."
+          `Worklog(s) skipped — multiple active squad memberships and no role declaration resolves the contract's squad for this month: ${[...entries].join("; ")}. Create the declaration(s) and re-sync.`
         )
       ),
       ...[...inactiveTargetFlags].map(([key, month]) =>
