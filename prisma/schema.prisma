@@ -329,6 +329,8 @@ model HourRecord {
   nonBillableCategoryId Int?       @map("nonbillable_category_id")
   externalRef           String?    @unique @map("external_ref") @db.VarChar(300)
   issueKey              String?    @map("issue_key") @db.VarChar(50)
+  archivedAt            DateTime?  @map("archived_at")
+  archiveReason         String?    @map("archive_reason") @db.VarChar(50)
   createdAt             DateTime   @default(now()) @map("created_at")
   updatedAt             DateTime   @default(now()) @updatedAt @map("updated_at")
 

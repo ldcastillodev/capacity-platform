@@ -123,6 +123,7 @@ export async function GET(req: NextRequest) {
   const hrFilters: Prisma.Sql[] = [
     Prisma.sql`hr.date >= ${fromDate}::date`,
     Prisma.sql`hr.date <= ${toMonthEnd}::date`,
+    Prisma.sql`hr.archived_at IS NULL`,
   ];
   if (billability === "billable") hrFilters.push(Prisma.sql`hr.is_non_billable = false`);
   if (billability === "nonbillable") hrFilters.push(Prisma.sql`hr.is_non_billable = true`);

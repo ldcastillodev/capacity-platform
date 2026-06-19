@@ -7,6 +7,7 @@ import {
   hourRecordService,
   contractService,
   declarationService,
+  reconciliationService,
 } from "../db";
 import pLimit from "p-limit";
 import { addUtcDays, toUtcDateOnly } from "../temporal";
@@ -73,6 +74,11 @@ interface SyncResult {
   missingMapping: number;
   missingDeclaration: number;
   inactiveTarget: number;
+  // Reconciliation (post-create drift correction against current Jira state)
+  reconcileUpdated: number;
+  reconcileArchived: number;
+  reconcileSkipped: number;
+  reconcileFailed: number;
   errors: string[];
 }
 
@@ -160,6 +166,10 @@ export class JiraConnector {
       missingMapping: 0,
       missingDeclaration: 0,
       inactiveTarget: 0,
+      reconcileUpdated: 0,
+      reconcileArchived: 0,
+      reconcileSkipped: 0,
+      reconcileFailed: 0,
       errors: [],
     };
     const log = await syncService.createSyncLog({
@@ -286,6 +296,11 @@ export class JiraConnector {
       };
 
       await this.processWorklogs(issues, ctx, result);
+
+      // Reconcile existing rows against the worklogs we just fetched: correct
+      // hours drift and soft-delete rows whose worklog was deleted in Jira.
+      // Runs in the same sequential sync, scoped to this source.
+      await this.reconcile(issues, new Date(dateFrom), new Date(dateTo), result);
 
       const conflicted =
         result.missingMembership +
@@ -676,6 +691,159 @@ export class JiraConnector {
         )
       ),
     ]);
+  }
+
+  /**
+   * Reconcile persisted HourRecords against the worklogs fetched this run.
+   *
+   * For each in-window worklog this source previously imported:
+   *  - hours changed in Jira  → update the row's hours in place (snapshot kept);
+   *    a worklog zeroed in Jira is soft-deleted (effective delete).
+   *  - worklog absent from the fetch → confirm with a per-worklog GET: a 404
+   *    soft-deletes the row(s); a 200 is treated as drift; a network/5xx error
+   *    is ambiguous, so the row is left untouched and only counted.
+   *
+   * A worklog split across a base + extension contract cannot have its hours
+   * re-applied without re-splitting (which would recompute attribution), so its
+   * drift is flagged for manual review instead of auto-applied.
+   */
+  private async reconcile(
+    issues: JiraIssue[],
+    dateFrom: Date,
+    dateTo: Date,
+    result: SyncResult
+  ): Promise<void> {
+    // Hours currently present in Jira for each in-window worklog id.
+    const presentHoursById = new Map<string, number>();
+    for (const issue of issues) {
+      for (const wl of issue.worklogs ?? []) {
+        presentHoursById.set(
+          wl.id,
+          (presentHoursById.get(wl.id) ?? 0) + wl.timeSpentSeconds / 3600
+        );
+      }
+    }
+
+    const rows = await reconciliationService.listReconcilableHourRecords(
+      this.source,
+      dateFrom,
+      dateTo
+    );
+
+    // Group rows by base Jira worklog id. A split worklog has a base row
+    // (`source:id`) and an extension row (`source:id:ext`); both must move
+    // together. Refs not prefixed with this source are skipped (isolation).
+    const prefix = `${this.source}:`;
+    type Group = {
+      worklogId: string;
+      issueKey: string | null;
+      clientId: number | null;
+      date: Date;
+      rows: { id: number; hours: number }[];
+    };
+    const groups = new Map<string, Group>();
+    for (const r of rows) {
+      if (!r.externalRef.startsWith(prefix)) continue;
+      const rest = r.externalRef.slice(prefix.length);
+      const worklogId = rest.endsWith(":ext") ? rest.slice(0, -":ext".length) : rest;
+      const g = groups.get(worklogId) ?? {
+        worklogId,
+        issueKey: r.issueKey,
+        clientId: r.clientId,
+        date: r.date,
+        rows: [],
+      };
+      g.rows.push({ id: r.id, hours: r.hours });
+      groups.set(worklogId, g);
+    }
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    for (const g of groups.values()) {
+      const dbHours = round2(g.rows.reduce((s, x) => s + x.hours, 0));
+
+      if (presentHoursById.has(g.worklogId)) {
+        await this.applyDrift(g, round2(presentHoursById.get(g.worklogId)!), dbHours, result);
+        continue;
+      }
+
+      // Absent from the fetch — confirm before assuming deletion.
+      if (!g.issueKey) {
+        result.reconcileFailed++; // cannot confirm without an issue key
+        continue;
+      }
+      const status = await this.fetchWorklog(g.issueKey, g.worklogId);
+      if (status.state === "deleted") {
+        for (const row of g.rows) {
+          await reconciliationService.softDeleteHourRecord(row.id, "jira_deleted");
+        }
+        result.reconcileArchived++;
+      } else if (status.state === "present") {
+        await this.applyDrift(g, round2(status.hours), dbHours, result);
+      } else {
+        result.reconcileFailed++; // network/5xx — ambiguous, never delete
+      }
+    }
+  }
+
+  /** Apply hours drift for one worklog group (update / zero-delete / flag split). */
+  private async applyDrift(
+    g: {
+      worklogId: string;
+      issueKey: string | null;
+      clientId: number | null;
+      date: Date;
+      rows: { id: number; hours: number }[];
+    },
+    jiraHours: number,
+    dbHours: number,
+    result: SyncResult
+  ): Promise<void> {
+    if (jiraHours === dbHours) return; // no drift
+
+    // A split worklog can't be re-applied as a pure hours update without
+    // re-splitting (= recomputing attribution). Flag for manual review.
+    if (g.rows.length > 1) {
+      result.reconcileSkipped++;
+      if (g.clientId !== null) {
+        const month = new Date(Date.UTC(g.date.getUTCFullYear(), g.date.getUTCMonth(), 1));
+        await upsertAnomaly(
+          g.clientId,
+          month,
+          null,
+          "missing_data",
+          "medium",
+          `Worklog ${g.issueKey ?? ""}#${g.worklogId} hours changed in Jira (${dbHours}h → ${jiraHours}h) but the local record is split across a base + extension contract. Reconcile manually to preserve contract attribution.`
+        );
+      }
+      return;
+    }
+
+    if (jiraHours === 0) {
+      await reconciliationService.softDeleteHourRecord(g.rows[0].id, "jira_zeroed");
+      result.reconcileArchived++;
+    } else {
+      await reconciliationService.updateHourRecordHours(g.rows[0].id, jiraHours);
+      result.reconcileUpdated++;
+    }
+  }
+
+  /** Fetch a single worklog to disambiguate deleted (404) from present from error. */
+  private async fetchWorklog(
+    issueKey: string,
+    worklogId: string
+  ): Promise<{ state: "present"; hours: number } | { state: "deleted" } | { state: "error" }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/rest/api/3/issue/${issueKey}/worklog/${worklogId}`, {
+        headers: { Authorization: this.authHeader, Accept: "application/json" },
+      });
+      if (res.status === 404) return { state: "deleted" };
+      if (!res.ok) return { state: "error" };
+      const wl = (await res.json()) as { timeSpentSeconds: number };
+      return { state: "present", hours: wl.timeSpentSeconds / 3600 };
+    } catch {
+      return { state: "error" };
+    }
   }
 
   private async fetchIssuesWithWorklogs(

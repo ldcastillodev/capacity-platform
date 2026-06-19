@@ -35,6 +35,11 @@ vi.mock("../../db", () => ({
   declarationService: {
     listDeclarationsForSync: vi.fn(),
   },
+  reconciliationService: {
+    listReconcilableHourRecords: vi.fn(),
+    updateHourRecordHours: vi.fn(),
+    softDeleteHourRecord: vi.fn(),
+  },
 }));
 
 vi.mock("../../analytics/refresh", () => ({
@@ -50,6 +55,7 @@ import {
   contractService,
   hourRecordService,
   declarationService,
+  reconciliationService,
 } from "../../db";
 import { upsertAnomaly } from "../../analytics/refresh";
 import { JiraConnector, jiraConfigForSource, type JiraConnectorConfig } from "../jira";
@@ -74,6 +80,9 @@ function setFetchResponses(opts: {
   perIssueWorklogs?: Record<string, unknown[]>;
   searchOk?: boolean;
   searchStatus?: number;
+  // Reconciliation single-worklog GET, keyed by worklog id. `status` 200 returns
+  // `hours`; 404 = deleted; 5xx = ambiguous error. `throws` simulates a network fault.
+  worklogStatus?: Record<string, { status: number; hours?: number; throws?: boolean }>;
 }) {
   fetchMock.mockImplementation((url: string) => {
     if (url.endsWith("/rest/api/3/search/jql")) {
@@ -81,6 +90,18 @@ function setFetchResponses(opts: {
         ok: opts.searchOk ?? true,
         status: opts.searchStatus ?? 200,
         json: async () => ({ isLast: true, ...opts.search }),
+      });
+    }
+    // Reconciliation confirming GET: /issue/{key}/worklog/{id}
+    const single = url.match(/\/issue\/([^/]+)\/worklog\/([^/]+)$/);
+    if (single) {
+      const entry = opts.worklogStatus?.[single[2]];
+      if (entry?.throws) return Promise.reject(new Error("network down"));
+      const status = entry?.status ?? 404;
+      return Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => ({ timeSpentSeconds: (entry?.hours ?? 0) * 3600 }),
       });
     }
     const match = url.match(/\/issue\/([^/]+)\/worklog$/);
@@ -181,6 +202,7 @@ function setupDbMocks(opts: {
   consumedRows?: unknown[];
   declarations?: unknown[];
   existingRefs?: unknown[];
+  reconcilableRows?: unknown[];
 }) {
   vi.mocked(personService.listPersonsForSync).mockResolvedValue(cast(opts.persons ?? [person]));
   vi.mocked(personService.listPersonRolesForSync).mockResolvedValue(
@@ -212,6 +234,11 @@ function setupDbMocks(opts: {
   vi.mocked(syncService.upsertSyncConflictsBatch).mockResolvedValue(cast(undefined));
   vi.mocked(syncService.deleteSyncConflictsByRefs).mockResolvedValue(cast(undefined));
   vi.mocked(hourRecordService.createHourRecordsBatch).mockResolvedValue(cast({ count: 0 }));
+  vi.mocked(reconciliationService.listReconcilableHourRecords).mockResolvedValue(
+    cast(opts.reconcilableRows ?? [])
+  );
+  vi.mocked(reconciliationService.updateHourRecordHours).mockResolvedValue(cast(undefined));
+  vi.mocked(reconciliationService.softDeleteHourRecord).mockResolvedValue(cast(undefined));
 }
 
 beforeEach(() => {
@@ -777,6 +804,10 @@ describe("JiraConnector.sync", () => {
         missingMapping: 0,
         missingDeclaration: 0,
         inactiveTarget: 0,
+        reconcileUpdated: 0,
+        reconcileArchived: 0,
+        reconcileSkipped: 0,
+        reconcileFailed: 0,
         errors: [],
       });
       expect(hourRecordService.createHourRecordsBatch).not.toHaveBeenCalled();
@@ -797,6 +828,231 @@ describe("JiraConnector.sync", () => {
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(result.created).toBe(2);
+    });
+  });
+
+  describe("reconciliation", () => {
+    const reconcileDate = new Date("2026-06-01");
+
+    it("updates hours in place when a still-present worklog's hours changed in Jira", async () => {
+      setupDbMocks({
+        existingRefs: [{ externalRef: "jira_na:10000" }], // already imported → not recreated
+        reconcilableRows: [
+          {
+            id: 50,
+            externalRef: "jira_na:10000",
+            issueKey: "PROJ-1",
+            hours: 4,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({
+        search: {
+          issues: [makeIssue("PROJ-1", "WEBAPP", [makeWorklog({ id: "10000", hours: 6 })])],
+        },
+      });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileUpdated).toBe(1);
+      expect(reconciliationService.updateHourRecordHours).toHaveBeenCalledWith(50, 6);
+      expect(reconciliationService.softDeleteHourRecord).not.toHaveBeenCalled();
+    });
+
+    it("soft-deletes a worklog the confirming GET reports as 404 (deleted)", async () => {
+      setupDbMocks({
+        reconcilableRows: [
+          {
+            id: 51,
+            externalRef: "jira_na:99999",
+            issueKey: "PROJ-9",
+            hours: 4,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({
+        search: { issues: [] }, // worklog absent from the fetch
+        worklogStatus: { "99999": { status: 404 } },
+      });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileArchived).toBe(1);
+      expect(reconciliationService.softDeleteHourRecord).toHaveBeenCalledWith(51, "jira_deleted");
+    });
+
+    it("leaves the row untouched and counts a failure when the confirming GET 5xxs (ambiguous)", async () => {
+      setupDbMocks({
+        reconcilableRows: [
+          {
+            id: 52,
+            externalRef: "jira_na:88888",
+            issueKey: "PROJ-8",
+            hours: 4,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({
+        search: { issues: [] },
+        worklogStatus: { "88888": { status: 500 } },
+      });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileFailed).toBe(1);
+      expect(reconciliationService.softDeleteHourRecord).not.toHaveBeenCalled();
+      expect(reconciliationService.updateHourRecordHours).not.toHaveBeenCalled();
+    });
+
+    it("treats a network fault on the confirming GET as ambiguous, never deleting", async () => {
+      setupDbMocks({
+        reconcilableRows: [
+          {
+            id: 53,
+            externalRef: "jira_na:77777",
+            issueKey: "PROJ-7",
+            hours: 4,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({
+        search: { issues: [] },
+        worklogStatus: { "77777": { throws: true } },
+      });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileFailed).toBe(1);
+      expect(reconciliationService.softDeleteHourRecord).not.toHaveBeenCalled();
+    });
+
+    it("soft-deletes a worklog whose hours were zeroed in Jira (effective delete)", async () => {
+      setupDbMocks({
+        existingRefs: [{ externalRef: "jira_na:66666" }],
+        reconcilableRows: [
+          {
+            id: 54,
+            externalRef: "jira_na:66666",
+            issueKey: "PROJ-6",
+            hours: 4,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({
+        search: {
+          issues: [makeIssue("PROJ-6", "WEBAPP", [makeWorklog({ id: "66666", hours: 0 })])],
+        },
+      });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileArchived).toBe(1);
+      expect(reconciliationService.softDeleteHourRecord).toHaveBeenCalledWith(54, "jira_zeroed");
+    });
+
+    it("flags a split worklog's drift for manual review instead of auto-applying", async () => {
+      setupDbMocks({
+        existingRefs: [{ externalRef: "jira_na:7" }, { externalRef: "jira_na:7:ext" }],
+        reconcilableRows: [
+          {
+            id: 60,
+            externalRef: "jira_na:7",
+            issueKey: "PROJ-1",
+            hours: 2,
+            clientId: 7,
+            date: reconcileDate,
+          },
+          {
+            id: 61,
+            externalRef: "jira_na:7:ext",
+            issueKey: "PROJ-1",
+            hours: 3,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({
+        search: { issues: [makeIssue("PROJ-1", "WEBAPP", [makeWorklog({ id: "7", hours: 8 })])] },
+      });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileSkipped).toBe(1);
+      expect(result.reconcileUpdated).toBe(0);
+      expect(reconciliationService.updateHourRecordHours).not.toHaveBeenCalled();
+      expect(reconciliationService.softDeleteHourRecord).not.toHaveBeenCalled();
+      expect(upsertAnomaly).toHaveBeenCalledWith(
+        7,
+        expect.any(Date),
+        null,
+        "missing_data",
+        "medium",
+        expect.any(String)
+      );
+    });
+
+    it("ignores rows belonging to another source (dual-source isolation)", async () => {
+      setupDbMocks({
+        reconcilableRows: [
+          {
+            id: 70,
+            externalRef: "jira_emea:10000",
+            issueKey: "PROJ-1",
+            hours: 4,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({ search: { issues: [] } });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileArchived).toBe(0);
+      expect(result.reconcileFailed).toBe(0);
+      expect(reconciliationService.softDeleteHourRecord).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("/worklog/10000"),
+        expect.anything()
+      );
+    });
+
+    it("makes no changes when present worklog hours match the stored record", async () => {
+      setupDbMocks({
+        existingRefs: [{ externalRef: "jira_na:10000" }],
+        reconcilableRows: [
+          {
+            id: 80,
+            externalRef: "jira_na:10000",
+            issueKey: "PROJ-1",
+            hours: 4,
+            clientId: 7,
+            date: reconcileDate,
+          },
+        ],
+      });
+      setFetchResponses({
+        search: {
+          issues: [makeIssue("PROJ-1", "WEBAPP", [makeWorklog({ id: "10000", hours: 4 })])],
+        },
+      });
+
+      const result = await new JiraConnector(config).sync("2026-06-01", "2026-06-30");
+
+      expect(result.reconcileUpdated).toBe(0);
+      expect(result.reconcileArchived).toBe(0);
+      expect(reconciliationService.updateHourRecordHours).not.toHaveBeenCalled();
     });
   });
 });

@@ -31,6 +31,7 @@ export function listHourRecords(
   const { clientId, personId, dateFrom, dateTo } = filters;
   return db.hourRecord.findMany({
     where: {
+      archivedAt: null,
       ...(clientId ? { clientId } : {}),
       ...(personId ? { personId } : {}),
       ...(dateFrom || dateTo
@@ -58,6 +59,7 @@ export function listNonBillableHourRecords(
   const { personId, dateFrom, dateTo } = filters;
   return db.hourRecord.findMany({
     where: {
+      archivedAt: null,
       isNonBillable: true,
       ...(personId ? { personId } : {}),
       ...(dateFrom || dateTo
@@ -81,7 +83,12 @@ export function listNonBillableEntriesForPersonMonth(
   db: Db = prisma
 ): Promise<NonBillableHourEntry[]> {
   return db.hourRecord.findMany({
-    where: { personId, isNonBillable: true, date: { gte: monthStart, lte: monthEnd } },
+    where: {
+      archivedAt: null,
+      personId,
+      isNonBillable: true,
+      date: { gte: monthStart, lte: monthEnd },
+    },
     include: { nonBillableCategory: true },
     orderBy: { date: "asc" },
   });
@@ -98,6 +105,7 @@ export function listNonBillableHoursForRoleBreakdown(
   const { monthStart, monthEnd, squadId } = args;
   return db.hourRecord.findMany({
     where: {
+      archivedAt: null,
       isNonBillable: true,
       ...(squadId
         ? {
@@ -129,7 +137,12 @@ export function listBillableHoursForContractMonth(
   db: Db = prisma
 ) {
   return db.hourRecord.findMany({
-    where: { contractId, isNonBillable: false, date: { gte: monthStart, lte: monthEnd } },
+    where: {
+      archivedAt: null,
+      contractId,
+      isNonBillable: false,
+      date: { gte: monthStart, lte: monthEnd },
+    },
     select: { date: true, hours: true },
   });
 }
@@ -141,7 +154,7 @@ export function sumBillableHoursByContract(
   db: Db = prisma
 ) {
   return db.hourRecord.aggregate({
-    where: { contractId, isNonBillable: false, date: dateFilter(window) },
+    where: { archivedAt: null, contractId, isNonBillable: false, date: dateFilter(window) },
     _sum: { hours: true },
   });
 }
@@ -153,7 +166,7 @@ export function sumBillableHoursByContract(
 export function sumHoursByDayForContract(contractId: number, window: DateWindow, db: Db = prisma) {
   return db.hourRecord.groupBy({
     by: ["date"],
-    where: { contractId, isNonBillable: false, date: dateFilter(window) },
+    where: { archivedAt: null, contractId, isNonBillable: false, date: dateFilter(window) },
     _sum: { hours: true },
   });
 }
@@ -171,6 +184,7 @@ export function sumConsumedHoursByContractRole(
   return db.hourRecord.groupBy({
     by: ["contractId", "roleType"],
     where: {
+      archivedAt: null,
       contractId: { in: contractIds },
       isNonBillable: false,
       date: { gte: monthStart, lte: monthEnd },
@@ -186,7 +200,7 @@ export function sumConsumedHoursByContractRole(
 export function sumLifetimeBillableHoursByContract(db: Db = prisma) {
   return db.hourRecord.groupBy({
     by: ["contractId"],
-    where: { contractId: { not: null } },
+    where: { archivedAt: null, contractId: { not: null } },
     _sum: { hours: true },
   });
 }
@@ -196,6 +210,7 @@ export function sumNonBillableHoursByContract(monthStart: Date, monthEnd: Date, 
   return db.hourRecord.groupBy({
     by: ["contractId"],
     where: {
+      archivedAt: null,
       isNonBillable: true,
       contractId: { not: null },
       date: { gte: monthStart, lte: monthEnd },
@@ -209,6 +224,7 @@ export function sumNonBillableHoursByClient(monthStart: Date, monthEnd: Date, db
   return db.hourRecord.groupBy({
     by: ["clientId"],
     where: {
+      archivedAt: null,
       isNonBillable: true,
       clientId: { not: null },
       date: { gte: monthStart, lte: monthEnd },
@@ -229,6 +245,7 @@ export function sumNonBillableHoursByPersonSquadCategory(
   return db.hourRecord.groupBy({
     by: ["personId", "squadId", "nonBillableCategoryId"],
     where: {
+      archivedAt: null,
       isNonBillable: true,
       date: { gte: monthStart, lte: monthEnd },
       ...(squadId ? { squadId } : {}),
@@ -249,7 +266,12 @@ export function sumNonBillableHoursByPersonSquad(
   const { from, to, squadId } = args;
   return db.hourRecord.groupBy({
     by: ["personId", "squadId"],
-    where: { isNonBillable: true, date: { gte: from, lte: to }, ...(squadId ? { squadId } : {}) },
+    where: {
+      archivedAt: null,
+      isNonBillable: true,
+      date: { gte: from, lte: to },
+      ...(squadId ? { squadId } : {}),
+    },
     _sum: { hours: true },
   });
 }
@@ -267,6 +289,7 @@ export function sumBillableHoursByPerson(
   return db.hourRecord.groupBy({
     by: ["personId"],
     where: {
+      archivedAt: null,
       isNonBillable: false,
       date: { gte: monthStart, lte: monthEnd },
       personId: { in: personIds },
@@ -278,11 +301,17 @@ export function sumBillableHoursByPerson(
 /** Find a client's most recent hour record date, or null. */
 export function findLatestHourRecordDateForClient(clientId: number, db: Db = prisma) {
   return db.hourRecord.findFirst({
-    where: { clientId },
+    where: { archivedAt: null, clientId },
     orderBy: { date: "desc" },
     select: { date: true },
   });
 }
+
+// The count guards below and listExistingHourRecordRefs intentionally do NOT
+// exclude archived rows: they are integrity guards (delete-protection,
+// currency-immutability) and the sync dedup/identity check — an archived row
+// still occupies its externalRef and still represents hours that once
+// referenced the entity. Only analytics/display reads exclude archived rows.
 
 /** Count hours attributed to a contract within an effective window. */
 export function countHoursByContractWindow(

@@ -33,6 +33,27 @@ interface SyncContextValue {
 
 const idleState: OpState = { status: "idle", message: null };
 
+/** Build the success banner from a sync result, including reconciliation drift. */
+function syncSummary(r: Record<string, unknown> | undefined): string {
+  if (!r) return "Sync completed";
+  const n = (k: string) => (typeof r[k] === "number" ? (r[k] as number) : 0);
+  const parts = [`${n("created")} created`];
+  const updated = n("reconcileUpdated");
+  const archived = n("reconcileArchived");
+  const flagged = n("reconcileSkipped");
+  const unverified = n("reconcileFailed");
+  if (updated || archived || flagged || unverified) {
+    const recon = [
+      updated && `${updated} updated`,
+      archived && `${archived} archived`,
+      flagged && `${flagged} flagged`,
+      unverified && `${unverified} unverified`,
+    ].filter(Boolean);
+    parts.push(`reconciled ${recon.join(", ")}`);
+  }
+  return `Sync completed — ${parts.join("; ")}`;
+}
+
 const SyncContext = createContext<SyncContextValue | null>(null);
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
@@ -51,7 +72,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         });
         const data = await res.json();
         if (res.ok && data.ok) {
-          setSync({ status: "success", message: "Sync completed", source });
+          const summary = syncSummary(data.results?.[source] as Record<string, unknown>);
+          setSync({ status: "success", message: summary, source });
         } else {
           setSync({
             status: "error",

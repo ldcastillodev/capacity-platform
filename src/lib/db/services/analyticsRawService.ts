@@ -139,6 +139,7 @@ export function getRoleCapacityByMonth(monthDate: Date, monthEnd: Date, db: Db =
       FROM hour_records hr
       WHERE hr.date >= ${monthDate}::date
         AND hr.date <= ${monthEnd}::date
+        AND hr.archived_at IS NULL
         AND NOT hr.is_non_billable
         AND hr.role_type IS NOT NULL
       GROUP BY hr.squad_id, hr.role_type
@@ -148,6 +149,7 @@ export function getRoleCapacityByMonth(monthDate: Date, monthEnd: Date, db: Db =
       FROM hour_records hr
       WHERE hr.date >= ${monthDate}::date
         AND hr.date <= ${monthEnd}::date
+        AND hr.archived_at IS NULL
         AND hr.is_non_billable
       GROUP BY hr.person_id
     ),
@@ -230,6 +232,7 @@ export function getSquadCapacityByMonth(monthDate: Date, monthEnd: Date, db: Db 
       FROM hour_records hr
       WHERE hr.date >= ${monthDate}::date
         AND hr.date <= ${monthEnd}::date
+        AND hr.archived_at IS NULL
         AND NOT hr.is_non_billable
       GROUP BY hr.squad_id, hr.person_id
     ),
@@ -238,6 +241,7 @@ export function getSquadCapacityByMonth(monthDate: Date, monthEnd: Date, db: Db 
       FROM hour_records hr
       WHERE hr.date >= ${monthDate}::date
         AND hr.date <= ${monthEnd}::date
+        AND hr.archived_at IS NULL
         AND hr.is_non_billable
       GROUP BY hr.person_id
     ),
@@ -246,6 +250,7 @@ export function getSquadCapacityByMonth(monthDate: Date, monthEnd: Date, db: Db 
       FROM hour_records hr
       WHERE hr.date >= ${monthDate}::date
         AND hr.date <= ${monthEnd}::date
+        AND hr.archived_at IS NULL
         AND hr.is_non_billable
         AND NOT EXISTS (SELECT 1 FROM alloc_total at WHERE at.person_id = hr.person_id)
       GROUP BY hr.squad_id, hr.person_id
@@ -295,6 +300,7 @@ export function getNonBillableBySquad(monthDate: Date, monthEnd: Date, db: Db = 
       WHERE hr.is_non_billable = true
         AND hr.date >= ${monthDate}::date
         AND hr.date <= ${monthEnd}::date
+        AND hr.archived_at IS NULL
       GROUP BY hr.squad_id
     ),
     workdays AS (
@@ -385,7 +391,7 @@ export function getSquadMemberCapacity(w: SimulateWindow, db: Db = prisma) {
       ), 0) / 3.0)::float AS unassigned_avg
     FROM squad_memberships sm
     JOIN persons p ON p.id = sm.person_id AND p.is_active = true
-    LEFT JOIN hour_records hr ON hr.person_id = p.id
+    LEFT JOIN hour_records hr ON hr.person_id = p.id AND hr.archived_at IS NULL
     WHERE sm.squad_id = ${w.squadId}
       AND sm.effective_from <= ${w.monthEnd}::date
       AND (sm.effective_to IS NULL OR sm.effective_to >= ${w.monthStart}::date)
@@ -429,7 +435,7 @@ export function getRoleCapacityAggregate(
           AND hr.role_type = pr.role_type
       ), 0) / 3.0 AS recent_avg
       FROM hour_records hr
-      WHERE hr.person_id = p.id
+      WHERE hr.person_id = p.id AND hr.archived_at IS NULL
     ) role_hr ON true
     WHERE pr.role_type IN (${roles})
       AND pr.effective_from <= ${args.monthEnd}::date
@@ -460,7 +466,7 @@ export function getMemberRoleRecentHours(
             AND hr.role_type = pr.role_type
         )
         FROM hour_records hr
-        WHERE hr.person_id = pr.person_id
+        WHERE hr.person_id = pr.person_id AND hr.archived_at IS NULL
       ), 0)::float / 3.0 AS recent_avg_hours
     FROM person_roles pr
     JOIN persons p ON p.id = pr.person_id AND p.is_active = true

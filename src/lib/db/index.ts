@@ -21,5 +21,6 @@ export * as componentMappingService from "./services/componentMappingService";
 export * as nonBillableService from "./services/nonBillableService";
 export * as anomalyService from "./services/anomalyService";
 export * as syncService from "./services/syncService";
+export * as reconciliationService from "./services/reconciliationService";
 export * as analyticsRawService from "./services/analyticsRawService";
 export * as reportsService from "./services/reportsService";
