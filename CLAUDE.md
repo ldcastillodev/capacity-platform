@@ -86,10 +86,10 @@ docker compose down -v  # Destroy + wipe all data
 npx prisma studio       # GUI for the DB
 ```
 
-**Migrations — do NOT use `prisma migrate dev`.** The history contains hand-crafted DDL that Prisma cannot shadow-apply safely. Apply each pending migration directly:
+**Migrations — do NOT use `prisma migrate dev`.** The baseline contains hand-crafted DDL (EXCLUDE constraints, a constraint trigger, partial indexes) that Prisma cannot shadow-apply safely. Apply with `migrate deploy`:
 
 ```bash
-npx prisma db execute --file prisma/migrations/<folder>/migration.sql --schema prisma/schema.prisma
+npx prisma migrate deploy
 npx prisma generate
 ```
 
@@ -174,8 +174,8 @@ Next.js 15 App Router. Tailwind CSS + shadcn/ui (new-york style, `components.jso
 - Client currency is immutable once any `HourRecord` or `BillingRate` references the client (returns `400`)
 - Squad `leadPersonId` must have an active `SquadMembership` for that squad (returns `400`)
 
-**Enum naming:** All PostgreSQL enum types use camelCase (e.g. `"ContractStatus"`, `"Currency"`). Pre-2026-05-27 dumps have lowercase types — apply `prisma/migrations/20260527_fix_enum_type_casing/migration.sql` before starting.
+**Enum naming:** All PostgreSQL enum types use camelCase (e.g. `"ContractStatus"`, `"Currency"`). The squashed baseline migration defines them with the correct casing from scratch — the former `20260527_fix_enum_type_casing` patch is obsolete and was removed.
 
 ## tests
 
-all tests must pass
+- All tests must pass

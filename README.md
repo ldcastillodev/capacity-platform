@@ -71,14 +71,12 @@ The MgS Capacity Platform is a squad capacity-planning and delivery-tracking app
    docker compose up -d
    ```
 
-5. **Apply migrations.** Do **not** use `prisma migrate dev` — the migration history contains hand-crafted DDL that Prisma cannot shadow-apply safely. Apply each pending migration directly, then regenerate the client:
+5. **Apply migrations.** Do **not** use `prisma migrate dev` — the baseline contains hand-crafted DDL (EXCLUDE constraints, a constraint trigger, partial indexes) that Prisma's shadow database mishandles. Use `migrate deploy`, which applies the migration as-is and records it, then regenerate the client:
 
    ```bash
-   npx prisma db execute --file prisma/migrations/<folder>/migration.sql --schema prisma/schema.prisma
+   npx prisma migrate deploy
    npx prisma generate
    ```
-
-   > If you restore from a pre-2026-05-27 database dump, enum types will be lowercase — apply `prisma/migrations/20260527_fix_enum_type_casing/migration.sql` before starting the app.
 
 6. **Seed the database _(optional)_.** Loads a snapshot of representative data (squads, people, clients, contracts, hour records, NB entries, sync logs). Safe to re-run — it deletes all rows first.
 
