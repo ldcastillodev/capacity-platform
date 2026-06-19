@@ -157,7 +157,7 @@ Next.js 15 App Router. Tailwind CSS + shadcn/ui (new-york style, `components.jso
 
 **UI stack:** Forms = `react-hook-form` + `zod` (`@hookform/resolvers`). Toasts = `sonner`. Charts = `recharts`. Icons = `lucide-react`. Tables/dialogs/selects = Radix via shadcn `ui/`.
 
-**Reports** (`/reports`): do not run on load — require explicit Apply. Persons and squads tabs use `prisma.$queryRaw` for aggregations; clients tab uses Prisma ORM. XLSX export is client-side via SheetJS (no server round-trip).
+**Reports** (`/reports`): built from the filters and columns you choose. Persons and squads tabs use `prisma.$queryRaw` for aggregations; clients tab uses Prisma ORM. XLSX export is client-side via SheetJS (no server round-trip).
 
 ## Schema invariants
 
